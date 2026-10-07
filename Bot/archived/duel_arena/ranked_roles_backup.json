@@ -1,0 +1,133 @@
+{
+  "guild_id": 1532265330079174697,
+  "guild_name": "HyperHub",
+  "roles": [
+    {
+      "id": 1541433592008417390,
+      "name": "⭐T8 - Ranked",
+      "color": 12844800,
+      "hoist": true,
+      "position": 7,
+      "permissions": 0,
+      "mentionable": false,
+      "member_ids": []
+    },
+    {
+      "id": 1541433605748695050,
+      "name": "⭐T7 - Ranked",
+      "color": 16777215,
+      "hoist": true,
+      "position": 9,
+      "permissions": 0,
+      "mentionable": false,
+      "member_ids": []
+    },
+    {
+      "id": 1541025407451795557,
+      "name": "⭐T6 - Ranked",
+      "color": 16777215,
+      "hoist": true,
+      "position": 11,
+      "permissions": 0,
+      "mentionable": false,
+      "member_ids": []
+    },
+    {
+      "id": 1541025416519884930,
+      "name": "🔶T5 - Ranked",
+      "color": 16777215,
+      "hoist": true,
+      "position": 13,
+      "permissions": 0,
+      "mentionable": false,
+      "member_ids": []
+    },
+    {
+      "id": 1532397764212949205,
+      "name": "🔷T4 - Ranked",
+      "color": 16777215,
+      "hoist": true,
+      "position": 14,
+      "permissions": 0,
+      "mentionable": false,
+      "member_ids": [
+        1372566090911322143
+      ]
+    },
+    {
+      "id": 1532397826225737799,
+      "name": "💠T3 - Ranked",
+      "color": 16773632,
+      "hoist": true,
+      "position": 17,
+      "permissions": 0,
+      "mentionable": false,
+      "member_ids": []
+    },
+    {
+      "id": 1532397868835537087,
+      "name": "🛡️LT2 - Ranked",
+      "color": 196352,
+      "hoist": true,
+      "position": 19,
+      "permissions": 0,
+      "mentionable": false,
+      "member_ids": []
+    },
+    {
+      "id": 1534128562637111308,
+      "name": "⚜️MT2 - Ranked",
+      "color": 1179392,
+      "hoist": true,
+      "position": 21,
+      "permissions": 0,
+      "mentionable": false,
+      "member_ids": []
+    },
+    {
+      "id": 1532398016164790396,
+      "name": "🔱HT2 - Ranked",
+      "color": 15728384,
+      "hoist": true,
+      "position": 23,
+      "permissions": 0,
+      "mentionable": false,
+      "member_ids": [
+        914776364383625216
+      ]
+    },
+    {
+      "id": 1534128843474866186,
+      "name": "🏆LT1 - Ranked",
+      "color": 52991,
+      "hoist": true,
+      "position": 25,
+      "permissions": 0,
+      "mentionable": true,
+      "member_ids": []
+    },
+    {
+      "id": 1543471683472457728,
+      "name": "💎MT1 - Ranked",
+      "color": 6095103,
+      "hoist": true,
+      "position": 27,
+      "permissions": 0,
+      "mentionable": true,
+      "member_ids": []
+    },
+    {
+      "id": 1543471664275136552,
+      "name": "👑 HT1 - Ranked",
+      "color": 16711680,
+      "hoist": true,
+      "position": 29,
+      "permissions": 0,
+      "mentionable": true,
+      "member_ids": [
+        1536298634990325871,
+        1529864608813416449
+      ]
+    }
+  ]
+}

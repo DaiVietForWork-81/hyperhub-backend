@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.pytest_cache/
+
+# Environments
+.env
+venv/
+env/
+ENV/
+
+# C++ Core Builds & Portable Compiler
+cpp_core/compiler/
+cpp_core/*.dll
+cpp_core/*.so
+cpp_core/*.dylib
+cpp_core/*.o
+cpp_core/*.obj
+cpp_core/*.exp
+cpp_core/*.lib
+
+# Logs, Databases & Data
+logs/
+data/
+backups/
+models/
+bot.db
+bot.db-journal

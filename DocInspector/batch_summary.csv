@@ -1,0 +1,9 @@
+﻿file_name,file_size_bytes,execution_time_ms,document_category,exam_type,detected_subject,grade_level,detected_language,confidence_score,is_spoofed_filename,spoof_warning,question_count,options_count,has_answer_keys,difficulty_index,word_count,page_count
+de_hoa_hoc_huu_co_thpt.pdf,1084414,33.14,EXAM_TEST,MCQ_STANDARD_4,CHEMISTRY,UNKNOWN,VIETNAMESE,1.0,False,,6,24,True,4.9,214,1
+de_chuyen_anh_quoc_gia.pdf,1085246,44.38,EXAM_TEST,SPECIALIZED_ENGLISH,ENGLISH,UNKNOWN,ENGLISH,1.0,False,,2,8,False,4.5,201,1
+de_sinh_hoc_di_truyen.docx,36028,140.79,EXAM_TEST,OLYMPIAD_ESSAY,BIOLOGY,GRADE_12,VIETNAMESE,1.0,False,,4,14,True,5.1,205,1
+giao_an_vat_ly_12_cv5512.docx,35991,114.7,LESSON_PLAN,NOT_AN_EXAM,PHYSICS,UNKNOWN,VIETNAMESE,0.98,False,,1,0,False,7.0,185,1
+de_toan_chuyen_hsg.docx,36060,150.77,EXAM_TEST,COMPETITIVE_PROGRAMMING,INFORMATICS,OLYMPIAD_GIFTED,VIETNAMESE,1.0,True,"CẢNH BÁO GIẢ MẠO TÊN FILE: Tên file là 'de_toan_chuyen_hsg.docx' (chứa từ khóa 'toan' chỉ môn MATHEMATICS), nhưng nội dung thực tế bên trong 100% là môn INFORMATICS!",1,0,False,9.5,183,1
+hop_dong_dich_vu_cntt.docx,35938,115.21,ADMIN_CONTRACT,NOT_AN_EXAM,NON_ACADEMIC,UNKNOWN,VIETNAMESE,0.94,False,,0,0,False,1.0,156,1
+ielts_reading_cambridge_18.pdf,1087702,40.27,EXAM_TEST,MCQ_STANDARD_4,MATHEMATICS,GRADE_12,VIETNAMESE,0.94,True,"CẢNH BÁO GIẢ MẠO TÊN FILE: Tên file là 'ielts_reading_cambridge_18.pdf' (chứa từ khóa 'ielts' chỉ môn ENGLISH), nhưng nội dung thực tế bên trong 100% là môn MATHEMATICS!",10,40,True,6.5,454,1
+japanese_jlpt_n2_mondai.pdf,8850323,50.23,EXAM_TEST,JLPT_TEST,JAPANESE,GENERAL_ACADEMIC,JAPANESE,1.0,False,,0,0,False,1.0,47,1

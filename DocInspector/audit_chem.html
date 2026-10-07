@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocInspector Audit - de_hoa_hoc_huu_co_thpt.pdf</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --border: #334155;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #6366f1;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); padding: 32px 16px; line-height: 1.6; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border); padding-bottom: 20px; margin-bottom: 24px; }
+        .header-title h1 { font-size: 24px; font-weight: 700; color: #fff; }
+        .header-title p { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+        .badge-verified { background: #059669; color: #fff; padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; text-transform: uppercase; }
+        
+        .spoof-card { background: rgba(239, 68, 68, 0.15); border: 2px solid var(--danger); border-radius: 10px; padding: 18px 24px; margin-bottom: 24px; animation: pulse 2s infinite; }
+        .spoof-header { color: #fca5a5; font-size: 16px; margin-bottom: 8px; }
+        .spoof-body { color: #fee2e2; font-size: 14px; font-weight: 500; }
+        
+        .grid-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+        .card-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; }
+        .card-val { font-size: 20px; font-weight: 700; color: #fff; }
+        
+        .diff-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 10px; }
+        .diff-item { font-size: 13.5px; }
+        .diff-k { color: var(--text-muted); display: block; font-size: 12px; }
+        .diff-v { color: #fff; }
+        
+        .passes-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 24px; }
+        .pass-block { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+        .pass-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 8px; display: flex; justify-content: space-between; }
+        .pass-time { font-size: 13px; color: #a5b4fc; font-weight: normal; }
+        .stat-line { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px dashed rgba(255,255,255,0.06); }
+        .stat-line:last-child { border-bottom: none; }
+        
+        .cog-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 24px; }
+        .bar-container { height: 16px; border-radius: 8px; overflow: hidden; display: flex; background: #334155; margin: 14px 0 10px 0; }
+        .bar-item { height: 100%; }
+        .cog-legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; margin-top: 10px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+        th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background: #162032; color: var(--text-muted); font-size: 12px; text-transform: uppercase; }
+        tr:hover { background: rgba(255, 255, 255, 0.02); }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; display: inline-block; }
+        .ans-badge { background: #065f46; color: #a7f3d0; }
+        .gray-badge { background: #374151; color: #9ca3af; }
+        .q-prompt { font-weight: 500; margin-bottom: 4px; }
+        .q-opts { font-size: 12px; color: var(--text-muted); }
+        
+        .footer { text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--border); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-title">
+                <h1>DocInspector Audit Report</h1>
+                <p>File: <code>de_hoa_hoc_huu_co_thpt.pdf</code> (1,084,414 bytes)</p>
+            </div>
+            <div>
+                <span class="badge-verified">⚡ 100% NON-AI VERIFIED</span>
+            </div>
+        </div>
+
+        
+
+        
+            <div class="card" style="margin-bottom: 24px; border: 2px solid #10b981;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <div>
+                        <div class="card-label">KẾT QUẢ THẨM ĐỊNH YÊU CẦU NGƯỜI DÙNG</div>
+                        <div style="font-size: 16px; font-weight: 700;">Hồ sơ áp dụng: <span style="color: #a5b4fc;">THPT_GRADUATION</span></div>
+                    </div>
+                    <div>
+                        <span class="badge" style="background: #10b981; color: #fff; font-size: 14px; padding: 6px 14px;">
+                            ✅ ĐẠT YÊU CẦU
+                        </span>
+                    </div>
+                </div>
+                <div style="font-size: 13px; margin-bottom: 10px;">
+                    Đã kiểm tra <strong>5 tiêu chí</strong>: 
+                    <span style="color: #10b981;">5 Đạt</span> | 
+                    <span style="color: #ef4444;">0 Không đạt</span>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tiêu chí kiểm định</th>
+                                <th>Yêu cầu mong đợi</th>
+                                <th>Thực tế phát hiện</th>
+                                <th style="text-align: center;">Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+                <tr>
+                    <td><strong>ANTI_SPOOF_CHECK</strong><br><small style='color: var(--text-muted);'>Tên file phải phản ánh đúng nội dung thực tế bên trong</small></td>
+                    <td>Không giả mạo tên file</td>
+                    <td>Tên file hợp lệ</td>
+                    <td style="text-align: center;"><span style='color: #10b981; font-weight: bold;'>✔ PASS</span></td>
+                </tr>
+                
+                <tr>
+                    <td><strong>MIN_DIFFICULTY_THRESHOLD</strong><br><small style='color: var(--text-muted);'>Độ khó tối thiểu yêu cầu &gt;= 3.5</small></td>
+                    <td>&gt;= 3.5</td>
+                    <td>4.9</td>
+                    <td style="text-align: center;"><span style='color: #10b981; font-weight: bold;'>✔ PASS</span></td>
+                </tr>
+                
+                <tr>
+                    <td><strong>MAX_DIFFICULTY_THRESHOLD</strong><br><small style='color: var(--text-muted);'>Độ khó tối đa cho phép &lt;= 6.5</small></td>
+                    <td>&lt;= 6.5</td>
+                    <td>4.9</td>
+                    <td style="text-align: center;"><span style='color: #10b981; font-weight: bold;'>✔ PASS</span></td>
+                </tr>
+                
+                <tr>
+                    <td><strong>REQUIRE_ANSWER_KEYS</strong><br><small style='color: var(--text-muted);'>Bắt buộc phải có bảng đáp án đính kèm</small></td>
+                    <td>Có bảng đáp án</td>
+                    <td>Có</td>
+                    <td style="text-align: center;"><span style='color: #10b981; font-weight: bold;'>✔ PASS</span></td>
+                </tr>
+                
+                <tr>
+                    <td><strong>NO_SCANNED_PDF</strong><br><small style='color: var(--text-muted);'>Không chấp nhận file PDF scan dạng ảnh chụp chất lượng thấp</small></td>
+                    <td>PDF dạng Vector text</td>
+                    <td>Vector text</td>
+                    <td style="text-align: center;"><span style='color: #10b981; font-weight: bold;'>✔ PASS</span></td>
+                </tr>
+                
+                        </tbody>
+                    </table>
+                </div>
+                
+            </div>
+            
+
+        
+        <div class="card" style="margin-bottom: 24px; border-left: 5px solid #3b82f6;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+                <div>
+                    <div class="card-label">ĐÁNH GIÁ ĐỘ KHÓ & TẢI TRỌNG LÀM BÀI</div>
+                    <div style="font-size: 22px; font-weight: 700; color: #fff;">
+                        <span style="color: #3b82f6;">4.9/10</span> &nbsp;|&nbsp; 
+                        <span style="font-size: 16px; color: #3b82f6;">Mức 2: Khá (Xét tuyển Cao đẳng - Đại học tiêu chuẩn)</span>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <span class="badge" style="background: #3b82f6; color: #fff; font-size: 13px; padding: 6px 12px;">
+                        TIER_2_MODERATE
+                    </span>
+                </div>
+            </div>
+            <div class="diff-grid">
+                <div class="diff-item">
+                    <span class="diff-k">Thời gian làm bài gợi ý:</span>
+                    <strong class="diff-v">45 phút</strong>
+                </div>
+                <div class="diff-item">
+                    <span class="diff-k">Tốc độ trung bình:</span>
+                    <strong class="diff-v">~450 giây / câu</strong>
+                </div>
+                <div class="diff-item">
+                    <span class="diff-k">Đối tượng học sinh:</span>
+                    <strong class="diff-v">Học sinh khá xét tuyển Đại học các khối truyền thống</strong>
+                </div>
+                <div class="diff-item">
+                    <span class="diff-k">Đặc trưng ma trận đề:</span>
+                    <strong class="diff-v">Ma trận đề thi cân đối chuẩn sư phạm theo cấu trúc phân hóa</strong>
+                </div>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 10px; font-style: italic;">Đề thi được tính điểm 4.9/10 dựa trên 6 câu hỏi, phân bổ 0 Nhận biết, 5 Thông hiểu, 1 Vận dụng, 0 Vận dụng cao.</div>
+        </div>
+        
+
+        <div class="grid-cards">
+            <div class="card">
+                <div class="card-label">Môn học phát hiện</div>
+                <div class="card-val" style="color: #818cf8;">CHEMISTRY</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Dạng tài liệu / Đề thi</div>
+                <div class="card-val" style="color: #38bdf8;">MCQ_STANDARD_4</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Khối lớp / Đối tượng</div>
+                <div class="card-val" style="color: #f472b6;">UNKNOWN</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Thời gian phân tích</div>
+                <div class="card-val" style="color: #34d399;">27.45 ms</div>
+            </div>
+        </div>
+
+        <div class="passes-container">
+            <!-- Pass 1 -->
+            <div class="pass-block">
+                <div class="pass-title">
+                    <span>Lần 1: Kỹ thuật & Ký tự</span>
+                    <span class="pass-time">16.17 ms</span>
+                </div>
+                <div class="stat-line"><span>Định dạng thực:</span><strong>PDF (%PDF-1.7)</strong></div>
+                <div class="stat-line"><span>Số trang:</span><strong>1</strong></div>
+                <div class="stat-line"><span>Số từ / Ký tự:</span><strong>214 từ / 1,256 ký tự</strong></div>
+                <div class="stat-line"><span>Thời gian đọc ước tính:</span><strong>~1.1 phút</strong></div>
+                <div class="stat-line"><span>Hệ chữ chính:</span><strong>LATIN_VIETNAMESE (VIETNAMESE)</strong></div>
+                <div class="stat-line"><span>Độ hỗn loạn (Entropy):</span><strong>4.80 bits/char</strong></div>
+                <div class="stat-line"><span>PDF Scanned/Ảnh:</span><strong>Không (Vector Text)</strong></div>
+            </div>
+
+            <!-- Pass 2 -->
+            <div class="pass-block">
+                <div class="pass-title">
+                    <span>Lần 2: Cấu trúc & Đề thi</span>
+                    <span class="pass-time">6.41 ms</span>
+                </div>
+                <div class="stat-line"><span>Số câu hỏi:</span><strong>6</strong></div>
+                <div class="stat-line"><span>Số phương án (A-D):</span><strong>24</strong></div>
+                <div class="stat-line"><span>Độ khó ước tính:</span><strong>4.9 / 10</strong></div>
+                <div class="stat-line"><span>Định dạng chuẩn 2025:</span><strong>Định dạng truyền thống</strong></div>
+                <div class="stat-line"><span>Bộ sách / Chương trình:</span><strong>Phổ thông</strong></div>
+                <div class="stat-line"><span>Bảng đáp án / Lời giải:</span><strong>Có sẵn</strong></div>
+            </div>
+
+            <!-- Pass 3 -->
+            <div class="pass-block">
+                <div class="pass-title">
+                    <span>Lần 3: Ngữ nghĩa & Đối soát</span>
+                    <span class="pass-time">4.44 ms</span>
+                </div>
+                <div class="stat-line"><span>Độ tin cậy tuyệt đối:</span><strong>100.0%</strong></div>
+                <div class="stat-line"><span>Điểm đối soát 3 lần:</span><strong>100.0 / 100</strong></div>
+                <div class="stat-line"><span>Tình trạng tên file:</span><strong>✅ HỢP LỆ</strong></div>
+                <div class="stat-line"><span>Trạng thái Consensus:</span><strong>PASSED_TRIPLE_CONSENSUS_100%</strong></div>
+                <div class="stat-line"><span>Thuật ngữ dẫn chứng:</span><strong>este (x3), gluxit (x1), glucozơ (x1), saccarozơ (x1)</strong></div>
+            </div>
+        </div>
+
+        <!-- Cognitive Breakdown Bar -->
+        <div class="cog-section">
+            <h3 style="font-size: 16px; font-weight: 700;">Phân bổ cấp độ nhận thức (Cognitive Taxonomy)</h3>
+            <div class="bar-container">
+                <div class="bar-item" style="width: 0.0%; background-color: #10b981;" title="Nhận biết: 0.0%"></div>
+                <div class="bar-item" style="width: 83.3%; background-color: #3b82f6;" title="Thông hiểu: 83.3%"></div>
+                <div class="bar-item" style="width: 16.7%; background-color: #f59e0b;" title="Vận dụng: 16.7%"></div>
+                <div class="bar-item" style="width: 0.0%; background-color: #ef4444;" title="Vận dụng cao: 0.0%"></div>
+            </div>
+            <div class="cog-legend">
+                <span><i class="dot" style="background: #10b981;"></i> Nhận biết: 0 (0.0%)</span>
+                <span><i class="dot" style="background: #3b82f6;"></i> Thông hiểu: 5 (83.3%)</span>
+                <span><i class="dot" style="background: #f59e0b;"></i> Vận dụng: 1 (16.7%)</span>
+                <span><i class="dot" style="background: #ef4444;"></i> Vận dụng cao: 0 (0.0%)</span>
+            </div>
+        </div>
+
+        <!-- Itemized Questions Sample -->
+        <div class="card" style="padding: 0; overflow: hidden; margin-bottom: 24px;">
+            <div style="padding: 16px 20px; background: #162032; border-bottom: 1px solid var(--border); font-weight: 700;">
+                Danh sách câu hỏi bóc tách chi tiết (Hiển thị tối đa 25 câu đầu tiên)
+            </div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 60px; text-align: center;">#</th>
+                            <th>Nội dung câu hỏi & Các phương án</th>
+                            <th style="width: 140px; text-align: center;">Cấp độ nhận thức</th>
+                            <th style="width: 120px; text-align: center;">Đáp án</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+            <tr>
+                <td style="font-weight: 600; text-align: center;">1</td>
+                <td>
+                    <div class="q-prompt">Hợp chất nào sau đây là este no, đơn chức, mạch hở?
+A. CH3COOC2H5       B. HCOOCH=CH2      C. CH3COOH         D. C2H5OH</div>
+                    
+                </td>
+                <td style="text-align: center;">
+                    <span class="badge" style="background-color: #3b82f6; color: #fff;">COMPREHENSION</span>
+                </td>
+                <td style="text-align: center;"><span class='badge gray-badge'>Chưa khớp</span></td>
+            </tr>
+            
+            <tr>
+                <td style="font-weight: 600; text-align: center;">2</td>
+                <td>
+                    <div class="q-prompt">Thủy phân hoàn toàn chất béo gluxit trong dung dịch kiềm nóng gọi là phản ứng:
+A. Xà phòng hóa     B. Trùng ngưng     C. Este hóa        D. Nhiệt nhôm</div>
+                    
+                </td>
+                <td style="text-align: center;">
+                    <span class="badge" style="background-color: #3b82f6; color: #fff;">COMPREHENSION</span>
+                </td>
+                <td style="text-align: center;"><span class='badge gray-badge'>Chưa khớp</span></td>
+            </tr>
+            
+            <tr>
+                <td style="font-weight: 600; text-align: center;">3</td>
+                <td>
+                    <div class="q-prompt">Chất nào sau đây là một amino axit có trong protein?
+A. Glyxin           B. Glucozơ         C. Saccarozơ       D. Ancol etylic</div>
+                    
+                </td>
+                <td style="text-align: center;">
+                    <span class="badge" style="background-color: #3b82f6; color: #fff;">COMPREHENSION</span>
+                </td>
+                <td style="text-align: center;"><span class='badge gray-badge'>Chưa khớp</span></td>
+            </tr>
+            
+            <tr>
+                <td style="font-weight: 600; text-align: center;">4</td>
+                <td>
+                    <div class="q-prompt">Kim loại kiềm nào sau đây tan hoàn toàn trong nước ở nhiệt độ thường?
+A. Natri            B. Đồng            C. Sắt             D. Crôm</div>
+                    
+                </td>
+                <td style="text-align: center;">
+                    <span class="badge" style="background-color: #3b82f6; color: #fff;">COMPREHENSION</span>
+                </td>
+                <td style="text-align: center;"><span class='badge gray-badge'>Chưa khớp</span></td>
+            </tr>
+            
+            <tr>
+                <td style="font-weight: 600; text-align: center;">5</td>
+                <td>
+                    <div class="q-prompt">Cho peptit Ala­Gly­Val tác dụng với dung dịch HCl dư. Số liên kết peptit là:
+A. 2                B. 3               C. 1               D. 4</div>
+                    
+                </td>
+                <td style="text-align: center;">
+                    <span class="badge" style="background-color: #3b82f6; color: #fff;">COMPREHENSION</span>
+                </td>
+                <td style="text-align: center;"><span class='badge gray-badge'>Chưa khớp</span></td>
+            </tr>
+            
+            <tr>
+                <td style="font-weight: 600; text-align: center;">6</td>
+                <td>
+                    <div class="q-prompt">Áp dụng định luật bảo toàn e và bảo toàn khối lượng trong phản ứng oxi hóa khử.
+A. Tổng mol e cho = tổng mol e nhận    B. Khối lượng este tăng gấp đôi...</div>
+                    
+                </td>
+                <td style="text-align: center;">
+                    <span class="badge" style="background-color: #f59e0b; color: #fff;">APPLICATION</span>
+                </td>
+                <td style="text-align: center;"><span class='badge gray-badge'>Chưa khớp</span></td>
+            </tr>
+            
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="footer">
+            DocInspector Engine v2.0.0 • 100% Deterministic Rule-Based Architecture • Sub-millisecond execution
+        </div>
+    </div>
+</body>
+</html>

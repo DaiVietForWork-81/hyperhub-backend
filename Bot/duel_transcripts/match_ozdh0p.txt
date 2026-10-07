@@ -1,0 +1,34 @@
+================================================================================
+HYPERHUB COMPETITIVE PROGRAMMING - RANKED 1:1 MATCH TRANSCRIPT
+================================================================================
+Mã Trận Đấu       : #OZDH0P
+Kênh Thi Đấu      : #<AsyncMock name='mock.name' id='2248795983552'> (ID: 999111)
+Thời Gian Bắt Đầu : 2026-09-10 14:52:42 UTC
+Thời Gian Kết Thúc: 2026-09-10 14:52:42 UTC
+Tổng Số Chặng     : 1 chặng
+
+ĐẤU THỦ 1 (P1): PlayerA (ID: 38565877)
+  • Bậc Rank Cũ   : T5 (1300 pts)
+  • Biến Động Elo : +0 pts -> Rank Mới: T5
+  • Mạng Sinh Lực : 2/2
+
+ĐẤU THỦ 2 (P2): PlayerB (ID: 45732416)
+  • Bậc Rank Cũ   : T6 (1100 pts)
+  • Biến Động Elo : +0 pts -> Rank Mới: T6
+  • Mạng Sinh Lực : 0/2
+
+🏆 NGƯỜI CHIẾN THẮNG: PlayerA (ID: 38565877)
+💀 NGƯỜI BẠI TRẬN   : PlayerB (ID: 45732416)
+
+================================================================================
+NHẬT KÝ TIN NHẮN & SỰ KIỆN TRONG KÊNH (CHAT & SYSTEM TELEMETRY)
+================================================================================
+[14:52:42] [ROUND_START] SYSTEM: Bắt đầu Chặng 1: Bài 'Quy Hoạch Động Dãy Con Tăng Dài Nhất - Nhà Máy Xử Lý Nước Sạch Đô Thị' (Tier T4, Giới hạn 22 phút)
+
+================================================================================
+CHI TIẾT TỪNG CHẶNG ĐẤU & LỊCH SỬ CHẤM BÀI (SUBMISSION & JUDGING LOGS)
+================================================================================
+(Không có bài nộp nào được lưu trữ)
+================================================================================
+HẾT BẢN GHI NHẬT KÝ - HYPERHUB COMPETITIVE PROGRAMMING
+================================================================================

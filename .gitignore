@@ -1,0 +1,39 @@
+# HyperHub Backend (.gitignore) — Bot Discord + DocInspector + launcher
+# Web/ là repo riêng (DaiVietForWork-81/Hyperhub), không commit ở đây.
+
+# Repo Web lồng nhau
+Web/
+
+# Secrets & runtime data
+.env
+.env.*
+!*.example
+!Bot/.env.example
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Dữ liệu nặng / máy cục bộ
+node_modules/
+backups/
+/data/
+storage/
+dist/
+*.exe
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+*.tsbuildinfo
+.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

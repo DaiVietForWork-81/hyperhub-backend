@@ -1,0 +1,272 @@
+{
+  "category_id": 1534147796461162697,
+  "category_name": "・━━ ❓GIẢI ĐỀ/CÂU HỎI ━━・",
+  "category_position": 4,
+  "guild_id": 1532265330079174697,
+  "guild_name": "HyperHub",
+  "channels": [
+    {
+      "id": 1535556189914398760,
+      "name": "📋・contest",
+      "type": "news",
+      "position": 14,
+      "topic": null,
+      "nsfw": false,
+      "slowmode_delay": 0,
+      "overwrites": [
+        {
+          "target_id": 1534146463246974995,
+          "target_type": "role",
+          "target_name": "🛡️ Moderator",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1532383529353089085,
+          "target_type": "role",
+          "target_name": "⚡ Administrator",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1536308367231025252,
+          "target_type": "role",
+          "target_name": "HyperHub",
+          "allow": 2048,
+          "deny": 0
+        }
+      ]
+    },
+    {
+      "id": 1535556232637714543,
+      "name": "📤・submit",
+      "type": "text",
+      "position": 15,
+      "topic": null,
+      "nsfw": false,
+      "slowmode_delay": 0,
+      "overwrites": [
+        {
+          "target_id": 1534146463246974995,
+          "target_type": "role",
+          "target_name": "🛡️ Moderator",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1532383529353089085,
+          "target_type": "role",
+          "target_name": "⚡ Administrator",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1536308367231025252,
+          "target_type": "role",
+          "target_name": "HyperHub",
+          "allow": 2048,
+          "deny": 0
+        }
+      ]
+    },
+    {
+      "id": 1543496098394546216,
+      "name": "📋・ranked",
+      "type": "news",
+      "position": 16,
+      "topic": null,
+      "nsfw": false,
+      "slowmode_delay": 0,
+      "overwrites": [
+        {
+          "target_id": 1534146463246974995,
+          "target_type": "role",
+          "target_name": "🛡️ Moderator",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1536308367231025252,
+          "target_type": "role",
+          "target_name": "HyperHub",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1532383529353089085,
+          "target_type": "role",
+          "target_name": "⚡ Administrator",
+          "allow": 2048,
+          "deny": 0
+        }
+      ]
+    },
+    {
+      "id": 1543532432169377904,
+      "name": "📋・winner",
+      "type": "news",
+      "position": 17,
+      "topic": null,
+      "nsfw": false,
+      "slowmode_delay": 0,
+      "overwrites": [
+        {
+          "target_id": 1534146463246974995,
+          "target_type": "role",
+          "target_name": "🛡️ Moderator",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1532383529353089085,
+          "target_type": "role",
+          "target_name": "⚡ Administrator",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1536308367231025252,
+          "target_type": "role",
+          "target_name": "HyperHub",
+          "allow": 2048,
+          "deny": 0
+        }
+      ]
+    },
+    {
+      "id": 1535556274589274142,
+      "name": "✅・accounts",
+      "type": "text",
+      "position": 18,
+      "topic": null,
+      "nsfw": false,
+      "slowmode_delay": 0,
+      "overwrites": [
+        {
+          "target_id": 1534146463246974995,
+          "target_type": "role",
+          "target_name": "🛡️ Moderator",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1536308367231025252,
+          "target_type": "role",
+          "target_name": "HyperHub",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1532383529353089085,
+          "target_type": "role",
+          "target_name": "⚡ Administrator",
+          "allow": 2048,
+          "deny": 0
+        }
+      ]
+    },
+    {
+      "id": 1541436758904799392,
+      "name": "📤・mode",
+      "type": "text",
+      "position": 19,
+      "topic": null,
+      "nsfw": false,
+      "slowmode_delay": 0,
+      "overwrites": [
+        {
+          "target_id": 1534146463246974995,
+          "target_type": "role",
+          "target_name": "🛡️ Moderator",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1536308367231025252,
+          "target_type": "role",
+          "target_name": "HyperHub",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1532383529353089085,
+          "target_type": "role",
+          "target_name": "⚡ Administrator",
+          "allow": 2048,
+          "deny": 0
+        }
+      ]
+    },
+    {
+      "id": 1541436943458508922,
+      "name": "✅・leaderboard",
+      "type": "text",
+      "position": 20,
+      "topic": null,
+      "nsfw": false,
+      "slowmode_delay": 0,
+      "overwrites": [
+        {
+          "target_id": 1534146463246974995,
+          "target_type": "role",
+          "target_name": "🛡️ Moderator",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1532383529353089085,
+          "target_type": "role",
+          "target_name": "⚡ Administrator",
+          "allow": 2048,
+          "deny": 0
+        },
+        {
+          "target_id": 1536308367231025252,
+          "target_type": "role",
+          "target_name": "HyperHub",
+          "allow": 2048,
+          "deny": 0
+        }
+      ]
+    },
+    {
+      "id": 1548710055870857276,
+      "name": "⚔️・duel-zzfnyt",
+      "type": "text",
+      "position": 41,
+      "topic": null,
+      "nsfw": false,
+      "slowmode_delay": 0,
+      "overwrites": [
+        {
+          "target_id": 1532265330079174697,
+          "target_type": "role",
+          "target_name": "@everyone",
+          "allow": 0,
+          "deny": 1024
+        },
+        {
+          "target_id": 1534146463246974995,
+          "target_type": "role",
+          "target_name": "🛡️ Moderator",
+          "allow": 3072,
+          "deny": 0
+        },
+        {
+          "target_id": 1536298634990325871,
+          "target_type": "member",
+          "target_name": "HyperHub",
+          "allow": 3088,
+          "deny": 0
+        },
+        {
+          "target_id": 1529864608813416449,
+          "target_type": "member",
+          "target_name": "1529864608813416449",
+          "allow": 35840,
+          "deny": 0
+        }
+      ]
+    }
+  ]
+}
