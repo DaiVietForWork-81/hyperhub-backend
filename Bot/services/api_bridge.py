@@ -2375,7 +2375,22 @@ class BotAPIBridge:
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
         self.site = web.TCPSite(self.runner, settings.BOT_API_HOST, settings.BOT_API_PORT)
-        await self.site.start()
+        try:
+            await self.site.start()
+        except OSError as e:
+            # Port bị chiếm (thường do 2 bot chạy chồng): báo rõ, không để traceback treo task
+            logger.critical(
+                f"Không thể mở port {settings.BOT_API_PORT} cho API Bridge ({e}). "
+                "Khả năng cao đã có 1 bot khác đang chạy — hãy tắt bot cũ rồi khởi động lại. "
+                "Bot Discord vẫn chạy nhưng Web sẽ báo offline."
+            )
+            try:
+                await self.runner.cleanup()
+            except Exception:
+                pass
+            self.runner = None
+            self.site = None
+            return
         logger.info(
             f"🚀 Bot API Bridge đang hoạt động tại http://{settings.BOT_API_HOST}:{settings.BOT_API_PORT}"
         )

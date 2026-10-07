@@ -454,6 +454,76 @@ async def on_app_command_error(
         logger.error(f"Không thể gửi thông báo lỗi: {e}")
 
 
+def _ensure_single_instance() -> bool:
+    """Chốt single-instance: nếu đã có bot khác đang chạy thì từ chối khởi động.
+    Trả về True nếu được phép chạy tiếp (đã ghi lockfile)."""
+    import atexit
+
+    lock_path = Path("data/bot.lock")
+    try:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        if lock_path.exists():
+            try:
+                old_pid = int(lock_path.read_text("utf-8").strip() or "0")
+            except (ValueError, OSError):
+                old_pid = 0
+            if old_pid > 0:
+                alive = False
+                try:
+                    import psutil
+                    if psutil.pid_exists(old_pid):
+                        try:
+                            cmd = " ".join(psutil.Process(old_pid).cmdline() or []).lower()
+                            alive = "bot.py" in cmd
+                        except Exception:
+                            alive = False
+                except Exception:
+                    alive = False
+                if alive:
+                    logger.critical(
+                        f"Đã có Bot khác đang chạy (PID {old_pid}). "
+                        "Từ chối khởi động instance thứ 2 để tránh tranh port 8080 / Discord session. "
+                        "Hãy tắt bot cũ (stop_hyperhub.bat hoặc Task Manager) rồi bật lại."
+                    )
+                    return False
+            # Chốt phụ: port API đã bị giữ thì chắc chắn có instance khác
+            try:
+                import socket
+                probe_port = int(getattr(settings, "BOT_API_PORT", 8080) or 8080)
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(2)
+                    if s.connect_ex(("127.0.0.1", probe_port)) == 0:
+                        logger.critical(
+                            f"Port {probe_port} đã bị chiếm (có thể do bot cũ chưa tắt). "
+                            "Từ chối khởi động để tránh lỗi bind 10048."
+                        )
+                        return False
+            except Exception:
+                pass
+            try:
+                lock_path.unlink()
+            except OSError:
+                pass
+        lock_path.write_text(str(os.getpid()), encoding="utf-8")
+
+        def _release_lock() -> None:
+            try:
+                if lock_path.exists():
+                    try:
+                        if int(lock_path.read_text("utf-8").strip() or "0") == os.getpid():
+                            lock_path.unlink()
+                    except (ValueError, OSError):
+                        pass
+            except Exception:
+                pass
+
+        atexit.register(_release_lock)
+        return True
+    except Exception as e:
+        logger.warning(f"Không thể kiểm tra single-instance lock: {e} (vẫn cho chạy tiếp)")
+        return True
+
+
 def main() -> None:
     """Hàm khởi chạy chính của tiến trình Bot."""
     token = settings.DISCORD_TOKEN
@@ -462,6 +532,9 @@ def main() -> None:
             "Không tìm thấy biến DISCORD_TOKEN trong cấu hình (.env). Bot không thể khởi động!"
         )
         sys.exit(1)
+
+    if not _ensure_single_instance():
+        sys.exit(2)
 
     try:
         bot.run(token, log_handler=None)
