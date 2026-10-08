@@ -1229,14 +1229,14 @@ class BotAPIBridge:
                 uploader_id = int(user_data.get("id", 0))
                 uploader_name = user_data.get("global_name") or user_data.get("username") or "Discord User"
 
-        # Rate Limiting: Giới hạn tối đa 15 tệp trong 5 phút trên mỗi IP
+        # Rate Limiting: tối đa 100 tệp trong 5 phút trên mỗi IP (cho phép nộp vô hạn theo đợt, chống spam)
         client_ip = request.remote or "unknown"
         now = time.time()
         upload_history = [t for t in self._upload_rate_limits.get(client_ip, []) if now - t < 300.0]
-        if len(upload_history) >= 15:
+        if len(upload_history) >= 100:
             return web.json_response({
                 "error": "Quá nhiều tệp được nộp",
-                "message": "Bạn đã vượt quá giới hạn nộp tài liệu (tối đa 15 tệp trong 5 phút). Vui lòng thử lại sau.",
+                "message": "Bạn đã vượt quá giới hạn nộp tài liệu (tối đa 100 tệp trong 5 phút). Vui lòng thử lại sau.",
             }, status=429)
         upload_history.append(now)
         self._upload_rate_limits[client_ip] = upload_history
