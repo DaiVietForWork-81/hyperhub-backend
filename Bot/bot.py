@@ -98,10 +98,10 @@ def prune_tree_commands(bot) -> int:
                 bot.tree.remove_command(cmd.name)
                 removed += 1
         kept = len(bot.tree.get_commands())
-        print(f"[prune] Đã gỡ {removed} lệnh ngoài allowlist, giữ lại {kept} lệnh.")
+        logger.info(f"[prune] Đã gỡ {removed} lệnh ngoài allowlist, giữ lại {kept} lệnh.")
         return kept
     except Exception as e:
-        print(f"[prune] Lỗi khi cắt slash commands: {e}")
+        logger.warning(f"[prune] Lỗi khi cắt slash commands: {e}")
         return 0
 
 
@@ -526,6 +526,18 @@ def _ensure_single_instance() -> bool:
 
 def main() -> None:
     """Hàm khởi chạy chính của tiến trình Bot."""
+    # Chế độ headless (pythonw / service / task ẩn): không có console →
+    # mọi print() của lib bên thứ 3 sẽ crash nếu stdout=None. Chặn từ đầu.
+    try:
+        if sys.stdout is None or sys.stderr is None:
+            devnull = open(os.devnull, "w")
+            if sys.stdout is None:
+                sys.stdout = devnull
+            if sys.stderr is None:
+                sys.stderr = devnull
+    except Exception:
+        pass
+
     token = settings.DISCORD_TOKEN
     if not token or token.strip() == "":
         logger.critical(
