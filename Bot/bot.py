@@ -147,9 +147,16 @@ class CompetitiveProgrammingBot(commands.Bot):
         await init_db()
         try:
             await self.db.connect()
-            from services.embedding_service import DocumentEmbeddingService
-            self.embedding_service = DocumentEmbeddingService.get_instance(self.db)
-            self.embedding_service.start_background_sync()
+            if getattr(settings, "EMBEDDING_ENABLED", True):
+                from services.embedding_service import DocumentEmbeddingService
+                self.embedding_service = DocumentEmbeddingService.get_instance(self.db)
+                self.embedding_service.start_background_sync()
+            else:
+                self.embedding_service = None
+                logger.info(
+                    "Chế độ RAM thấp: EMBEDDING_ENABLED=false — bỏ qua model ONNX (~550MB), "
+                    "tìm kiếm dùng BM25/FTS."
+                )
 
             theme_color = await self.config.get_embed_color()
             if theme_color is not None:

@@ -342,6 +342,10 @@ if HAS_PYDANTIC:
             default="hyperhub_bridge_secret_key_2026",
             description="Mã khóa bí mật (Bearer/Header Secret) xác thực giữa Bot và Web",
         )
+        EMBEDDING_ENABLED: bool = Field(
+            default=True,
+            description="Bật Semantic Search (model ONNX ~550MB RAM). Tắt để chạy VPS 512MB (fallback BM25/FTS).",
+        )
 
         @field_validator("DATABASE_URL")
         @classmethod
