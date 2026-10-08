@@ -346,6 +346,14 @@ if HAS_PYDANTIC:
             default=True,
             description="Bật Semantic Search (model ONNX ~550MB RAM). Tắt để chạy VPS 512MB (fallback BM25/FTS).",
         )
+        EMBEDDING_DEVICE: str = Field(
+            default="auto",
+            description="Thiết bị chạy model embedding: auto (có GPU dùng GPU, không thì CPU), cpu, cuda.",
+        )
+        EMBEDDING_GPU_MEM_GB: float = Field(
+            default=1.0,
+            description="Trần VRAM (GB) cho CUDA provider. Vượt trần hoặc lỗi → tự rớt về CPU.",
+        )
 
         @field_validator("DATABASE_URL")
         @classmethod

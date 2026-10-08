@@ -27,3 +27,7 @@ google-api-python-client>=2.200.0
 google-auth>=2.57.1
 sympy>=1.14.0
 edge-tts>=7.2.8
+fastembed>=0.3.0
+onnxruntime>=1.17.0
+# Server CÓ GPU: thay onnxruntime bằng onnxruntime-gpu (cùng version) + cài CUDA/cuDNN
+# tương thích, rồi đặt EMBEDDING_DEVICE=cuda (hoặc auto) trong .env

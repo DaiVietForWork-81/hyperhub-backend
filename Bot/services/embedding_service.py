@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import logging
+import os
 import time
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
@@ -61,6 +62,42 @@ class DocumentEmbeddingService:
             cls._instance.db = db
         return cls._instance
 
+    def _resolve_providers(self) -> list:
+        """Chọn execution providers theo cấu hình + phần cứng thực tế.
+
+        - cpu: chỉ CPU.
+        - cuda: chỉ CUDA (lỗi → caller fallback CPU).
+        - auto: có CUDA provider thì ưu tiên GPU (kèm trần VRAM), sau đó CPU
+          đỡ. Không có GPU → CPU thuần.
+        """
+        try:
+            from config.settings import settings
+            device = str(getattr(settings, "EMBEDDING_DEVICE", "auto") or "auto").lower()
+            vram_gb = float(getattr(settings, "EMBEDDING_GPU_MEM_GB", 1.0) or 1.0)
+        except Exception:
+            device, vram_gb = "auto", 1.0
+        if device not in ("auto", "cpu", "cuda"):
+            log.warning("EMBEDDING_DEVICE=%s không hợp lệ, dùng 'auto'.", device)
+            device = "auto"
+
+        cuda_available = False
+        try:
+            import onnxruntime as _ort
+            cuda_available = "CUDAExecutionProvider" in _ort.get_available_providers()
+        except Exception:
+            cuda_available = False
+
+        if device == "cpu" or not cuda_available:
+            return ["CPUExecutionProvider"]
+        vram_bytes = max(int(vram_gb * (1024 ** 3)), 256 * 1024 * 1024)
+        cuda_opts = {
+            "arena_extend_strategy": "kSameAsRequested",
+            "gpu_mem_limit": vram_bytes,
+        }
+        if device == "cuda":
+            return [("CUDAExecutionProvider", cuda_opts)]
+        return [("CUDAExecutionProvider", cuda_opts), "CPUExecutionProvider"]
+
     def _ensure_model_sync(self) -> Optional[TextEmbedding]:
         """Tải model TextEmbedding (đồng bộ trong thread riêng)."""
         if self._model is not None:
@@ -68,16 +105,34 @@ class DocumentEmbeddingService:
         if not HAS_FASTEMBED:
             log.warning("Thư viện fastembed chưa được cài đặt. Semantic Search bị vô hiệu hóa.")
             return None
+        providers = self._resolve_providers()
         try:
             t0 = time.perf_counter()
-            self._model = TextEmbedding(self.model_name)
+            self._model = TextEmbedding(self.model_name, providers=providers)
+            prov_names = [p if isinstance(p, str) else p[0] for p in providers]
             log.info(
-                "Đã nạp thành công mô hình Embedding [%s] trong %.2fs",
+                "Đã nạp thành công mô hình Embedding [%s] trong %.2fs (providers=%s)",
                 self.model_name,
                 time.perf_counter() - t0,
+                prov_names,
             )
             return self._model
         except Exception as e:
+            # GPU lỗi/thiếu VRAM → rớt về CPU thuần 1 lần cuối
+            if any("CUDA" in (p if isinstance(p, str) else p[0]) for p in providers):
+                log.warning("Nạp model bằng GPU thất bại (%s). Thử lại bằng CPU...", e)
+                try:
+                    t0 = time.perf_counter()
+                    self._model = TextEmbedding(self.model_name, providers=["CPUExecutionProvider"])
+                    log.info(
+                        "Đã nạp mô hình Embedding [%s] bằng CPU trong %.2fs",
+                        self.model_name,
+                        time.perf_counter() - t0,
+                    )
+                    return self._model
+                except Exception as e2:
+                    log.error("Không thể tải mô hình FastEmbed [%s]: %s", self.model_name, e2)
+                    return None
             log.error("Không thể tải mô hình FastEmbed [%s]: %s", self.model_name, e)
             return None
 
