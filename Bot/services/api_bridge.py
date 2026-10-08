@@ -1214,21 +1214,20 @@ class BotAPIBridge:
 
         if not is_bot_admin:
             if not user_data:
-                return web.json_response({
-                    "error": "Yêu cầu đăng nhập Discord",
-                    "message": "Bạn cần đăng nhập bằng tài khoản Discord hợp lệ để nộp tài liệu lên hệ thống.",
-                }, status=401)
+                # Chế độ mở: khách không đăng nhập vẫn được nộp (chống spam bằng rate-limit IP bên dưới)
+                uploader_id = 0
+                uploader_name = "Khách"
+            else:
+                # KIỂM TRA EMAIL ĐÃ XÁC MINH (Chặn hoàn toàn bypass phía client)
+                if not user_data.get("verified", False):
+                    return web.json_response({
+                        "error": "Tài khoản Discord chưa xác minh Email",
+                        "message": "Tài khoản Discord của bạn chưa xác minh Email (Unverified). Discord Bot chỉ chấp nhận tài liệu từ tài khoản đã xác minh email.",
+                    }, status=403)
 
-            # KIỂM TRA EMAIL ĐÃ XÁC MINH (Chặn hoàn toàn bypass phía client)
-            if not user_data.get("verified", False):
-                return web.json_response({
-                    "error": "Tài khoản Discord chưa xác minh Email",
-                    "message": "Tài khoản Discord của bạn chưa xác minh Email (Unverified). Discord Bot chỉ chấp nhận tài liệu từ tài khoản đã xác minh email.",
-                }, status=403)
-
-            # Lấy thông tin tác giả TRỰC TIẾP TỪ DISCORD API - KHÔNG TIN DỮ LIỆU TỪ CLIENT
-            uploader_id = int(user_data.get("id", 0))
-            uploader_name = user_data.get("global_name") or user_data.get("username") or "Discord User"
+                # Lấy thông tin tác giả TRỰC TIẾP TỪ DISCORD API - KHÔNG TIN DỮ LIỆU TỪ CLIENT
+                uploader_id = int(user_data.get("id", 0))
+                uploader_name = user_data.get("global_name") or user_data.get("username") or "Discord User"
 
         # Rate Limiting: Giới hạn tối đa 15 tệp trong 5 phút trên mỗi IP
         client_ip = request.remote or "unknown"
