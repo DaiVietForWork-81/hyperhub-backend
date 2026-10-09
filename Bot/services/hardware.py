@@ -101,7 +101,8 @@ def get_ram_info() -> dict[str, Any]:
 _gpu_info_cache: list[dict[str, Any]] | None = None
 _gpu_last_checked_time: float = 0.0
 _GPU_CACHE_TTL: float = 3.0  # Bộ đệm 3 giây tránh gọi nvidia-smi subprocess dồn dập
-_HARDWARE_CACHE_FILE = Path("data/hardware_cache.json")
+_BOT_DIR = Path(__file__).resolve().parent.parent
+_HARDWARE_CACHE_FILE = _BOT_DIR / "data" / "hardware_cache.json"
 
 
 def get_gpu_info(force_refresh: bool = False) -> list[dict[str, Any]]:

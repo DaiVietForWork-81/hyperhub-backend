@@ -340,7 +340,7 @@ class AdminCog(commands.Cog, name="Admin"):
             import hashlib
             cmd_sigs = sorted([f"{c.name}:{c.description}" for c in self.bot.tree.get_commands()])
             current_hash = hashlib.md5("".join(cmd_sigs).encode("utf-8")).hexdigest()
-            hash_file = Path("data/.tree_sync.hash")
+            hash_file = Path(__file__).resolve().parent.parent / "data" / ".tree_sync.hash"
             last_hash = hash_file.read_text("utf-8").strip() if hash_file.exists() else ""
             if current_hash != last_hash:
                 synced = await self.bot.tree.sync()

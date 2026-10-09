@@ -13,6 +13,11 @@ Web/
 *.sqlite
 *.sqlite3
 *.log
+*.lock
+bot.lock
+hardware_cache.json
+doc_temp/
+storage_temp/
 
 # Dữ liệu nặng / máy cục bộ
 node_modules/

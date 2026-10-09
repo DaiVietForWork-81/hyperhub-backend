@@ -420,7 +420,7 @@ class DocumentIntakeCog(commands.Cog):
         }
 
         # 1. Tính dung lượng kho đề CP Arena (data/ai_problems.json)
-        ai_problems_path = Path("data/ai_problems.json")
+        ai_problems_path = Path(__file__).resolve().parent.parent / "data" / "ai_problems.json"
         if ai_problems_path.exists():
             stats["cp_storage_bytes"] = ai_problems_path.stat().st_size
 

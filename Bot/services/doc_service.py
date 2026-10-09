@@ -26,7 +26,8 @@ from services.antivirus_scanner import AntivirusScanner, ThreatLevel
 
 log = logging.getLogger(__name__)
 
-TEMP_DOC_DIR = Path("data/doc_temp")
+_BOT_DIR = Path(__file__).resolve().parent.parent
+TEMP_DOC_DIR = _BOT_DIR / "data" / "doc_temp"
 TEMP_DOC_DIR.mkdir(parents=True, exist_ok=True)
 
 # Danh sách phần mở rộng tệp bị cấm / nguy hại

@@ -26,6 +26,7 @@
 3. [BẢO MẬT & PHÒNG THỦ MÃ NGUỒN (SECURITY HARDENING)](#3-bảo-mật--phòng-thủ-mã-nguồn-security-hardening)
 4. [BẢNG TỔNG HỢP ENDPOINT REST API](#4-bảng-tổng-hợp-endpoint-rest-api)
 5. [NHẬT KÝ NÂNG CẤP PHIÊN VẬN HÀNH (MỞ PUBLIC + HEADLESS + TIẾT KIỆM RAM)](#5-nhật-ký-nâng-cấp-phiên-vận-hành-mở-public--headless--tiết-kiệm-ram)
+6. [DỌN DẸP & TỐI ƯU HÓA HỆ THỐNG (CLEANUP & CODEBASE SLIMMING)](#6-dọn-dẹp--tối-ưu-hóa-hệ-thống-cleanup--codebase-slimming)
 
 ---
 
@@ -330,3 +331,41 @@
 - Kho đề: 175 bản ghi archive, 121 chunks Discord; xóa file rác 0-byte trong `storage/uploads`; giữ 1 PDF 10.5MB làm cache (bản gốc đã nằm trên Discord).
 - GitHub: backend `641ed82`, web `dd23715` — cả 2 repo sạch, không lọt `.env`/`.db`.
 - ⏳ **Còn chờ người dùng**: double-click `start_hyperhub.bat` 1 lần để bật lại bot (môi trường chạy lệnh của agent tự diệt tiến trình con nên không thể khởi động bot từ xa).
+
+---
+
+# 6. DỌN DẸP & TỐI ƯU HÓA HỆ THỐNG (CLEANUP & CODEBASE SLIMMING)
+
+### 6.1. Xóa bỏ các tệp rác & tệp tạm sau kiểm thử
+- **Tệp báo cáo pentest cũ ở thư mục gốc**:
+  - `pentest_report_2.txt` (0 byte), `pentest_report_3.txt` (14.4 KB), `pentest_report_6.txt` (11.9 KB), `pentest_report_main.txt` (11.1 KB), `dump_pentest_reports.py` (1.0 KB).
+- **Cơ sở dữ liệu mồ côi ngoài root**:
+  - `D:\Project\bot.db` (131 KB): File DB thử nghiệm chỉ chứa dữ liệu mẫu cũ (1 user, 3 problems), gây nhầm lẫn với CSDL chính thức của Bot tại `Bot/bot.db` (15 users, 1507 problems) và `Bot/data/bot.db` (847 KB). Đã xóa sạch khỏi root.
+- **Thư mục dữ liệu mồ côi ngoài root**:
+  - `D:\Project\data\`: Thư mục sinh ra do đường dẫn tương đối khi chạy lệnh ngoài root. Đã xóa triệt để sau khi neo cố định đường dẫn trong mã nguồn Python vào `Bot/data/`.
+- **Tệp 0-byte và database rỗng trong phân hệ Bot**:
+  - `Bot/test.txt` (0 byte).
+  - `Bot/data/database.db` (0 byte), `Bot/data/hyperhub.db` (0 byte).
+  - `Bot/database/bot_database.db` (0 byte), `Bot/database/data.db` (0 byte), `Bot/database/database.sqlite` (0 byte).
+- **16 ảnh test prototype & tệp JSON thử nghiệm cũ trong `Bot/data/`**:
+  - 16 file ảnh: `card_TEST1234.png`, `test_aura_concept.png`, `test_composite.png`, `test_match_aura_layer.png`, `test_mesh_aura.png`, `test_mesh_match_bg.png`, `test_mesh_profile.png`, `test_mesh_profile_v2.png`, `test_outer_aura.png`, `test_outer_aura2.png`, `test_perfect_mesh_profile.png`, `test_perfect_profile_600.png`, `test_profile_outer_aura.png`, `test_profile_outer_aura_fixed.png`, `test_trimmed_profile.png`, `test_vibrant_mesh.png`.
+  - 2 file JSON tạm: `last_user_comment.json`, `user_last_input.json`.
+
+### 6.2. Gỡ bỏ thư viện dư thừa (Dependencies Slimming)
+- **Gỡ bỏ `koffi` khỏi `Web/package.json`**:
+  - `koffi` là thư viện C-FFI dành riêng cho môi trường Node.js server, không có bất kỳ tác dụng nào trong ứng dụng React SPA chạy trên trình duyệt web, gây tải thừa hơn 2.8 MB các file nhị phân C đa nền tảng (Android, Darwin, FreeBSD, Linux, OpenBSD, Windows).
+  - Đã thực hiện `npm uninstall koffi`, kiểm tra lại `tsc -b && vite build` hoàn tất thành công trong 7.30 giây.
+- **Dọn sạch `node_modules` ở thư mục gốc**:
+  - Thư mục `D:\Project\node_modules` tồn tại do cài đặt nhầm trước đó chỉ chứa `koffi`, đã được xóa bỏ hoàn toàn.
+
+### 6.3. Cố định đường dẫn tuyệt đối (Absolute Path Anchoring)
+- Cập nhật các service của Bot nhằm tránh tự động tạo lại các thư mục rác khi chạy từ bất kỳ thư mục làm việc (CWD) nào:
+  - `Bot/services/hardware.py`: Neo `_HARDWARE_CACHE_FILE` cố định vào `_BOT_DIR / "data" / "hardware_cache.json"`.
+  - `Bot/services/doc_service.py`: Neo `TEMP_DOC_DIR` cố định vào `_BOT_DIR / "data" / "doc_temp"`.
+  - `Bot/cogs/doc_intake.py`: Neo `ai_problems_path` cố định vào `Bot/data/ai_problems.json`.
+  - `Bot/cogs/admin.py`: Neo `hash_file` cố định vào `Bot/data/.tree_sync.hash`.
+
+### 6.4. Dọn dẹp cache & Củng cố `.gitignore`
+- Dọn dẹp toàn bộ 380 tệp cache Python (`__pycache__`, `.pytest_cache`), giải phóng hơn 7.2 MB dung lượng tạm.
+- Cập nhật `.gitignore` tại root bổ sung: `*.lock`, `bot.lock`, `hardware_cache.json`, `doc_temp/`, `storage_temp/`.
+- Toàn bộ 161 tests của Bot và 34 tests của DocInspector đều đạt chuẩn 100% (Pass).
