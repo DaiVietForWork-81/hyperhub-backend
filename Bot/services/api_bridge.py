@@ -315,6 +315,7 @@ class BotAPIBridge:
     def _setup_routes(self) -> None:
         """Đăng ký các API endpoints."""
         self.app.router.add_get("/api/status", self.handle_status)
+        self.app.router.add_get("/api/health", self.handle_health)
         self.app.router.add_get("/api/leaderboard", self.handle_leaderboard)
         self.app.router.add_get("/api/duels/active", self.handle_active_duels)
         self.app.router.add_get("/api/user/{discord_id}", self.handle_user_profile)
@@ -363,6 +364,94 @@ class BotAPIBridge:
             "uptime_seconds": uptime,
             "timestamp": int(time.time()),
         })
+
+    async def handle_health(self, request: web.Request) -> web.Response:
+        """GET /api/health: Kiểm tra tình trạng sức khỏe hệ thống (Healthcheck & Telemetry).
+        Tuân thủ chuẩn Sentry/FastAPI/DevOps: kiểm tra DB, C++ core, Discord gateway và FTS5.
+        """
+        start_probe = time.perf_counter()
+        health_report: dict[str, Any] = {
+            "status": "healthy",
+            "timestamp": int(time.time()),
+            "uptime_seconds": int(time.time() - START_TIME),
+            "services": {},
+        }
+        all_ok = True
+
+        # 1. Database SQLite health
+        db_start = time.perf_counter()
+        try:
+            if hasattr(self.bot, "db") and self.bot.db:
+                row = await self.bot.db.fetchone("SELECT 1")
+                db_latency_ms = round((time.perf_counter() - db_start) * 1000, 2)
+                health_report["services"]["database"] = {
+                    "status": "up" if row and row[0] == 1 else "degraded",
+                    "latency_ms": db_latency_ms,
+                    "engine": "sqlite_wal_fts5",
+                }
+            else:
+                health_report["services"]["database"] = {
+                    "status": "not_initialized",
+                    "engine": "sqlite",
+                }
+        except Exception as e:
+            all_ok = False
+            health_report["services"]["database"] = {
+                "status": "down",
+                "error": str(e),
+            }
+
+        # 2. C++ Native Core Acceleration
+        try:
+            from cpp_core.bridge import IS_NATIVE_ACCELERATED, fast_sha256, fast_detect_magic
+            test_hash = fast_sha256(b"health")
+            test_magic = fast_detect_magic(b"%PDF-1.4")
+            health_report["services"]["cpp_core"] = {
+                "accelerated": bool(IS_NATIVE_ACCELERATED),
+                "status": "native_dll" if IS_NATIVE_ACCELERATED else "python_fallback",
+                "sha256": "ok" if len(test_hash) == 64 else "fail",
+                "magic_detection": "ok" if test_magic == "PDF" else "fail",
+            }
+        except Exception as e:
+            health_report["services"]["cpp_core"] = {
+                "status": "error",
+                "error": str(e),
+            }
+
+        # 3. Discord Gateway
+        try:
+            is_ready = self.bot.is_ready() if hasattr(self.bot, "is_ready") else False
+            ping = round(self.bot.latency * 1000, 2) if hasattr(self.bot, "latency") else 0.0
+            health_report["services"]["discord_gateway"] = {
+                "status": "connected" if is_ready else "connecting",
+                "ping_ms": ping,
+                "guilds": len(self.bot.guilds) if hasattr(self.bot, "guilds") else 0,
+            }
+        except Exception as e:
+            health_report["services"]["discord_gateway"] = {
+                "status": "down",
+                "error": str(e),
+            }
+
+        # 4. FTS5 Index Probe
+        try:
+            if hasattr(self.bot, "db") and self.bot.db:
+                fts_test = await self.bot.db.fetchone(
+                    "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='documents_fts'"
+                )
+                health_report["services"]["fts5_search"] = {
+                    "available": bool(fts_test and fts_test[0] > 0),
+                    "table": "documents_fts",
+                }
+        except Exception:
+            health_report["services"]["fts5_search"] = {"available": False}
+
+        health_report["probe_time_ms"] = round((time.perf_counter() - start_probe) * 1000, 2)
+        if not all_ok:
+            health_report["status"] = "degraded"
+            return web.json_response(health_report, status=503)
+
+        return web.json_response(health_report, status=200)
 
     async def handle_leaderboard(self, request: web.Request) -> web.Response:
         """GET /api/leaderboard?mode=ranked&limit=50: Lấy bảng xếp hạng."""
