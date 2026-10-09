@@ -25,6 +25,7 @@
    - 2.7. Giao diện Trang chủ & Thành phần tương tác
 3. [BẢO MẬT & PHÒNG THỦ MÃ NGUỒN (SECURITY HARDENING)](#3-bảo-mật--phòng-thủ-mã-nguồn-security-hardening)
 4. [BẢNG TỔNG HỢP ENDPOINT REST API](#4-bảng-tổng-hợp-endpoint-rest-api)
+5. [NHẬT KÝ NÂNG CẤP PHIÊN VẬN HÀNH (MỞ PUBLIC + HEADLESS + TIẾT KIỆM RAM)](#5-nhật-ký-nâng-cấp-phiên-vận-hành-mở-public--headless--tiết-kiệm-ram)
 
 ---
 
@@ -248,7 +249,7 @@
 | **Leo thang thư mục (Path Traversal)** | CWE-22 | Chuẩn hóa tên tệp, xóa bỏ ký tự điều khiển và chuỗi `..`, chỉ giữ lại tên tệp an toàn. |
 | **Yêu cầu giả mạo phía máy chủ (SSRF)** | CWE-918 | Kiểm tra whitelist URL Google Drive nghiêm ngặt, chặn mọi URL trỏ về mạng nội bộ hoặc localhost. |
 | **Lộ lọt thông tin mã nguồn** | CWE-209 | Bắt lỗi toàn cục, ẩn stack trace và mã lỗi nhạy cảm, chỉ trả về thông báo lỗi chuẩn hóa. |
-| **Tấn công DoS / Brute-force** | CWE-799 | Giới hạn 120 req/phút/IP toàn hệ thống, 15 tệp/5 phút khi upload, 30 req/phút khi phát đề. |
+| **Tấn công DoS / Brute-force** | CWE-799 | Giới hạn 120 req/phút/IP toàn hệ thống, 100 tệp/5 phút khi upload, 30 req/phút khi phát đề. |
 | **Tài khoản rác / Spam bot** | - | Bắt buộc tài khoản Discord phải có email xác minh (`verified: true`) từ chính Discord API. |
 
 ---
@@ -263,7 +264,7 @@
 | `GET` | `/api/documents/stats` | Public | Thống kê số lượng đề thi độc bản và đề thi trùng lặp. |
 | `GET` | `/api/documents/request_exam` | Public | Bốc đề ngẫu nhiên theo tiêu chí bộ lọc. |
 | `GET` | `/api/documents/{id}/download` | Public | Tải trực tiếp tệp đề thi về máy. |
-| `POST` | `/api/documents/upload` | User / Admin | Nộp tài liệu trực tiếp từ Web, gọi DocInspector thẩm định. |
+| `POST` | `/api/documents/upload` | Guest / User / Admin | Nộp tài liệu trực tiếp từ Web (khách ghi tên "Khách"), gọi DocInspector thẩm định. |
 | `POST` | `/api/documents/import_gdrive` | User / Admin | Nạp tài liệu từ liên kết chia sẻ Google Drive. |
 | `GET` | `/api/admin/check` | **Admin** | Xác thực quyền Quản trị viên của phiên đăng nhập hiện tại. |
 | `GET` | `/api/admin/bans` | **Admin** | Đọc danh sách tài khoản bị cấm trên Discord Server. |
@@ -278,3 +279,54 @@
 
 > 🚀 **Địa chỉ truy cập Web:** [https://hyperhub-one.vercel.app](https://hyperhub-one.vercel.app)  
 > 📁 **Tệp tài liệu này được lưu trữ tại:** `D:\Project\list.md`
+
+---
+
+# 5. NHẬT KÝ NÂNG CẤP PHIÊN VẬN HÀNH (MỞ PUBLIC + HEADLESS + TIẾT KIỆM RAM)
+
+### 5.1. Chống chạy 2 Bot chồng nhau (lỗi bind port 8080 / WinError 10048)
+- Thêm chốt single-instance trong `Bot/bot.py` (`_ensure_single_instance`):
+  - Ghi PID vào `Bot/data/bot.lock`, tự xóa lock cũ khi PID đã chết.
+  - Chốt phụ: thử kết nối `127.0.0.1:<BOT_API_PORT>` — port bị giữ thì từ chối khởi động, thoát mã 2 kèm hướng dẫn tắt bot cũ.
+  - Đã kiểm chứng ngoài thực tế: 1 instance thừa khởi động đã bị từ chối đúng quy trình.
+- `Bot/services/api_bridge.py` (`start`): bắt `OSError` khi bind thất bại, ghi log rõ nguyên nhân thay vì treo traceback.
+
+### 5.2. Chế độ chạy ngầm Headless kiểu server (không còn cửa sổ CMD)
+- `Bot/bot.py`: chuyển 2 lệnh `print()` sang logger + chặn stdout/stderr `None` khi chạy bằng `pythonw` (không crash khi không có console).
+- Thêm `start_hidden.vbs`: bật Bot (`pythonw`, ẩn hoàn toàn) + Ngrok tunnel (giữ URL cố định), hỗ trợ tham số `botonly` để restart bot mà không nhân đôi tunnel.
+- Tự chạy khi mở máy: shortcut `HyperHub.lnk` trong thư mục Startup (không cần quyền admin).
+- Viết lại 3 file bat ASCII sạch (hết chữ lỗi font): `start_hyperhub.bat` (gọi ngầm), `stop_hyperhub.bat` (diệt cả tiến trình ẩn theo commandline `bot.py`), `restart_bot_only.bat` (giữ nguyên tunnel).
+
+### 5.3. Sửa Web production gọi API toàn trượt (ngrok ERR_NGROK_6024)
+- Nguyên nhân: trên HTTPS, web gọi `/api/*` qua Vercel Rewrite nhưng fetch phía server không gắn được header `ngrok-skip-browser-warning` nên ngrok free chặn bằng trang cảnh báo.
+- Sửa `Web/src/utils/apiConfig.ts`: trên HTTPS gọi thẳng tunnel URL từ browser (mọi fetch đã kèm header, CORS backend cho phép sẵn). Khôi phục đọc override URL từ localStorage (`setCustomApiUrl` trước đây ghi mà không đọc).
+
+### 5.4. Mở Web public — không cần đăng nhập vẫn vào được
+- Bỏ màn hình khóa Hub khi bot offline (`hubLocked` luôn `false`); giữ banner offline + cổng riêng cho Bốc đề và Admin Hub.
+- Backend `POST /api/documents/upload` chấp nhận khách (không token → tên `Khách`, id 0). Bốc đề (`request_exam`) và nạp Google Drive vẫn bắt verify email như cũ.
+- Thông điệp rào cản trong `Dashboard.tsx` viết lại: xem/nộp đề không cần tài khoản, chỉ bốc đề mới cần Discord verify.
+
+### 5.5. Kho lưu tạm offline + tự đồng bộ (IndexedDB Outbox)
+- Mới `Web/src/utils/outbox.ts`: lưu đề (kể cả blob ≤ 25MB) vào IndexedDB khi bot offline hoặc rớt mạng giữa chừng.
+- `DocUploadZone.tsx`: trạng thái `queued`, panel "Kho Lưu Tạm" (gửi ngay tất cả / xóa từng đề / đếm số lần thử lại), tự flush khi bot online trở lại, rớt mạng giữa flush thì dừng và giữ nguyên hàng đợi.
+- `Dashboard.tsx`: phát hiện chuyển offline → online thì tự tải lại danh sách + thống kê, hiện toast xanh 8 giây.
+
+### 5.6. Nộp nhiều file không giới hạn số lượng
+- Web: bỏ `.slice(0, 15)`, nhãn đổi thành "Không giới hạn số tệp (mỗi tệp ≤ 25MB)".
+- Lọc giữ nguyên: sai định dạng (chỉ PDF/DOCX/DOC/TXT) hoặc quá 25MB thì báo rõ tên file và bỏ qua, file đạt vẫn vào hàng đợi (trước đây lỗi lọc bị nuốt khi còn file hợp lệ).
+- Backend: nâng rate-limit upload 15 → **100 tệp/5 phút/IP** (chống spam DocInspector).
+
+### 5.7. Phân tích RAM + chế độ nhẹ + GPU-ready (model embedding MiniLM)
+- Đo thực tế: bot **822MB** = import lib ~208MB + model MiniLM **~550MB** + runtime ~65MB; ngrok 84MB. Bóp arena onnxruntime không giảm (đã test: 643.1MB → 643.2MB) vì đó là trọng lượng thật của weights fp32.
+- Chế độ RAM thấp: `EMBEDDING_ENABLED=false` trong `.env` → bỏ model, tìm kiếm dùng BM25/FTS (bot còn ~270MB, vừa VPS 512MB). Mặc định vẫn `true`.
+- GPU-ready cho server sau này: `EMBEDDING_DEVICE=auto|cpu|cuda` (tự dùng GPU nếu có, không thì CPU), `EMBEDDING_GPU_MEM_GB=1.0` trần VRAM, lỗi/thiếu VRAM tự rớt về CPU. `requirements.txt` ghi chú đổi sang `onnxruntime-gpu` + CUDA trên server.
+- Quyết định giữ model (không thay bằng LSA/TF-IDF hay API ngoài): đã đối chiếu và tư vấn đầy đủ trong phiên.
+
+### 5.8. Link nhóm Messenger thật lên Web
+- `CommunityChannels.tsx` (nút "Tham Gia Nhóm Messenger") và `data/platforms.ts`: thay link giả `AbY_HyperHub` / `YOUR_MESSENGER_URL` bằng `https://m.me/j/AbZngp-x0Ny92IWH/`.
+
+### 5.9. Kiểm chứng + triển khai phiên này
+- Tests: Bot 161 passed, DocInspector 34 passed, chunk archive 5 passed, `tsc -b` sạch, `vite build` thành công, API local + tunnel đều trả `HyperHub#0594`.
+- Kho đề: 175 bản ghi archive, 121 chunks Discord; xóa file rác 0-byte trong `storage/uploads`; giữ 1 PDF 10.5MB làm cache (bản gốc đã nằm trên Discord).
+- GitHub: backend `641ed82`, web `dd23715` — cả 2 repo sạch, không lọt `.env`/`.db`.
+- ⏳ **Còn chờ người dùng**: double-click `start_hyperhub.bat` 1 lần để bật lại bot (môi trường chạy lệnh của agent tự diệt tiến trình con nên không thể khởi động bot từ xa).
