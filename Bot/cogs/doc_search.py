@@ -57,12 +57,16 @@ SUBJECT_OPTIONS = [
     ("Tiếng Pháp", "FRENCH", "🥐"),
 ]
 
-# Danh sách khối lớp chuẩn (Single-codepoint standard emojis)
+# Danh sách khối lớp chuẩn (Single-codepoint standard emojis đồng bộ 7 Roles Discord)
 GRADE_OPTIONS = [
     ("Tất Cả Khối Lớp", "ALL", "🎓"),
-    ("Lớp 12 / THPT Quốc Gia", "GRADE_12", "📕"),
-    ("Lớp 11", "GRADE_11", "📗"),
-    ("Lớp 10", "GRADE_10", "📘"),
+    ("Lớp 12 / THPT Quốc Gia", "GRADE_12", "🔴"),
+    ("Lớp 11", "GRADE_11", "🟠"),
+    ("Lớp 10", "GRADE_10", "🟡"),
+    ("Lớp 9", "GRADE_9", "🟢"),
+    ("Lớp 8", "GRADE_8", "🔵"),
+    ("Lớp 7", "GRADE_7", "🔷"),
+    ("Lớp 6", "GRADE_6", "🟣"),
     ("Khối THCS (Lớp 6-9)", "MIDDLE_SCHOOL", "🎒"),
     ("Đại Học / Cao Đẳng", "UNIVERSITY", "🏛️"),
     ("Chuyên / Olympic / HSG", "OLYMPIAD_GIFTED", "🏆"),
@@ -175,8 +179,16 @@ class SearchResultPaginationView(discord.ui.View):
 
             source_icon = "🤖" if ("bot" in author.lower() or "hệ thống" in author.lower()) else "👤"
             link_part = f" • [🔗 Xem Bài Đăng Gốc]({jump_url})" if jump_url else ""
+            year = item.get("academic_year")
+            school = item.get("school_or_department")
+            extra_meta = ""
+            if year:
+                extra_meta += f" | 📅 `{year}`"
+            if school:
+                extra_meta += f" | 🏫 `{school}`"
+
             val = (
-                f"• **Phân loại:** `{level}` | **Dung lượng:** `{size_str}`\n"
+                f"• **Phân loại:** `{level}` | **Dung lượng:** `{size_str}`{extra_meta}\n"
                 f"• **Người đăng:** {source_icon} **{author}** ({timestamp}){link_part}"
             )
             embed.add_field(name=f"#{idx}. {title}", value=val, inline=False)
@@ -691,6 +703,14 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
                 where_clauses.append("(LOWER(estimated_level) LIKE '%11%' OR LOWER(title) LIKE '%11%')")
             elif grade == "GRADE_10":
                 where_clauses.append("(LOWER(estimated_level) LIKE '%10%' OR LOWER(title) LIKE '%10%')")
+            elif grade == "GRADE_9":
+                where_clauses.append("(LOWER(estimated_level) LIKE '%9%' OR LOWER(title) LIKE '%lớp 9%' OR LOWER(title) LIKE '%lop 9%')")
+            elif grade == "GRADE_8":
+                where_clauses.append("(LOWER(estimated_level) LIKE '%8%' OR LOWER(title) LIKE '%lớp 8%' OR LOWER(title) LIKE '%lop 8%')")
+            elif grade == "GRADE_7":
+                where_clauses.append("(LOWER(estimated_level) LIKE '%7%' OR LOWER(title) LIKE '%lớp 7%' OR LOWER(title) LIKE '%lop 7%')")
+            elif grade == "GRADE_6":
+                where_clauses.append("(LOWER(estimated_level) LIKE '%6%' OR LOWER(title) LIKE '%lớp 6%' OR LOWER(title) LIKE '%lop 6%')")
             elif grade == "MIDDLE_SCHOOL":
                 where_clauses.append("(LOWER(estimated_level) LIKE '%thcs%' OR LOWER(estimated_level) LIKE '%cấp 2%' OR LOWER(title) LIKE '%thcs%')")
             elif grade == "UNIVERSITY":

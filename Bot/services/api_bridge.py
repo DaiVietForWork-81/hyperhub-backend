@@ -799,7 +799,7 @@ class BotAPIBridge:
             "id, subject, title, file_name, file_size_bytes, file_type, estimated_level,"
             "question_count, page_count, author_name, jump_url, timestamp, file_hash, notes"
         )
-        scan_cols = "verdict, exam_track, confidence"
+        scan_cols = "verdict, exam_track, confidence, academic_year, school_or_department"
         try:
             data_sql = f"""
                 SELECT {base_cols}, {scan_cols}
@@ -811,16 +811,27 @@ class BotAPIBridge:
             rows = await self.bot.db.fetchall(data_sql, *params, limit, offset)
             has_scan = True
         except Exception:
-            # DB cũ chưa migrate verdict/track/confidence
-            data_sql = f"""
-                SELECT {base_cols}
-                FROM documents_archive
-                {where_sql}
-                ORDER BY id DESC
-                LIMIT ? OFFSET ?
-            """
-            rows = await self.bot.db.fetchall(data_sql, *params, limit, offset)
-            has_scan = False
+            # DB cũ chưa migrate đầy đủ các cột mới
+            try:
+                data_sql = f"""
+                    SELECT {base_cols}, verdict, exam_track, confidence
+                    FROM documents_archive
+                    {where_sql}
+                    ORDER BY id DESC
+                    LIMIT ? OFFSET ?
+                """
+                rows = await self.bot.db.fetchall(data_sql, *params, limit, offset)
+                has_scan = True
+            except Exception:
+                data_sql = f"""
+                    SELECT {base_cols}
+                    FROM documents_archive
+                    {where_sql}
+                    ORDER BY id DESC
+                    LIMIT ? OFFSET ?
+                """
+                rows = await self.bot.db.fetchall(data_sql, *params, limit, offset)
+                has_scan = False
 
         docs = []
         for r in rows:
@@ -830,6 +841,23 @@ class BotAPIBridge:
             min_id, count = doc_stats_map.get(lookup_key, (r[0], 1))
             is_dup = count > 1
             is_duplicate_copy = bool(is_dup and r[0] != min_id)
+
+            notes_str = r[13] if len(r) > 13 and r[13] else ""
+            ac_year = r[17] if has_scan and len(r) > 17 and r[17] else None
+            sch_dept = r[18] if has_scan and len(r) > 18 and r[18] else None
+
+            # Fallback regex bóc tách năm học nếu cột null
+            if not ac_year:
+                combined_text = f"{r[2] or ''} {notes_str}"
+                m_yr = re.search(r'(?:năm\s*học|hk\s*[12]\s*năm)?\s*(20\d{2}\s*[-–—]\s*20\d{2})', combined_text, re.IGNORECASE)
+                if m_yr:
+                    ac_year = m_yr.group(1).replace(" ", "")
+
+            # Fallback regex bóc tách trường / sở GD nếu cột null
+            if not sch_dept and notes_str:
+                m_sch = re.search(r'Nguồn:\s*([^|\n]+)', notes_str)
+                if m_sch:
+                    sch_dept = m_sch.group(1).strip()
 
             docs.append({
                 "id": r[0],
@@ -845,10 +873,12 @@ class BotAPIBridge:
                 "jump_url": r[10],
                 "timestamp": r[11],
                 "file_hash": h,
-                "notes": r[13] if len(r) > 13 and r[13] else "",
+                "notes": notes_str,
                 "verdict": r[14] if has_scan and len(r) > 14 else None,
                 "exam_track": r[15] if has_scan and len(r) > 15 else None,
                 "confidence": r[16] if has_scan and len(r) > 16 else None,
+                "academic_year": ac_year,
+                "school_or_department": sch_dept,
                 "is_duplicate": is_dup,
                 "is_duplicate_copy": is_duplicate_copy,
                 "original_id": min_id if is_duplicate_copy else None,
@@ -1024,7 +1054,7 @@ class BotAPIBridge:
             sql = f"""
                 SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level,
                        question_count, page_count, author_name, jump_url, timestamp, file_hash, notes,
-                       verdict, exam_track, confidence
+                       verdict, exam_track, confidence, academic_year, school_or_department
                 FROM documents_archive
                 {where_sql}
                 ORDER BY RANDOM()
@@ -1033,16 +1063,29 @@ class BotAPIBridge:
             row = await self.bot.db.fetchone(sql, *params)
             has_scan = True
         except Exception:
-            sql = f"""
-                SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level,
-                       question_count, page_count, author_name, jump_url, timestamp, file_hash, notes
-                FROM documents_archive
-                {where_sql}
-                ORDER BY RANDOM()
-                LIMIT 1
-            """
-            row = await self.bot.db.fetchone(sql, *params)
-            has_scan = False
+            try:
+                sql = f"""
+                    SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level,
+                           question_count, page_count, author_name, jump_url, timestamp, file_hash, notes,
+                           verdict, exam_track, confidence
+                    FROM documents_archive
+                    {where_sql}
+                    ORDER BY RANDOM()
+                    LIMIT 1
+                """
+                row = await self.bot.db.fetchone(sql, *params)
+                has_scan = True
+            except Exception:
+                sql = f"""
+                    SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level,
+                           question_count, page_count, author_name, jump_url, timestamp, file_hash, notes
+                    FROM documents_archive
+                    {where_sql}
+                    ORDER BY RANDOM()
+                    LIMIT 1
+                """
+                row = await self.bot.db.fetchone(sql, *params)
+                has_scan = False
 
         # Fallback nếu không có đề nào khớp 100% tất cả tiêu chí cùng lúc
         is_fallback = False
@@ -1062,34 +1105,64 @@ class BotAPIBridge:
                 fb_where = "WHERE " + " AND ".join(fb_clauses)
                 try:
                     row = await self.bot.db.fetchone(
-                        f"SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level, question_count, page_count, author_name, jump_url, timestamp, file_hash, notes, verdict, exam_track, confidence FROM documents_archive {fb_where} ORDER BY RANDOM() LIMIT 1",
+                        f"SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level, question_count, page_count, author_name, jump_url, timestamp, file_hash, notes, verdict, exam_track, confidence, academic_year, school_or_department FROM documents_archive {fb_where} ORDER BY RANDOM() LIMIT 1",
                         *fb_params,
                     )
                     has_scan = True
                 except Exception:
-                    row = await self.bot.db.fetchone(
-                        f"SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level, question_count, page_count, author_name, jump_url, timestamp, file_hash, notes FROM documents_archive {fb_where} ORDER BY RANDOM() LIMIT 1",
-                        *fb_params,
-                    )
-                    has_scan = False
+                    try:
+                        row = await self.bot.db.fetchone(
+                            f"SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level, question_count, page_count, author_name, jump_url, timestamp, file_hash, notes, verdict, exam_track, confidence FROM documents_archive {fb_where} ORDER BY RANDOM() LIMIT 1",
+                            *fb_params,
+                        )
+                        has_scan = True
+                    except Exception:
+                        row = await self.bot.db.fetchone(
+                            f"SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level, question_count, page_count, author_name, jump_url, timestamp, file_hash, notes FROM documents_archive {fb_where} ORDER BY RANDOM() LIMIT 1",
+                            *fb_params,
+                        )
+                        has_scan = False
 
             # Nếu vẫn chưa có, lấy ngẫu nhiên 1 đề bất kỳ trong kho
             if not row:
                 try:
                     row = await self.bot.db.fetchone(
-                        "SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level, question_count, page_count, author_name, jump_url, timestamp, file_hash, notes, verdict, exam_track, confidence FROM documents_archive ORDER BY RANDOM() LIMIT 1"
+                        "SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level, question_count, page_count, author_name, jump_url, timestamp, file_hash, notes, verdict, exam_track, confidence, academic_year, school_or_department FROM documents_archive ORDER BY RANDOM() LIMIT 1"
                     )
                     has_scan = True
                 except Exception:
-                    row = await self.bot.db.fetchone(
-                        "SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level, question_count, page_count, author_name, jump_url, timestamp, file_hash, notes FROM documents_archive ORDER BY RANDOM() LIMIT 1"
-                    )
-                    has_scan = False
+                    try:
+                        row = await self.bot.db.fetchone(
+                            "SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level, question_count, page_count, author_name, jump_url, timestamp, file_hash, notes, verdict, exam_track, confidence FROM documents_archive ORDER BY RANDOM() LIMIT 1"
+                        )
+                        has_scan = True
+                    except Exception:
+                        row = await self.bot.db.fetchone(
+                            "SELECT id, subject, title, file_name, file_size_bytes, file_type, estimated_level, question_count, page_count, author_name, jump_url, timestamp, file_hash, notes FROM documents_archive ORDER BY RANDOM() LIMIT 1"
+                        )
+                        has_scan = False
         else:
             has_scan = False
 
         if not row:
             return web.json_response({"success": False, "message": "Hiện chưa có đề thi nào trong kho lưu trữ."})
+
+        notes_str = row[13] if len(row) > 13 and row[13] else ""
+        ac_year = row[17] if has_scan and len(row) > 17 and row[17] else None
+        sch_dept = row[18] if has_scan and len(row) > 18 and row[18] else None
+
+        # Fallback regex bóc tách năm học nếu cột null
+        if not ac_year:
+            combined_text = f"{row[2] or ''} {notes_str}"
+            m_yr = re.search(r'(?:năm\s*học|hk\s*[12]\s*năm)?\s*(20\d{2}\s*[-–—]\s*20\d{2})', combined_text, re.IGNORECASE)
+            if m_yr:
+                ac_year = m_yr.group(1).replace(" ", "")
+
+        # Fallback regex bóc tách trường / sở GD nếu cột null
+        if not sch_dept and notes_str:
+            m_sch = re.search(r'Nguồn:\s*([^|\n]+)', notes_str)
+            if m_sch:
+                sch_dept = m_sch.group(1).strip()
 
         return web.json_response({
             "success": True,
@@ -1109,10 +1182,12 @@ class BotAPIBridge:
                 "jump_url": row[10],
                 "timestamp": row[11],
                 "file_hash": row[12] if len(row) > 12 else None,
-                "notes": row[13] if len(row) > 13 and row[13] else "",
+                "notes": notes_str,
                 "verdict": row[14] if has_scan and len(row) > 14 else None,
                 "exam_track": row[15] if has_scan and len(row) > 15 else None,
                 "confidence": row[16] if has_scan and len(row) > 16 else None,
+                "academic_year": ac_year,
+                "school_or_department": sch_dept,
                 "download_url": f"/api/documents/{row[0]}/download",
             },
         })
@@ -1485,33 +1560,69 @@ class BotAPIBridge:
         file_ext = os.path.splitext(file_name)[1].lower().replace(".", "").upper() or "PDF"
 
         # 5. Lưu vào database documents_archive
-        insert_sql = """
-            INSERT INTO documents_archive (
-                subject, title, file_name, file_size_bytes, file_type,
-                estimated_level, question_count, page_count, author_id,
-                author_name, channel_id, message_id, jump_url, timestamp,
-                file_hash, raw_text
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        await self.bot.db.execute(
-            insert_sql,
-            detected_subject,
-            file_name,
-            file_name,
-            len(file_bytes),
-            file_ext,
-            detected_grade,
-            question_count,
-            page_count,
-            uploader_id,
-            uploader_name,
-            0,
-            0,
-            "https://hyperhub-one.vercel.app/#vault",
-            now_iso,
-            file_hash,
-            raw_text_summary[:50000] if raw_text_summary else "",
-        )
+        try:
+            insert_sql = """
+                INSERT INTO documents_archive (
+                    subject, title, file_name, file_size_bytes, file_type,
+                    estimated_level, question_count, page_count, author_id,
+                    author_name, channel_id, message_id, jump_url, timestamp,
+                    file_hash, raw_text, notes, academic_year, school_or_department,
+                    verdict, exam_track, confidence
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            await self.bot.db.execute(
+                insert_sql,
+                detected_subject,
+                file_name,
+                file_name,
+                len(file_bytes),
+                file_ext,
+                detected_grade,
+                question_count,
+                page_count,
+                uploader_id,
+                uploader_name,
+                0,
+                0,
+                "https://hyperhub-one.vercel.app/#vault",
+                now_iso,
+                file_hash,
+                raw_text_summary[:50000] if raw_text_summary else "",
+                raw_text_summary,
+                academic_year,
+                school_name,
+                "XAC_MINH",
+                exam_type_str,
+                confidence,
+            )
+        except Exception:
+            insert_sql = """
+                INSERT INTO documents_archive (
+                    subject, title, file_name, file_size_bytes, file_type,
+                    estimated_level, question_count, page_count, author_id,
+                    author_name, channel_id, message_id, jump_url, timestamp,
+                    file_hash, raw_text
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            await self.bot.db.execute(
+                insert_sql,
+                detected_subject,
+                file_name,
+                file_name,
+                len(file_bytes),
+                file_ext,
+                detected_grade,
+                question_count,
+                page_count,
+                uploader_id,
+                uploader_name,
+                0,
+                0,
+                "https://hyperhub-one.vercel.app/#vault",
+                now_iso,
+                file_hash,
+                raw_text_summary[:50000] if raw_text_summary else "",
+            )
 
         # Lấy ID của đề vừa thêm
         row_id_res = await self.bot.db.fetchone("SELECT last_insert_rowid()")

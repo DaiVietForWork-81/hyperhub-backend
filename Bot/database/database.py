@@ -253,7 +253,9 @@ class Database:
                 timestamp TEXT NOT NULL,
                 file_hash TEXT,
                 raw_text TEXT,
-                notes TEXT
+                notes TEXT,
+                academic_year TEXT,
+                school_or_department TEXT
             )
             """
         )
@@ -279,7 +281,7 @@ class Database:
             await self._conn.execute("ALTER TABLE documents_archive ADD COLUMN source_drive_id TEXT")
         except Exception:
             pass
-        for _col in ("verdict TEXT", "exam_track TEXT", "confidence REAL"):
+        for _col in ("verdict TEXT", "exam_track TEXT", "confidence REAL", "academic_year TEXT", "school_or_department TEXT"):
             try:
                 await self._conn.execute(f"ALTER TABLE documents_archive ADD COLUMN {_col}")
             except Exception:
