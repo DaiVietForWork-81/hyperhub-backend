@@ -113,6 +113,10 @@ def check_and_build_cpp_engine() -> None:
     else:
         lib_name = "native_core.so"
 
+    failed_marker = os.path.join(CPP_CORE_DIR, ".build_failed")
+    if os.path.isfile(failed_marker):
+        return
+
     lib_path = os.path.join(CPP_CORE_DIR, lib_name)
     if not os.path.isfile(lib_path):
         build_script = os.path.join(CPP_CORE_DIR, "build.py")
@@ -124,6 +128,10 @@ def check_and_build_cpp_engine() -> None:
                 run_cpp_build(strict=False)
             except Exception as e:
                 print(f"[!] Không thể tự động build C++ core: {e}. Sử dụng Pure-Python Fallback.")
+                try:
+                    open(failed_marker, "w").close()
+                except Exception:
+                    pass
             finally:
                 if CPP_CORE_DIR in sys.path:
                     sys.path.remove(CPP_CORE_DIR)

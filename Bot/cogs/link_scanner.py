@@ -359,24 +359,32 @@ class LinkScannerCog(commands.Cog):
             return
 
         try:
-            if purge:
-                try:
-                    await channel.purge(limit=50)
-                except Exception as pe:
-                    log.debug("Bỏ qua lỗi purge nhanh: %s", pe)
-                try:
-                    async for m in channel.history(limit=50):
-                        try:
-                            await m.delete()
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
+            # 1. Kiểm tra xem bảng điều khiển kiểm tra link đã có sẵn hay chưa
+            existing_panel = None
+            try:
+                async for m in channel.history(limit=5):
+                    if m.author == self.bot.user and m.embeds and ("KIỂM TRA AN TOÀN" in (m.embeds[0].title or "") or "LINK" in (m.embeds[0].title or "")):
+                        existing_panel = m
+                        break
+            except Exception:
+                pass
 
             panel_embed = self.build_control_panel_embed()
             view = LinkScannerControlView(self)
+
+            if existing_panel and not purge:
+                await existing_panel.edit(embed=panel_embed, view=view)
+                log.info("✅ Bảng kiểm tra link đã tồn tại, cập nhật nhẹ (0%% CPU) tại #%s", channel.name)
+                return
+
+            if purge:
+                try:
+                    await channel.purge(limit=15)
+                except Exception:
+                    pass
+
             await channel.send(embed=panel_embed, view=view)
-            log.info("✅ Đã dọn sạch kênh và khởi tạo bảng điều khiển kiểm tra link mới tại #%s", channel.name)
+            log.info("✅ Đã khởi tạo bảng điều khiển kiểm tra link mới tại #%s", channel.name)
         except Exception as e:
             log.warning("Lỗi khi thiết lập kênh kiểm tra link: %s", e)
 

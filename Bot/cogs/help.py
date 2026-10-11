@@ -202,21 +202,31 @@ class HelpCog(commands.Cog, name="Help"):
             logger.warning(f"Không tìm thấy kênh admin guide: {self.ADMIN_GUIDE_CHANNEL_ID}")
             return
         try:
+            # 1. Kiểm tra xem panel admin guide đã có sẵn hay chưa
+            existing_panel = None
+            try:
+                async for m in channel.history(limit=5):
+                    if m.author == self.bot.user and m.embeds and "LỆNH QUẢN TRỊ" in (m.embeds[0].title or ""):
+                        existing_panel = m
+                        break
+            except Exception:
+                pass
+
+            embeds = self.build_admin_guide_embeds()
+
+            if existing_panel and not purge:
+                await existing_panel.edit(embeds=embeds)
+                logger.info(f"✅ Panel admin guide đã tồn tại, cập nhật nhẹ (0%% CPU) tại #{channel.name}")
+                return
+
             if purge:
                 try:
-                    await channel.purge(limit=100)
+                    await channel.purge(limit=15)
                 except Exception:
                     pass
-                try:
-                    async for m in channel.history(limit=50):
-                        try:
-                            await m.delete()
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-            await channel.send(embeds=self.build_admin_guide_embeds())
-            logger.info(f"✅ Đã đăng panel hướng dẫn lệnh admin tại #{channel.name} ({channel.id})")
+
+            await channel.send(embeds=embeds)
+            logger.info(f"✅ Đã đăng panel hướng dẫn lệnh admin mới tại #{channel.name} ({channel.id})")
         except Exception as e:
             logger.warning(f"Lỗi đăng panel admin guide: {e}")
 

@@ -48,7 +48,8 @@ log = logging.getLogger(__name__)
 # --oem 3: LSTM engine (tốt nhất)
 # --psm 6: Assume a single uniform block of text
 # -l vie+eng: Vietnamese + English
-TESS_CONFIG = r'--oem 3 --psm 6 -l vie+eng'
+# -c tessedit_parallel=0 -c omp_thread_limit=1: Chống ngốn CPU trên server 0.35 core
+TESS_CONFIG = r'--oem 3 --psm 6 -l vie+eng -c tessedit_parallel=0 -c omp_thread_limit=1'
 
 
 def init_tesseract() -> bool:

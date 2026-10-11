@@ -1081,25 +1081,34 @@ class DocumentIntakeCog(commands.Cog):
                 return
 
             try:
-                if purge:
-                    try:
-                        await channel.purge(limit=100)
-                    except Exception as pe:
-                        log.debug("Bỏ qua lỗi purge nhanh: %s", pe)
-                    try:
-                        async for m in channel.history(limit=50):
-                            try:
-                                await m.delete()
-                            except Exception:
-                                pass
-                    except Exception:
-                        pass
+                # 1. Kiểm tra xem bảng panel của Bot đã có sẵn trong kênh hay chưa
+                existing_panel = None
+                try:
+                    async for m in channel.history(limit=5):
+                        if m.author == self.bot.user and m.embeds and ("NỘP TÀI LIỆU" in (m.embeds[0].title or "") or "HƯỚNG DẪN" in (m.embeds[0].title or "")):
+                            existing_panel = m
+                            break
+                except Exception:
+                    pass
 
                 embeds = await self.build_intake_panel_embeds()
                 view = DocumentIntakeControlView(self)
+
+                if existing_panel and not purge:
+                    await existing_panel.edit(embeds=embeds, view=view)
+                    self._panel_message_id = existing_panel.id
+                    log.info("✅ Bảng hướng dẫn nộp tài liệu đã tồn tại, cập nhật nhẹ (0%% CPU) tại #%s", channel.name)
+                    return
+
+                if purge:
+                    try:
+                        await channel.purge(limit=15)
+                    except Exception:
+                        pass
+
                 msg = await channel.send(embeds=embeds, view=view)
                 self._panel_message_id = msg.id
-                log.info("✅ Đã dọn sạch kênh và khởi tạo bảng hướng dẫn nộp tài liệu mới tại #%s (%s)", channel.name, channel.id)
+                log.info("✅ Đã khởi tạo bảng hướng dẫn nộp tài liệu mới tại #%s (%s)", channel.name, channel.id)
             except Exception as e:
                 log.warning("Lỗi khi tự động thiết lập kênh nộp tài liệu: %s", e)
 

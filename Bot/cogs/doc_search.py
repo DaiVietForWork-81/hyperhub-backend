@@ -1194,25 +1194,33 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
             setattr(settings, "DOC_SEARCH_CHANNEL_ID", channel.id)
 
             try:
+                # 1. Kiểm tra xem bảng chuyển hướng tra cứu đã có sẵn hay chưa
+                existing_panel = None
+                try:
+                    async for m in channel.history(limit=5):
+                        if m.author == self.bot.user and m.embeds and ("TRA CỨU" in (m.embeds[0].title or "") or "VAULT" in (m.embeds[0].title or "")):
+                            existing_panel = m
+                            break
+                except Exception:
+                    pass
+
+                embed = await self.build_search_panel_embed()
+
+                if existing_panel and not purge:
+                    await existing_panel.edit(embed=embed)
+                    self._panel_message_id = existing_panel.id
+                    log.info("✅ Bảng chuyển hướng tra cứu đã tồn tại, cập nhật nhẹ (0%% CPU) tại #%s", channel.name)
+                    return
+
                 if purge:
                     try:
-                        await channel.purge(limit=100)
-                    except Exception as pe:
-                        log.debug("Bỏ qua lỗi purge nhanh: %s", pe)
-                    # Quét dọn các tin nhắn cũ (> 14 ngày)
-                    try:
-                        async for m in channel.history(limit=50):
-                            try:
-                                await m.delete()
-                            except Exception:
-                                pass
+                        await channel.purge(limit=15)
                     except Exception:
                         pass
 
-                embed = await self.build_search_panel_embed()
                 new_msg = await channel.send(embed=embed)
                 self._panel_message_id = new_msg.id
-                log.info("✅ Đã dọn sạch kênh và tạo mới Bảng Chuyển Hướng Tra Cứu Web tại #%s (%s)", channel.name, channel.id)
+                log.info("✅ Đã tạo mới Bảng Chuyển Hướng Tra Cứu Web tại #%s (%s)", channel.name, channel.id)
             except Exception as e:
                 log.warning("Lỗi thiết lập kênh tra cứu: %s", e)
 

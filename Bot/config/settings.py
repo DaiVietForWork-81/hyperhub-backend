@@ -137,6 +137,10 @@ if HAS_PYDANTIC:
             default=0,
             description="ID của Role Thành Viên Mặc Định (🌱 Học sinh) tự động cấp cho mọi người",
         )
+        AUTO_ASSIGN_EXISTING_MEMBERS_ON_STARTUP: bool = Field(
+            default=False,
+            description="Tự động quét và cấp role học sinh cho toàn bộ member cũ lúc khởi động (tắt để bảo vệ CPU 0.35 core)",
+        )
 
         # Role Test dự phòng cho tương lai
         TEST_ROLE_ID: int = Field(

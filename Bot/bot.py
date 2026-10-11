@@ -14,6 +14,24 @@ PROJECT_ROOT = BOT_DIR.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# Tối ưu hóa CPU cho môi trường máy chủ / container giới hạn CPU (<= 0.35 core)
+# Giới hạn tất cả các thư viện C/C++/BLAS/OpenMP/Rayon chỉ dùng tối đa 1 thread
+# để tránh cạnh tranh context switch và bị cgroups bóp nghẹt CPU quota.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("RAYON_NUM_THREADS", "1")
+
+# Giảm tần suất dọn rác (GC) toàn cục để tiết kiệm chu kỳ CPU khi nhàn rỗi
+import gc
+try:
+    gc.set_threshold(50000, 10, 10)
+except Exception:
+    pass
+
 # Đảm bảo UTF-8 an toàn cho console trên Windows
 if sys.platform == "win32":
     try:
@@ -120,6 +138,7 @@ class CompetitiveProgrammingBot(commands.Bot):
             command_prefix="!",
             intents=intents,
             help_command=None,
+            chunk_guilds_at_startup=False,  # CỰC KỲ QUAN TRỌNG: Không tải toàn bộ members lúc bật bot để tránh spike CPU 100%
         )
 
         # HyperHub Services & Database initialization
@@ -130,9 +149,17 @@ class CompetitiveProgrammingBot(commands.Bot):
         self.config = ConfigRepository(self.db)
         self.scheduler = BanScheduler(self, self.moderation)
         self._cleanup_task: asyncio.Task | None = None
+        self._ready_initialized: bool = False
+        self._channels_setup_done: bool = False
 
     async def setup_hook(self) -> None:
         """Thực thi trong quá trình khởi động bot trước khi kết nối Gateway Discord."""
+        # Giới hạn ThreadPoolExecutor của asyncio.to_thread tối đa 2 workers để không ngốn CPU trên server 0.35 core
+        import concurrent.futures
+        self.loop.set_default_executor(
+            concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="HyperHubWorker")
+        )
+
         # Kiểm tra CSDL bot.db có tồn tại hay không, nếu mất dữ liệu -> Tự động khôi phục từ Discord
         try:
             from services.backup_service import PRIMARY_DB_PATH, backup_service
@@ -282,9 +309,13 @@ class CompetitiveProgrammingBot(commands.Bot):
                 logger.warning(f"Lỗi khởi chạy Bot API Bridge: {bridge_err}")
 
     async def _auto_setup_channels(self) -> None:
-        """Tự động thiết lập và đăng bảng điều khiển giao diện tại các kênh cố định (Chạy song song tối ưu tốc độ)."""
+        """Tự động thiết lập và đăng bảng điều khiển giao diện tại các kênh cố định (tuần tự, tiết kiệm CPU)."""
         await self.wait_until_ready()
-        logger.info("⚡ Bắt đầu tự động thiết lập các kênh giao diện song song (Parallel Pipeline)...")
+        if self._channels_setup_done:
+            return
+        self._channels_setup_done = True
+
+        logger.info("⚡ Bắt đầu tự động thiết lập các kênh giao diện (Sequential Pipeline - Tiết kiệm CPU)...")
 
         async def run_setup(name: str, coro, timeout: float = 30.0) -> None:
             try:
@@ -295,32 +326,33 @@ class CompetitiveProgrammingBot(commands.Bot):
                     f"⚠️ Lỗi khi thiết lập kênh {name}: {type(e).__name__} ({e or 'Timeout'})"
                 )
 
-        tasks = []
+        setup_items = []
 
         # 1/4. Document Intake & Classification
         doc_cog = self.get_cog("DocumentIntakeCog")
         if doc_cog and hasattr(doc_cog, "auto_setup_intake_channel"):
-            tasks.append(run_setup("#doc-intake", doc_cog.auto_setup_intake_channel(purge=True)))
+            setup_items.append(("#doc-intake", doc_cog.auto_setup_intake_channel(purge=False)))
 
         # 2/4. Document Search & Discovery
         search_doc_cog = self.get_cog("DocumentSearch")
         if search_doc_cog and hasattr(search_doc_cog, "auto_setup_search_channel"):
-            tasks.append(run_setup("#doc-search", search_doc_cog.auto_setup_search_channel(purge=True)))
+            setup_items.append(("#doc-search", search_doc_cog.auto_setup_search_channel(purge=False)))
 
         # 3/4. Link Scanner
         link_scanner_cog = self.get_cog("LinkScannerCog")
         if link_scanner_cog and hasattr(link_scanner_cog, "auto_setup_scanner_channel"):
-            tasks.append(run_setup("#link-scanner", link_scanner_cog.auto_setup_scanner_channel(purge=True)))
+            setup_items.append(("#link-scanner", link_scanner_cog.auto_setup_scanner_channel(purge=False)))
 
         # 4/4. Admin Command Guide (kênh hướng dẫn lệnh admin)
         help_cog = self.get_cog("Help")
         if help_cog and hasattr(help_cog, "auto_setup_admin_guide"):
-            tasks.append(run_setup("#admin-guide", help_cog.auto_setup_admin_guide(purge=True)))
+            setup_items.append(("#admin-guide", help_cog.auto_setup_admin_guide(purge=False)))
 
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+        for name, coro in setup_items:
+            await run_setup(name, coro)
+            await asyncio.sleep(1.0)  # Giãn cách 1 giây để CPU không bị dồn nén trên server 0.35 core
 
-        logger.info(f"⚡ Hoàn tất thiết lập toàn bộ {len(tasks)} kênh giao diện trong thời gian kỷ lục!")
+        logger.info(f"⚡ Hoàn tất thiết lập toàn bộ {len(setup_items)} kênh giao diện với 0% CPU nghẽn!")
 
 
     async def _start_ban_scheduler(self) -> None:
@@ -361,6 +393,12 @@ class CompetitiveProgrammingBot(commands.Bot):
         )
         await self.change_presence(status=discord.Status.online, activity=activity)
 
+        # Chặn lặp tác vụ khởi động khi bot reconnect Gateway (tránh spike CPU)
+        if self._ready_initialized:
+            logger.info("🟢 Bot đã kết nối lại Gateway Discord (Reconnected). Giữ nguyên trạng thái kênh và bộ nhớ.")
+            return
+        self._ready_initialized = True
+
         # Khởi chạy cập nhật các kênh và tự động cấp Role Thành viên (Học sinh) trong background task
         asyncio.create_task(self._auto_setup_channels())
         asyncio.create_task(self._auto_assign_member_roles())
@@ -370,6 +408,11 @@ class CompetitiveProgrammingBot(commands.Bot):
 
     async def _auto_assign_member_roles(self) -> None:
         """Tự động kiểm tra và cấp Role '🌱 Học sinh' (MEMBER_ROLE_ID) cho toàn bộ thành viên hiện có trên Server."""
+        # Mặc định TẮT quét hàng loạt lúc khởi động để bảo vệ CPU 0.35 core.
+        # Thành viên mới vào server đã được gán 100% tự động qua sự kiện on_member_join.
+        if not getattr(settings, "AUTO_ASSIGN_EXISTING_MEMBERS_ON_STARTUP", False):
+            return
+
         member_role_id = settings.MEMBER_ROLE_ID
         if not member_role_id or member_role_id <= 0:
             return
