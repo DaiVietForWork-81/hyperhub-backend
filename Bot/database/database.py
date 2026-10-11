@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 
 from config.settings import settings
 from utils.logger import get_logger
@@ -20,12 +21,19 @@ class Base(DeclarativeBase):
     """Base class for all SQLAlchemy declarative models."""
 
 
-# Async engine creation
+# Async engine creation: NullPool prevents connection leaking on SQLite in async event loops
+_engine_kwargs = {
+    "echo": False,
+    "future": True,
+}
+if "sqlite" in settings.DATABASE_URL.lower():
+    _engine_kwargs["poolclass"] = NullPool
+else:
+    _engine_kwargs["pool_pre_ping"] = True
+
 engine: AsyncEngine = create_async_engine(
     settings.DATABASE_URL,
-    echo=False,
-    future=True,
-    pool_pre_ping=True,
+    **_engine_kwargs,
 )
 
 # Async session factory
@@ -430,7 +438,24 @@ class Database:
         cursor = await self.connection.execute(sql, params)
         return await cursor.fetchall()
 
+    async def __aenter__(self):
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
     async def close(self) -> None:
         if self._conn is not None:
             await self._conn.close()
             self._conn = None
+
+    def __del__(self) -> None:
+        if self._conn is not None:
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self._conn.close())
+            except Exception:
+                pass

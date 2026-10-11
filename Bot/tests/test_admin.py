@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from cogs.admin import AdminCog
 from config.settings import settings
-from database.database import async_session_factory, init_db
+from database.database import async_session_factory, close_db_engine, init_db
 from database.repositories.user_repo import UserRepository
 
 
@@ -19,12 +19,15 @@ class TestAdminCog(unittest.IsolatedAsyncioTestCase):
         self.user_id = 999888777111
 
     async def asyncTearDown(self):
-        async with async_session_factory() as session:
-            from sqlalchemy import delete
-            from database.models import User
+        try:
+            async with async_session_factory() as session:
+                from sqlalchemy import delete
+                from database.models import User
 
-            await session.execute(delete(User).where(User.discord_id == self.user_id))
-            await session.commit()
+                await session.execute(delete(User).where(User.discord_id == self.user_id))
+                await session.commit()
+        finally:
+            await close_db_engine()
 
     async def test_setpts_freedom_mode(self):
         """Kiểm tra /setpts với mode='freedom'."""

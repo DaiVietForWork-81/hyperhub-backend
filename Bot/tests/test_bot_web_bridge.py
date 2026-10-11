@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from aiohttp import web
-from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
+from aiohttp.test_utils import AioHTTPTestCase
 
 from config.settings import settings
 from services.api_bridge import BotAPIBridge
@@ -26,7 +26,6 @@ class TestBotAPIBridge(AioHTTPTestCase):
         bridge = BotAPIBridge(self.mock_bot)
         return bridge.app
 
-    @unittest_run_loop
     async def test_get_status_endpoint(self):
         """Kiểm tra GET /api/status trả về đúng thông tin bot."""
         resp = await self.client.request("GET", "/api/status")
@@ -37,7 +36,6 @@ class TestBotAPIBridge(AioHTTPTestCase):
         self.assertEqual(data["guilds_count"], 1)
         self.assertGreaterEqual(data["ping_ms"], 0)
 
-    @unittest_run_loop
     async def test_auth_middleware_blocks_invalid_post(self):
         """Kiểm tra POST /api/notify bị từ chối nếu không có token hợp lệ."""
         payload = {"channel_id": 111, "message": "hello"}
@@ -50,7 +48,6 @@ class TestBotAPIBridge(AioHTTPTestCase):
         resp_wrong = await self.client.request("POST", "/api/notify", json=payload, headers=headers)
         self.assertEqual(resp_wrong.status, 401)
 
-    @unittest_run_loop
     async def test_auth_middleware_accepts_valid_token(self):
         """Kiểm tra POST /api/notify chấp nhận token đúng."""
         headers = {"Authorization": f"Bearer {settings.BOT_API_SECRET}"}
@@ -69,7 +66,6 @@ class TestBotAPIBridge(AioHTTPTestCase):
         self.assertEqual(_args[0], "Test message from web")
         self.assertIn("allowed_mentions", _kwargs)
 
-    @unittest_run_loop
     async def test_request_exam_requires_server_member(self):
         """GET /api/documents/request_exam: chặn khi không token / token chết / chưa verify / ngoài server."""
         from unittest.mock import AsyncMock as _AM
@@ -122,7 +118,6 @@ class TestBotAPIBridge(AioHTTPTestCase):
             self.assertEqual(data.get("reason"), "not_member")
             self.assertTrue(data.get("guild_id"))
 
-    @unittest_run_loop
     async def test_admin_input_validation(self):
         """Kiểm tra backend trả 400 (không 500) khi admin gửi dữ liệu sai định dạng."""
         headers = {"Authorization": f"Bearer {settings.BOT_API_SECRET}"}
@@ -160,7 +155,6 @@ class TestBotAPIBridge(AioHTTPTestCase):
         )
         self.assertEqual(resp3.status, 400)
 
-    @unittest_run_loop
     async def test_get_active_duels_endpoint(self):
         resp = await self.client.request("GET", "/api/duels/active")
         self.assertEqual(resp.status, 200)

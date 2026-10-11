@@ -145,10 +145,14 @@ class UrlDocumentFetcher:
                 )
 
         except urllib.error.HTTPError as e:
-            # 403, 401, 429, 503
+            code = getattr(e, 'code', 0)
+            try:
+                e.close()
+            except Exception:
+                pass
             raise UrlBlockedOrUnknownOriginError(
                 reason="không rõ nguồn gốc",
-                details=f"Google Drive từ chối kết nối (Mã lỗi HTTP {e.code}) -> không rõ nguồn gốc",
+                details=f"Google Drive từ chối kết nối (Mã lỗi HTTP {code}) -> không rõ nguồn gốc",
             )
         except urllib.error.URLError as e:
             raise UrlBlockedOrUnknownOriginError(
@@ -218,10 +222,14 @@ class UrlDocumentFetcher:
                 )
 
         except urllib.error.HTTPError as e:
-            # When server returns 403 Forbidden, 401 Unauthorized, etc.
+            code = getattr(e, 'code', 0)
+            try:
+                e.close()
+            except Exception:
+                pass
             raise UrlBlockedOrUnknownOriginError(
                 reason="không rõ nguồn gốc",
-                details=f"Website chặn bot truy cập (Mã phản hồi HTTP {e.code}) -> không rõ nguồn gốc",
+                details=f"Website chặn bot truy cập (Mã phản hồi HTTP {code}) -> không rõ nguồn gốc",
             )
         except urllib.error.URLError as e:
             raise UrlBlockedOrUnknownOriginError(
