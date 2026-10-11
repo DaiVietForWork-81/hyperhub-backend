@@ -161,11 +161,96 @@ def check_filesystem_and_env() -> None:
             print("=" * 70)
 
 
+HYPERHUB_BOT_REPO_URL = "https://github.com/DaiVietForWork-81/hyperhub-bot.git"
+
+
+def check_and_apply_git_updates() -> bool:
+    """
+    Tự động kiểm tra bản cập nhật mới từ repository GitHub (https://github.com/DaiVietForWork-81/hyperhub-bot).
+    Nếu phát hiện commit mới trên nhánh main:
+    1. Tải và đồng bộ toàn bộ mã nguồn mới nhất (git reset --hard origin/main).
+    2. Dọn sạch các file thay đổi/bị xóa để khớp 100% với repo GitHub.
+    3. Bảo toàn an toàn 100% các file dữ liệu cục bộ (.env, data/, bot.db, logs/, backups/).
+    4. Tự động khởi động lại bot để nạp mã nguồn mới.
+    """
+    if os.environ.get("HYPERHUB_UPDATED_RESTARTED") == "1":
+        os.environ.pop("HYPERHUB_UPDATED_RESTARTED", None)
+        return False
+
+    git_bin = shutil.which("git")
+    if not git_bin:
+        return False
+
+    dot_git = os.path.join(PROJECT_DIR, ".git")
+    if not os.path.exists(dot_git):
+        return False
+
+    try:
+        remotes_out = subprocess.check_output(
+            [git_bin, "remote", "-v"],
+            cwd=PROJECT_DIR,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        if "origin" not in remotes_out:
+            subprocess.run([git_bin, "remote", "add", "origin", HYPERHUB_BOT_REPO_URL], cwd=PROJECT_DIR, check=True)
+        elif "hyperhub-bot" not in remotes_out:
+            subprocess.run([git_bin, "remote", "set-url", "origin", HYPERHUB_BOT_REPO_URL], cwd=PROJECT_DIR, check=True)
+
+        print("[*] Đang kiểm tra cập nhật từ GitHub (hyperhub-bot)...", flush=True)
+        fetch_res = subprocess.run(
+            [git_bin, "fetch", "origin", "main", "--quiet"],
+            cwd=PROJECT_DIR,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=12,
+        )
+        if fetch_res.returncode != 0:
+            print("[!] Không thể fetch từ GitHub (offline hoặc chưa có kết nối). Tiếp tục khởi động...", flush=True)
+            return False
+
+        local_hash = subprocess.check_output(
+            [git_bin, "rev-parse", "HEAD"], cwd=PROJECT_DIR, text=True, stderr=subprocess.DEVNULL
+        ).strip()
+        remote_hash = subprocess.check_output(
+            [git_bin, "rev-parse", "origin/main"], cwd=PROJECT_DIR, text=True, stderr=subprocess.DEVNULL
+        ).strip()
+
+        if local_hash and remote_hash and local_hash != remote_hash:
+            print("=" * 70, flush=True)
+            print("   🔄 PHÁT HIỆN BẢN CẬP NHẬT MỚI TỪ GITHUB (hyperhub-bot)", flush=True)
+            print(f"      Phiên bản hiện tại : {local_hash[:8]}", flush=True)
+            print(f"      Phiên bản mới nhất : {remote_hash[:8]}", flush=True)
+            print("=" * 70, flush=True)
+            print("[*] Đang tự động kéo bản cập nhật và đồng bộ 100%...", flush=True)
+
+            subprocess.run([git_bin, "reset", "--hard", "origin/main"], cwd=PROJECT_DIR, check=True)
+            subprocess.run([git_bin, "clean", "-fd"], cwd=PROJECT_DIR, check=True)
+            print("[+] Đã đồng bộ mã nguồn mới nhất thành công! Đang khởi động lại Bot...", flush=True)
+
+            new_env = os.environ.copy()
+            new_env["HYPERHUB_UPDATED_RESTARTED"] = "1"
+            subprocess.Popen([sys.executable] + sys.argv, cwd=PROJECT_DIR, env=new_env)
+            sys.exit(0)
+        else:
+            print(f"[+] Bot đã ở phiên bản mới nhất từ GitHub ({local_hash[:8] if local_hash else 'main'}).", flush=True)
+    except subprocess.TimeoutExpired:
+        print("[!] Hết thời gian chờ kiểm tra cập nhật (mạng chậm). Tiếp tục khởi động...", flush=True)
+    except Exception as e:
+        print(f"[!] Bỏ qua kiểm tra cập nhật GitHub: {e}", flush=True)
+
+    return False
+
+
 def run_preflight_checks() -> None:
     """
     Hàm entrypoint thực thi toàn bộ quy trình kiểm tra & tự động chuẩn bị.
     Được gọi ngay dòng đầu tiên của bot.py.
     """
+    # 0. Tự động kiểm tra và đồng bộ cập nhật từ GitHub (hyperhub-bot)
+    check_and_apply_git_updates()
+
     # 1. Tích hợp Toolchains nội bộ (C++, Node.js)
     setup_bundled_toolchains()
 

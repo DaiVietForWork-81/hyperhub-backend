@@ -22,6 +22,7 @@ ENV/
 # C++ Core Builds & Portable Compiler
 cpp_core/compiler/
 cpp_core/*.dll
+!cpp_core/native_core.dll
 cpp_core/*.so
 cpp_core/*.dylib
 cpp_core/*.o
@@ -29,8 +30,9 @@ cpp_core/*.obj
 cpp_core/*.exp
 cpp_core/*.lib
 
-# Binaries & Toolchains
+# Binaries, Dependencies & Toolchains
 bin/
+node_modules/
 
 # Runtime Data, Logs, Databases & Backups
 logs/
