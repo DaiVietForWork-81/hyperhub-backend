@@ -733,9 +733,14 @@ class BotAPIBridge:
         query_params = request.rel_url.query
         subject = query_params.get("subject", "").strip()
         search_kw = query_params.get("search", "").strip()
+        raw_limit = query_params.get("limit", "20").strip().lower()
         try:
-            limit = min(max(int(query_params.get("limit", 20)), 1), 100)
-            page = max(int(query_params.get("page", 1)), 1)
+            if raw_limit in ("0", "-1", "all", "unlimited"):
+                limit = 100000
+                page = 1
+            else:
+                limit = min(max(int(raw_limit), 1), 10000)
+                page = max(int(query_params.get("page", 1)), 1)
         except ValueError:
             limit = 20
             page = 1

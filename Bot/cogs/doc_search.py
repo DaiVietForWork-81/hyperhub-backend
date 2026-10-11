@@ -1272,6 +1272,154 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
         await interaction.followup.send(embed=view.build_embed(), view=view, ephemeral=True)
 
     @app_commands.command(
+        name="timde",
+        description="Tra cứu nhanh tài liệu học tập & đề thi trong kho lưu trữ của Server",
+    )
+    @app_commands.describe(
+        mo_ta="Mô tả hoặc từ khóa cần tìm (Ví dụ: đề toán 12 chuyên ams hk1)",
+        mon_hoc="Môn học cụ thể cần lọc",
+    )
+    @app_commands.choices(
+        mon_hoc=[
+            app_commands.Choice(name="📐 Toán Học", value="MATHEMATICS"),
+            app_commands.Choice(name="💻 Tin Học / Lập Trình", value="INFORMATICS"),
+            app_commands.Choice(name="🔤 Tiếng Anh", value="ENGLISH"),
+            app_commands.Choice(name="⚡ Vật Lý", value="PHYSICS"),
+            app_commands.Choice(name="🧪 Hóa Học", value="CHEMISTRY"),
+            app_commands.Choice(name="🧬 Sinh Học", value="BIOLOGY"),
+            app_commands.Choice(name="📖 Ngữ Văn", value="LITERATURE"),
+            app_commands.Choice(name="🏛️ Lịch Sử", value="HISTORY"),
+            app_commands.Choice(name="🌍 Địa Lý", value="GEOGRAPHY"),
+            app_commands.Choice(name="⚖️ Giáo Dục Công Dân", value="CIVIC_EDUCATION"),
+        ]
+    )
+    async def timde_slash(
+        self,
+        interaction: discord.Interaction,
+        mo_ta: Optional[str] = None,
+        mon_hoc: Optional[str] = None,
+    ) -> None:
+        """Alias lệnh /timde cho timtailieu_slash."""
+        await self.timtailieu_slash(interaction, mo_ta=mo_ta, mon_hoc=mon_hoc)
+
+    @app_commands.command(
+        name="layde",
+        description="Bốc ngẫu nhiên 1 đề thi theo môn học hoặc khối lớp từ kho lưu trữ",
+    )
+    @app_commands.describe(
+        mon_hoc="Môn học muốn bốc đề ngẫu nhiên",
+        khoi_lop="Khối lớp (Lớp 12, 11, 10, 9...)",
+    )
+    @app_commands.choices(
+        mon_hoc=[
+            app_commands.Choice(name="📐 Toán Học", value="MATHEMATICS"),
+            app_commands.Choice(name="💻 Tin Học / Lập Trình", value="INFORMATICS"),
+            app_commands.Choice(name="🔤 Tiếng Anh", value="ENGLISH"),
+            app_commands.Choice(name="⚡ Vật Lý", value="PHYSICS"),
+            app_commands.Choice(name="🧪 Hóa Học", value="CHEMISTRY"),
+            app_commands.Choice(name="🧬 Sinh Học", value="BIOLOGY"),
+            app_commands.Choice(name="📖 Ngữ Văn", value="LITERATURE"),
+            app_commands.Choice(name="🏛️ Lịch Sử", value="HISTORY"),
+            app_commands.Choice(name="🌍 Địa Lý", value="GEOGRAPHY"),
+            app_commands.Choice(name="⚖️ Giáo Dục Công Dân", value="CIVIC_EDUCATION"),
+        ],
+        khoi_lop=[
+            app_commands.Choice(name="🎓 Lớp 12 (Ôn thi THPT Quốc Gia)", value="12"),
+            app_commands.Choice(name="📚 Lớp 11", value="11"),
+            app_commands.Choice(name="🎒 Lớp 10", value="10"),
+            app_commands.Choice(name="🎯 Lớp 9 (Ôn thi vào 10)", value="9"),
+            app_commands.Choice(name="📖 Lớp 8", value="8"),
+            app_commands.Choice(name="📘 Lớp 7", value="7"),
+            app_commands.Choice(name="📗 Lớp 6", value="6"),
+        ]
+    )
+    async def layde_slash(
+        self,
+        interaction: discord.Interaction,
+        mon_hoc: Optional[str] = None,
+        khoi_lop: Optional[str] = None,
+    ) -> None:
+        """Slash command bốc ngẫu nhiên 1 đề thi trực tiếp trên Discord."""
+        await interaction.response.defer(ephemeral=True)
+
+        if not hasattr(self.bot, "db"):
+            await interaction.followup.send("❌ Cơ sở dữ liệu bot chưa sẵn sàng.", ephemeral=True)
+            return
+
+        where_clauses = []
+        params = []
+        if mon_hoc:
+            where_clauses.append("LOWER(subject) = LOWER(?)")
+            params.append(mon_hoc)
+        if khoi_lop:
+            where_clauses.append("(estimated_level LIKE ? OR title LIKE ?)")
+            params.extend([f"%{khoi_lop}%", f"%{khoi_lop}%"])
+
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+        sql = f"""
+            SELECT id, title, file_name, subject, estimated_level, file_size_bytes, page_count, jump_url, author_name, academic_year, school_or_department
+            FROM documents_archive
+            {where_sql}
+            ORDER BY RANDOM()
+            LIMIT 1
+        """
+        try:
+            row = await self.bot.db.fetchone(sql, *params)
+        except Exception:
+            sql_fallback = f"""
+                SELECT id, title, file_name, subject, estimated_level, file_size_bytes, page_count, jump_url, author_name
+                FROM documents_archive
+                {where_sql}
+                ORDER BY RANDOM()
+                LIMIT 1
+            """
+            row = await self.bot.db.fetchone(sql_fallback, *params)
+
+        if not row:
+            await interaction.followup.send(
+                "🎲 **Không tìm thấy đề thi phù hợp!** Vui lòng thử chọn tiêu chí khác hoặc xem toàn bộ kho đề.",
+                ephemeral=True,
+            )
+            return
+
+        doc_id = row[0]
+        title = row[1] or row[2] or "Đề thi"
+        sub = row[3] or "Chưa rõ"
+        level = row[4] or "Toàn khối"
+        size_bytes = row[5] or 0
+        pages = row[6] or 1
+        jump_url = row[7] or ""
+        author = row[8] or "HyperHub"
+        ac_year = row[9] if len(row) > 9 else None
+        school = row[10] if len(row) > 10 else None
+
+        size_mb = f"{size_bytes / (1024 * 1024):.1f} MB" if size_bytes > 1024 * 1024 else f"{size_bytes / 1024:.0f} KB"
+
+        embed = discord.Embed(
+            title=f"🎲 ĐỀ THI ĐƯỢC BỐC NGẪU NHIÊN: {title[:80]}",
+            description="Hệ thống đã chọn ngẫu nhiên 1 đề từ kho **175+ đề thi** của HyperHub:",
+            color=0x9B59B6,
+        )
+        embed.add_field(name="📚 Môn Học", value=f"`{sub}`", inline=True)
+        embed.add_field(name="🎯 Khối Lớp", value=f"`{level}`", inline=True)
+        embed.add_field(name="📄 Quy Mô", value=f"`{pages} trang` • `{size_mb}`", inline=True)
+        if ac_year:
+            embed.add_field(name="📅 Năm Học", value=f"`{ac_year}`", inline=True)
+        if school:
+            embed.add_field(name="🏫 Nguồn Ra Đề", value=f"`{school}`", inline=True)
+        embed.add_field(name="👤 Người Nộp", value=f"`{author}`", inline=True)
+        embed.set_footer(text=f"Mã đề: #{doc_id} • HyperHub Document Vault")
+
+        view = discord.ui.View(timeout=180.0)
+        if jump_url:
+            view.add_item(discord.ui.Button(label="🔗 Xem Bài Đăng Gốc", url=jump_url, style=discord.ButtonStyle.link))
+
+        tunnel_url = "https://phantasmagorically-occupative-gladys.ngrok-free.dev"
+        view.add_item(discord.ui.Button(label="📥 Mở / Tải Về Trực Tiếp", url=f"{tunnel_url}/api/documents/{doc_id}/download", style=discord.ButtonStyle.link))
+
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+
+    @app_commands.command(
         name="dongbokhode",
         description="[Admin] Quét và đồng bộ toàn bộ đề thi do Bot & Admin gửi trong các kênh chuyên môn",
     )
