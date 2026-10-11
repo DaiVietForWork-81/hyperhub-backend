@@ -16,6 +16,15 @@ import shutil
 import subprocess
 import sys
 
+if sys.platform == "win32":
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 PROJECT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REQUIREMENTS_FILE = os.path.join(PROJECT_DIR, "requirements.txt")
 ENV_FILE = os.path.join(PROJECT_DIR, ".env")
