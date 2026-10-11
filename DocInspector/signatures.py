@@ -34,13 +34,19 @@ RE_VNI_MOJIBAKE: Pattern = re.compile(r"\b[a-zA-Z]+(?:ù|ú|û|ü|ý|ÿ|ñ)[a-zA
 
 # MOET 2025 New 3-Part Exam Structure (Thông tư mới Bộ GD&ĐT)
 RE_MOET_PART1: Pattern = re.compile(
-    r"(?i)\b(?:phần\s+i|phần\s+1|part\s+1)\s*[:.]\s*(?:câu\s*trắc\s*nghiệm\s*nhiều\s*phương\s*án|trắc\s*nghiệm\s*nhiều\s*lựa\s*chọn|multiple\s*choice)",
+    r"(?i)(?:\b(?:ph[ầa]n\s*(?:i\b|1\b|nh[ấa]t|m[ộo]t)|part\s*1)\s*[:.\-–—]?\s*(?:c[âa]u\s*)?(?:tr[ắa]c\s*nghi[ệe]m\s*(?:nhi[ềe]u\s*ph[ươu]ng\s*[áa]n|nhi[ềe]u\s*l[ựu]a\s*ch[ọo]n|4\s*(?:l[ựu]a\s*ch[ọo]n|ph[ươu]ng\s*[áa]n))|multiple\s*choice|th[íi]\s*sinh\s*tr[ảa]\s*l[ờo]i\s*t[ừu]\s*c[âa]u|ch[ọo]n\s*(?:01|1)\s*ph[ươu]ng\s*[áa]n)"
+    r"|^(?:i\b|1\b)\s*[:.\-–—]\s*(?:c[âa]u\s*)?tr[ắa]c\s*nghi[ệe]m\s*nhi[ềe]u\s*(?:ph[ươu]ng\s*[áa]n|l[ựu]a\s*ch[ọo]n))",
+    re.MULTILINE,
 )
 RE_MOET_PART2: Pattern = re.compile(
-    r"(?i)\b(?:phần\s+ii|phần\s+2|part\s+2)\s*[:.]\s*(?:câu\s*trắc\s*nghiệm\s*đúng\s*sai|trắc\s*nghiệm\s*đúng\s*[-/]?\s*sai|true\s*[-/]?\s*false)",
+    r"(?i)(?:\b(?:ph[ầa]n\s*(?:ii\b|2\b|hai)|part\s*2)\s*[:.\-–—]?\s*(?:c[âa]u\s*)?(?:tr[ắa]c\s*nghi[ệe]m\s*(?:[đd][úu]ng\s*[-/–—]?\s*sai)|[đd][úu]ng\s*[-/–—]?\s*sai|true\s*[-/]?\s*false|th[íi]\s*sinh\s*ch[ọo]n\s*[đd][úu]ng\s*ho[ặa]c\s*sai|m[ỗo]i\s*[ýy]\s*a[,\.]\s*b[,\.]\s*c[,\.]\s*d)"
+    r"|^(?:ii\b|2\b)\s*[:.\-–—]\s*(?:c[âa]u\s*)?tr[ắa]c\s*nghi[ệe]m\s*[đd][úu]ng\s*[-/–—]?\s*sai)",
+    re.MULTILINE,
 )
 RE_MOET_PART3: Pattern = re.compile(
-    r"(?i)\b(?:phần\s+iii|phần\s+3|part\s+3)\s*[:.]\s*(?:câu\s*trắc\s*nghiệm\s*trả\s*lời\s*ngắn|trả\s*lời\s*ngắn|điền\s*khuyết|short\s*answer)",
+    r"(?i)(?:\b(?:ph[ầa]n\s*(?:iii\b|3\b|ba)|part\s*3)\s*[:.\-–—]?\s*(?:c[âa]u\s*)?(?:tr[ắa]c\s*nghi[ệe]m\s*tr[ảa]\s*l[ờo]i\s*ng[ắa]n|tr[ảa]\s*l[ờo]i\s*ng[ắa]n|[đd]i[ềe]n\s*(?:khuy[ếe]t|[đd][áa]p\s*s[ốo]|k[ếe]t\s*qu[ảa])|short\s*answer)"
+    r"|^(?:iii\b|3\b)\s*[:.\-–—]\s*(?:c[âa]u\s*)?tr[ắa]c\s*nghi[ệe]m\s*tr[ảa]\s*l[ờo]i\s*ng[ắa]n)",
+    re.MULTILINE,
 )
 
 # Textbooks & Curriculum Series

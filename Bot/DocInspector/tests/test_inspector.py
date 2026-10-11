@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from DocInspector.core import DocumentInspector
-from DocInspector.models import DocumentCategory, ExamType, Subject, VerificationVerdict
+from DocInspector.models import DocumentCategory, ExamType, Subject, VerificationVerdict, GradeLevel
 
 
 class TestDocInspector(unittest.TestCase):
@@ -651,6 +651,72 @@ Give the correct form of the word in brackets:
         self.assertEqual(rep_ru.detected_subject, Subject.RUSSIAN)
         self.assertEqual(route_ru.target_channel_name, "tieng-nga")
         self.assertIn("TRKI", route_ru.submission_reply_message)
+
+    def test_moet_2025_three_parts_structure_and_answers(self):
+        """Kiểm thử bóc tách cấu trúc 3 phần chuẩn Bộ GD&ĐT 2025 + Bảng đáp án + Lời giải."""
+        moet_sample = """SỞ GD&ĐT HÀ NỘI
+TRƯỜNG THPT CHUYÊN HÀ NỘI - AMSTERDAM
+NĂM HỌC 2024 - 2025
+ĐỀ THI HỌC KỲ 1 MÔN TOÁN LỚP 12
+Thời gian làm bài: 90 phút
+
+PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn. Thí sinh trả lời từ câu 1 đến câu 12. Mỗi câu hỏi thí sinh chỉ chọn một phương án.
+Câu 1: Cho hàm số y = f(x) có đồ thị như hình vẽ. Hàm số đồng biến trên khoảng nào?
+A. (0; 2)
+B. (-1; 1)
+C. (2; +\\infty)
+D. (-\\infty; 0)
+Câu 2: Tìm nguyên hàm của hàm số f(x) = 2x + 1.
+A. x^2 + x + C
+B. 2x^2 + C
+C. x^2 - x + C
+D. 2 + C
+
+PHẦN II. Câu trắc nghiệm đúng sai. Thí sinh trả lời từ câu 1 đến câu 4. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.
+Câu 1: Cho hình chóp S.ABCD có đáy ABCD là hình vuông cạnh a.
+a) Tam giác SAB là tam giác vuông.
+b) Thể tích khối chóp S.ABCD bằng a^3/3.
+c) Khoảng cách từ S đến mặt phẳng (ABCD) bằng a.
+d) Góc giữa đường thẳng SA và đáy bằng 60 độ.
+
+PHẦN III. Câu trắc nghiệm trả lời ngắn. Thí sinh trả lời từ câu 1 đến câu 6.
+Câu 1: Một cửa hàng bán trà sữa với giá ban đầu 30.000 đồng/ly. Tìm mức giá tối ưu để doanh thu đạt cực đại (đơn vị: nghìn đồng).
+Câu 2: Tính tích phân I = \\int_0^1 (3x^2 + 2x) dx. Kết quả bằng bao nhiêu?
+
+BẢNG ĐÁP ÁN:
+1.A  2.A
+Phần II:
+Câu 1: a-Đ, b-Đ, c-S, d-Đ
+Phần III:
+Câu 1: 35
+Câu 2: 2
+
+HƯỚNG DẪN GIẢI CHI TIẾT:
+Câu 1: Dựa vào đồ thị ta thấy hàm số đồng biến trên khoảng (0; 2). Chọn đáp án A.
+"""
+        rep = DocumentInspector.inspect(
+            file_path_or_bytes=moet_sample.encode("utf-8"),
+            file_name="De_Thi_Toan_12_Chuan_Bo_GD_2025.pdf",
+        )
+        self.assertEqual(rep.detected_subject, Subject.MATHEMATICS)
+        self.assertEqual(rep.grade_level, GradeLevel.GRADE_12)
+        self.assertEqual(rep.academic_year, "2024-2025")
+        self.assertTrue(rep.moet_2025_compliant)
+        self.assertTrue(rep.detailed_metadata.has_answer_keys)
+        self.assertTrue(rep.detailed_metadata.has_detailed_solutions)
+        self.assertGreaterEqual(rep.detailed_metadata.moet_part1_count, 1)
+        self.assertGreaterEqual(rep.detailed_metadata.moet_part2_count, 1)
+        self.assertGreaterEqual(rep.detailed_metadata.moet_part3_count, 1)
+        self.assertIn("Cấu trúc 2025", rep.human_summary)
+        self.assertIn("Có đáp án", rep.human_summary)
+        self.assertIn("Có lời giải chi tiết", rep.human_summary)
+
+        # Kiểm tra to_dict() xuất đầy đủ trường
+        d = rep.to_dict()
+        self.assertTrue(d["moet_2025_compliant"])
+        self.assertTrue(d["has_answer_keys"])
+        self.assertTrue(d["has_detailed_solutions"])
+        self.assertEqual(d["academic_year"], "2024-2025")
 
 
 if __name__ == "__main__":

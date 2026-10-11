@@ -32,6 +32,9 @@ from .signatures import (
     RE_FIGURE_GRAPH_CUE,
     RE_TABLE_CUE,
     RE_READING_PASSAGE_CUE,
+    RE_MOET_PART1,
+    RE_MOET_PART2,
+    RE_MOET_PART3,
     VIETNAM_PROVINCES,
     TOPIC_SIGNATURES,
 )
@@ -120,6 +123,14 @@ class QuestionParser:
         questions: List[ExtractedQuestion] = []
         answer_keys = answer_map or cls.extract_answer_keys(text)
 
+        # Nhận diện vị trí các phân vùng đề thi chuẩn Bộ GD&ĐT 2025
+        p1_m = RE_MOET_PART1.search(text)
+        p2_m = RE_MOET_PART2.search(text)
+        p3_m = RE_MOET_PART3.search(text)
+        p1_pos = p1_m.start() if p1_m else -1
+        p2_pos = p2_m.start() if p2_m else -1
+        p3_pos = p3_m.start() if p3_m else -1
+
         rec_count = 0
         comp_count = 0
         app_count = 0
@@ -138,6 +149,14 @@ class QuestionParser:
             # Bound question chunk to avoid swallowing entire answer tables
             chunk = text[start_pos:end_pos].strip()
 
+            section_hint = 0
+            if p1_pos != -1 and start_pos >= p1_pos and (p2_pos == -1 or start_pos < p2_pos) and (p3_pos == -1 or start_pos < p3_pos):
+                section_hint = 1
+            elif p2_pos != -1 and start_pos >= p2_pos and (p3_pos == -1 or start_pos < p3_pos):
+                section_hint = 2
+            elif p3_pos != -1 and start_pos >= p3_pos:
+                section_hint = 3
+
             # Separate prompt from options & rich metadata
             (
                 prompt,
@@ -150,7 +169,7 @@ class QuestionParser:
                 has_fig,
                 has_table,
                 topic,
-            ) = cls._dissect_question_chunk(chunk, subject=subject)
+            ) = cls._dissect_question_chunk(chunk, subject=subject, section_hint=section_hint)
 
             # Estimate cognitive level
             cog_level = cls._estimate_cognitive_level(chunk)
@@ -235,7 +254,7 @@ class QuestionParser:
 
     @classmethod
     def _dissect_question_chunk(
-        cls, chunk: str, subject: Optional[str] = None
+        cls, chunk: str, subject: Optional[str] = None, section_hint: int = 0
     ) -> Tuple[str, Dict[str, str], List[str], str, bool, Optional[str], Optional[float], bool, bool, Optional[str]]:
         """
         Dissects a raw question chunk into stem, options, sub-items, and rich structural metadata.
@@ -277,7 +296,7 @@ class QuestionParser:
 
         # Check for 4 MCQ options: A., B., C., D.
         opt_matches = list(RE_MCQ_FOUR_OPTIONS.finditer(question_body))
-        if len(opt_matches) >= 3:
+        if len(opt_matches) >= 3 or (section_hint == 1 and len(opt_matches) >= 2):
             for m in opt_matches:
                 opt_letter = m.group(1).upper()
                 opt_text = m.group(2).strip()
@@ -288,15 +307,15 @@ class QuestionParser:
         else:
             # Check for True/False sub-items: a), b), c), d) or a., b., c., d.
             tf_matches = list(RE_TRUE_FALSE_SUBITEMS.finditer(question_body))
-            if len(tf_matches) >= 3:
+            if len(tf_matches) >= 3 or section_hint == 2:
                 q_type = "TRUE_FALSE_GROUP"
                 for m in tf_matches:
                     sub_items.append(f"{m.group(1).lower()}) {m.group(2).strip()}")
-                first_sub_start = tf_matches[0].start()
-                prompt = question_body[:first_sub_start].strip()
+                first_sub_start = tf_matches[0].start() if tf_matches else 0
+                prompt = question_body[:first_sub_start].strip() if tf_matches else question_body
             else:
                 # Check for Short Answer question (Chuẩn Bộ GD&ĐT 2025 - Phần III)
-                is_short_answer = bool(
+                is_short_answer = section_hint == 3 or bool(
                     re.search(
                         r"(?i)\b(?:trả\s*lời\s*ngắn|điền\s*(?:đáp\s*số|kết\s*quả|vào\s*chỗ\s*trống)|kết\s*quả\s*bằng|đáp\s*số\s*[:：]|phần\s+iii\b)\b",
                         question_body,
@@ -304,6 +323,9 @@ class QuestionParser:
                 )
                 if is_short_answer:
                     q_type = "SHORT_ANSWER"
+                    prompt = question_body
+                elif section_hint == 1:
+                    q_type = "MCQ_4"
                     prompt = question_body
                 else:
                     prompt = question_body
@@ -544,10 +566,27 @@ class QuestionParser:
                 if q.has_solution_text or q.solution_text:
                     has_sol = True
 
+        # Fallback đếm theo vùng Phần I, II, III nếu list questions chưa bắt trọn
+        p1_m = RE_MOET_PART1.search(text)
+        p2_m = RE_MOET_PART2.search(text)
+        p3_m = RE_MOET_PART3.search(text)
+        p1_pos = p1_m.start() if p1_m else -1
+        p2_pos = p2_m.start() if p2_m else -1
+        p3_pos = p3_m.start() if p3_m else -1
+
+        if moet_p1 == 0 and p1_pos != -1:
+            p1_end = p2_pos if p2_pos != -1 else (p3_pos if p3_pos != -1 else len(text))
+            moet_p1 = len(list(re.finditer(r"(?i)\b(?:câu|cau)\s+\d+", text[p1_pos:p1_end])))
+        if moet_p2 == 0 and p2_pos != -1:
+            p2_end = p3_pos if p3_pos != -1 else len(text)
+            moet_p2 = len(list(re.finditer(r"(?i)\b(?:câu|cau)\s+\d+", text[p2_pos:p2_end])))
+        if moet_p3 == 0 and p3_pos != -1:
+            moet_p3 = len(list(re.finditer(r"(?i)\b(?:câu|cau)\s+\d+", text[p3_pos:])))
+
         if not has_ans:
-            has_ans = bool(re.search(r"(?i)\b(?:bảng\s*đáp\s*án|đáp\s*án|answer\s*keys?)\b", text))
+            has_ans = bool(re.search(r"(?i)\b(?:bảng\s*đáp\s*án|đáp\s*án|hướng\s*dẫn\s*chấm|đáp\s*số|answer\s*keys?)\b", text))
         if not has_sol:
-            has_sol = bool(re.search(r"(?i)\b(?:hướng\s*dẫn\s*giải|lời\s*giải\s*chi\s*tiết|giải\s*chi\s*tiết)\b", text))
+            has_sol = bool(re.search(r"(?i)\b(?:hướng\s*dẫn\s*giải|lời\s*giải\s*chi\s*tiết|giải\s*chi\s*tiết|hướng\s*dẫn\s*chấm\s*chi\s*tiết)\b", text))
 
         has_matrix = bool(re.search(r"(?i)\b(?:ma\s*trận(?:\s*đề\s*thi|\s*đề)?|bảng\s*đặc\s*tả|matrix|specification)\b", text))
 

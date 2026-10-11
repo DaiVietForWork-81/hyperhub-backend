@@ -486,6 +486,10 @@ class DocumentInspector:
             summary += f" | Kỳ thi: {deep_metadata.exam_period}"
         if (deep_metadata.moet_part1_count or deep_metadata.moet_part2_count or deep_metadata.moet_part3_count):
             summary += f" | Cấu trúc 2025: [P.I: {deep_metadata.moet_part1_count}c, P.II: {deep_metadata.moet_part2_count}c, P.III: {deep_metadata.moet_part3_count}c]"
+        if deep_metadata.has_answer_keys:
+            summary += " | 📝 Có đáp án"
+        if deep_metadata.has_detailed_solutions:
+            summary += " | ✨ Có lời giải chi tiết"
 
         # -------------------------------------------------------------
         # 4-TIER DEFINITIVE VERIFICATION VERDICT
@@ -514,6 +518,10 @@ class DocumentInspector:
             doc_cat=category,
         )
 
+        is_moet_2025 = pass2.curriculum.moet_2025_compliant or (
+            deep_metadata.moet_part1_count > 0 and (deep_metadata.moet_part2_count > 0 or deep_metadata.moet_part3_count > 0)
+        )
+
         report = InspectionReport(
             file_name=name,
             file_path=path_str,
@@ -530,6 +538,7 @@ class DocumentInspector:
             school_or_department=school_str,
             programming_language=prog_lang,
             detailed_exam_track=detailed_track_str,
+            moet_2025_compliant=is_moet_2025,
             detected_language=language,
             confidence_score=conf,
             grade_level=pass2.grade_level,

@@ -586,6 +586,7 @@ class InspectionReport:
     school_or_department: Optional[str] = None
     programming_language: Optional[str] = None
     detailed_exam_track: Optional[str] = None
+    moet_2025_compliant: bool = False
     
     detailed_metadata: ExamDetailedMetadata = field(default_factory=ExamDetailedMetadata)
     
@@ -616,6 +617,12 @@ class InspectionReport:
             "school_or_department": self.school_or_department,
             "programming_language": self.programming_language,
             "detailed_exam_track": self.detailed_exam_track,
+            "moet_2025_compliant": self.moet_2025_compliant,
+            "moet_part1_count": self.detailed_metadata.moet_part1_count,
+            "moet_part2_count": self.detailed_metadata.moet_part2_count,
+            "moet_part3_count": self.detailed_metadata.moet_part3_count,
+            "has_answer_keys": self.detailed_metadata.has_answer_keys,
+            "has_detailed_solutions": self.detailed_metadata.has_detailed_solutions,
             "language_proficiency_band": self.language_proficiency_band,
             "detected_language": self.detected_language,
             "grade_level": self.grade_level.value,
