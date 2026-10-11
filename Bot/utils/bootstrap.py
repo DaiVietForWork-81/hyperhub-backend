@@ -240,7 +240,8 @@ def check_and_apply_git_updates() -> bool:
 
             new_env = os.environ.copy()
             new_env["HYPERHUB_UPDATED_RESTARTED"] = "1"
-            subprocess.Popen([sys.executable] + sys.argv, cwd=PROJECT_DIR, env=new_env)
+            restart_cmd = [sys.executable, "bot.py"] if (not sys.argv or sys.argv[0] == "-c") else [sys.executable] + sys.argv
+            subprocess.Popen(restart_cmd, cwd=PROJECT_DIR, env=new_env)
             sys.exit(0)
         else:
             print(f"[+] Bot đã ở phiên bản mới nhất từ GitHub ({local_hash[:8] if local_hash else 'main'}).", flush=True)

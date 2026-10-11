@@ -1,4 +1,4 @@
-# 🏆 Discord Competitive Programming Bot — Codeforces & Sandbox Judge (Full Tiếng Việt)
+# 🚀 HyperHub Discord Bot & Web API Bridge (Full Tiếng Việt)
 
 Hệ thống **Discord Bot Competitive Programming toàn diện** được xây dựng bằng **Python 3.11+**, `discord.py` 2.x, tích hợp trực tiếp với **Codeforces API**, hỗ trợ 2 chế độ thi đấu/luyện tập, chấm bài trong **Docker Sandbox cô lập an toàn**, tự động phân hạng 12 bậc rank (HT1 → T8) và đồng bộ Discord Roles tự động.
 
