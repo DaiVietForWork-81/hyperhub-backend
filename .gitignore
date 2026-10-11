@@ -3,7 +3,6 @@
 
 # Repo Web lồng nhau
 Web/
-Bot/DocInspector/
 
 # Secrets & runtime data
 .env
