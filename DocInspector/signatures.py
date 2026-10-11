@@ -89,10 +89,11 @@ RE_QUESTION_HEADING: Pattern = re.compile(
     r"(?i)(?:^|\n)\s*(?:câu|cau|bài|bai|question|problem|task)\s+(\d+)[\s*.:\)]+",
 )
 RE_MCQ_FOUR_OPTIONS: Pattern = re.compile(
-    r"(?:^|[\s\t])([A-D])[.:)]\s+([^\n\rA-D.:)]+)",
+    r"(?:^|[\s\t\n])([A-D])[.:)]\s*(.*?)(?=(?:[\s\t]+[A-D][.:)]\s+)|\n\s*[A-D][.:)]\s*|\n\s*(?:câu|cau|bài|bai|question|\d+[\.\)])|$)",
+    re.DOTALL,
 )
 RE_TRUE_FALSE_SUBITEMS: Pattern = re.compile(
-    r"(?i)(?:^|[\s\t])([a-d])\)\s*(.*?)(?=(?:[a-d]\)|$|\n\s*[A-D]\.))",
+    r"(?i)(?:^|[\s\t\n])([a-d])[\.\)]\s*(.*?)(?=(?:[\s\t]+[a-d][\.\)]\s*)|\n\s*[a-d][\.\)]\s*|\n\s*(?:câu|cau|bài|bai|question|\d+[\.\)])|$)",
     re.DOTALL,
 )
 
@@ -169,7 +170,7 @@ RE_SOLUTIONS_BLOCK: Pattern = re.compile(
     r"(?i)(?:lời\s*giải\s*chi\s*tiết|hướng\s*dẫn\s*giải|đáp\s*án\s*chi\s*tiết|bảng\s*đáp\s*án|đáp\s*án\s*và\s*thang\s*điểm|marking\s*scheme|answer\s*keys?)",
 )
 RE_ANSWER_MATRIX: Pattern = re.compile(
-    r"\b(?:[1-9]|[1-4][0-9]|50)\s*[-.:]\s*([A-D])\b",
+    r"(?:\b\d{1,3}\s*[-.:/]\s*[A-D]\b|\b\d{1,3}[A-D]\b)",
 )
 
 # Cognitive Level Cue Patterns

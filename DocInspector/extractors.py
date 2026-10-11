@@ -207,6 +207,17 @@ class FastDocumentExtractor:
             return text
         except Exception:
             return ""
+        finally:
+            try:
+                if 'img' in locals() and img:
+                    img.close()
+            except Exception:
+                pass
+            try:
+                if 'processed_img' in locals() and processed_img and processed_img is not img:
+                    processed_img.close()
+            except Exception:
+                pass
 
     @staticmethod
     def calculate_entropy(text: str) -> float:
@@ -357,200 +368,220 @@ class FastDocumentExtractor:
         deep=True: đọc toàn bộ trang + OCR chọn lọc tới 10 trang relevant nhất.
         Luôn lọc trang nhiễu (trắng/quảng cáo) để tín hiệu phân loại sạch hơn."""
         doc = fitz.open(stream=raw_bytes, filetype="pdf")
-        page_count = len(doc)
-        is_encrypted = doc.is_encrypted
+        try:
+            page_count = len(doc)
+            is_encrypted = doc.is_encrypted
 
-        if is_encrypted and not doc.authenticate(""):
+            if is_encrypted and not doc.authenticate(""):
+                return ExtractedDocument(
+                    full_text="",
+                    page_count=page_count,
+                    char_count=0,
+                    word_count=0,
+                    line_count=0,
+                    paragraph_count=0,
+                    table_count=0,
+                    image_count=0,
+                    is_scanned_pdf=False,
+                    is_encrypted=True,
+                    raw_type="PDF",
+                    magic_signature=magic_sig,
+                )
+
+            text_pages: List[str] = []
+            image_count = 0
+            table_count = 0
+            skipped_noise_pages = 0
+            # (page_index, relevance_score, needs_ocr, page_obj)
+            ocr_candidates: List[tuple] = []
+
+            MAX_SAMPLE_PAGES = 30
+            if deep or page_count <= MAX_SAMPLE_PAGES:
+                # Quét kỹ: đọc toàn bộ trang để không sót bằng chứng phân loại
+                pages_to_process = list(doc)
+            else:
+                # Quét nhanh: 20 trang đầu + 10 trang cuối để bóc tách siêu tốc (chứa 100% đề, năm học, trường, đáp án)
+                sample_indices = set(range(20)).union(set(range(max(20, page_count - 10), page_count)))
+                pages_to_process = [doc[idx] for idx in sorted(sample_indices) if idx < page_count]
+
+            q_re = cls._page_question_regex()
+            for page in pages_to_process:
+                page_text = page.get_text("text")
+                stripped_len = len(page_text.strip())
+                page_images = page.get_images(full=True)
+                image_count += len(page_images)
+
+                q_hits = len(q_re.findall(page_text))
+
+                # Lọc trang nhiễu: gần như trắng, không ảnh, không câu hỏi (bìa trắng, trang quảng cáo)
+                if stripped_len < 40 and not page_images and q_hits == 0:
+                    skipped_noise_pages += 1
+                    continue
+
+                text_pages.append(page_text)
+
+                # Fast table indicator
+                lines = page_text.splitlines()
+                pipe_or_tab = sum(1 for line in lines if "|" in line or "\t" in line)
+                if pipe_or_tab >= 3:
+                    table_count += 1
+
+                # Chấm relevance để OCR chọn lọc: câu hỏi > nội dung dày > có ảnh
+                relevance = 3 * min(q_hits, 10) + min(stripped_len / 200.0, 15.0) + (5.0 if page_images else 0.0)
+                try:
+                    page_idx = page.number
+                except Exception:
+                    page_idx = -1
+                ocr_candidates.append((page_idx, relevance, stripped_len < 200, page))
+
+            full_text = "\n".join(text_pages)
+            char_count = len(full_text.strip())
+            word_count = len(full_text.split())
+            line_count = len(full_text.splitlines())
+
+            # Scanned PDF check
+            is_scanned_pdf = (page_count > 0) and (char_count < 45 * page_count) and (image_count >= page_count)
+
+            ocr_pages_used: List[int] = []
+            if is_scanned_pdf and init_tesseract():
+                ocr_pages: List[str] = []
+                max_ocr_pages = 10 if deep else 3
+                ocr_dpi = 200 if deep else 150
+                # OCR đúng trang đáng tiền nhất (relevance cao + đang thiếu text), không cào bừa từ đầu
+                ocr_candidates.sort(key=lambda t: t[1], reverse=True)
+                for page_idx, _rel, needs_ocr, page in ocr_candidates:
+                    if len(ocr_pages) >= max_ocr_pages:
+                        break
+                    if not needs_ocr:
+                        continue
+                    try:
+                        # DPI 150: đủ nét cho Tesseract nhưng render nhanh gấp ~1.8x so với 200
+                        pix = page.get_pixmap(dpi=ocr_dpi)
+                        img_bytes = pix.tobytes("png")
+                        del pix
+                        page_text = cls.perform_ocr(img_bytes)
+                        del img_bytes
+                        if page_text and len(page_text.strip()) >= 20:
+                            ocr_pages.append(page_text)
+                            if page_idx >= 0:
+                                ocr_pages_used.append(page_idx)
+                    except Exception:
+                        pass
+                if ocr_pages:
+                    full_text = "\n".join(ocr_pages)
+                    char_count = len(full_text.strip())
+                    word_count = len(full_text.split())
+                    line_count = len(full_text.splitlines())
+
+            paragraphs = [p.strip() for p in full_text.split("\n\n") if p.strip()]
+
+            meta = {}
+            if doc.metadata:
+                meta = {
+                    "title": doc.metadata.get("title", ""),
+                    "author": doc.metadata.get("author", ""),
+                    "producer": doc.metadata.get("producer", ""),
+                }
+            meta["processed_pages"] = len(pages_to_process) - skipped_noise_pages
+            meta["skipped_noise_pages"] = skipped_noise_pages
+            meta["ocr_pages_used"] = sorted(ocr_pages_used)
+
+            entropy = cls.calculate_entropy(full_text)
+            reading_time = round(word_count / 200.0, 1)
+            legacy_enc = cls.detect_legacy_encoding(full_text)
+
             return ExtractedDocument(
-                full_text="",
+                full_text=full_text,
                 page_count=page_count,
-                char_count=0,
-                word_count=0,
-                line_count=0,
-                paragraph_count=0,
-                table_count=0,
-                image_count=0,
-                is_scanned_pdf=False,
-                is_encrypted=True,
+                char_count=char_count,
+                word_count=word_count,
+                line_count=line_count,
+                paragraph_count=len(paragraphs),
+                table_count=table_count,
+                image_count=image_count,
+                is_scanned_pdf=is_scanned_pdf,
+                is_encrypted=False,
                 raw_type="PDF",
                 magic_signature=magic_sig,
+                entropy=entropy,
+                reading_time_minutes=reading_time,
+                legacy_encoding_warning=legacy_enc,
+                meta_properties=meta,
+                paragraphs=paragraphs,
             )
-
-        text_pages: List[str] = []
-        image_count = 0
-        table_count = 0
-        skipped_noise_pages = 0
-        # (page_index, relevance_score, needs_ocr, page_obj)
-        ocr_candidates: List[tuple] = []
-
-        MAX_SAMPLE_PAGES = 30
-        if deep or page_count <= MAX_SAMPLE_PAGES:
-            # Quét kỹ: đọc toàn bộ trang để không sót bằng chứng phân loại
-            pages_to_process = list(doc)
-        else:
-            # Quét nhanh: 20 trang đầu + 10 trang cuối để bóc tách siêu tốc (chứa 100% đề, năm học, trường, đáp án)
-            sample_indices = set(range(20)).union(set(range(max(20, page_count - 10), page_count)))
-            pages_to_process = [doc[idx] for idx in sorted(sample_indices) if idx < page_count]
-
-        q_re = cls._page_question_regex()
-        for page in pages_to_process:
-            page_text = page.get_text("text")
-            stripped_len = len(page_text.strip())
-            page_images = page.get_images(full=True)
-            image_count += len(page_images)
-
-            q_hits = len(q_re.findall(page_text))
-
-            # Lọc trang nhiễu: gần như trắng, không ảnh, không câu hỏi (bìa trắng, trang quảng cáo)
-            if stripped_len < 40 and not page_images and q_hits == 0:
-                skipped_noise_pages += 1
-                continue
-
-            text_pages.append(page_text)
-
-            # Fast table indicator
-            lines = page_text.splitlines()
-            pipe_or_tab = sum(1 for line in lines if "|" in line or "\t" in line)
-            if pipe_or_tab >= 3:
-                table_count += 1
-
-            # Chấm relevance để OCR chọn lọc: câu hỏi > nội dung dày > có ảnh
-            relevance = 3 * min(q_hits, 10) + min(stripped_len / 200.0, 15.0) + (5.0 if page_images else 0.0)
+        finally:
             try:
-                page_idx = page.number
+                doc.close()
             except Exception:
-                page_idx = -1
-            ocr_candidates.append((page_idx, relevance, stripped_len < 200, page))
-
-        full_text = "\n".join(text_pages)
-        char_count = len(full_text.strip())
-        word_count = len(full_text.split())
-        line_count = len(full_text.splitlines())
-
-        # Scanned PDF check
-        is_scanned_pdf = (page_count > 0) and (char_count < 45 * page_count) and (image_count >= page_count)
-
-        ocr_pages_used: List[int] = []
-        if is_scanned_pdf and init_tesseract():
-            ocr_pages: List[str] = []
-            max_ocr_pages = 10 if deep else 3
-            ocr_dpi = 200 if deep else 150
-            # OCR đúng trang đáng tiền nhất (relevance cao + đang thiếu text), không cào bừa từ đầu
-            ocr_candidates.sort(key=lambda t: t[1], reverse=True)
-            for page_idx, _rel, needs_ocr, page in ocr_candidates:
-                if len(ocr_pages) >= max_ocr_pages:
-                    break
-                if not needs_ocr:
-                    continue
-                try:
-                    # DPI 150: đủ nét cho Tesseract nhưng render nhanh gấp ~1.8x so với 200
-                    pix = page.get_pixmap(dpi=ocr_dpi)
-                    img_bytes = pix.tobytes("png")
-                    page_text = cls.perform_ocr(img_bytes)
-                    if page_text and len(page_text.strip()) >= 20:
-                        ocr_pages.append(page_text)
-                        if page_idx >= 0:
-                            ocr_pages_used.append(page_idx)
-                except Exception:
-                    pass
-            if ocr_pages:
-                full_text = "\n".join(ocr_pages)
-                char_count = len(full_text.strip())
-                word_count = len(full_text.split())
-                line_count = len(full_text.splitlines())
-
-        paragraphs = [p.strip() for p in full_text.split("\n\n") if p.strip()]
-
-        meta = {}
-        if doc.metadata:
-            meta = {
-                "title": doc.metadata.get("title", ""),
-                "author": doc.metadata.get("author", ""),
-                "producer": doc.metadata.get("producer", ""),
-            }
-        meta["processed_pages"] = len(pages_to_process) - skipped_noise_pages
-        meta["skipped_noise_pages"] = skipped_noise_pages
-        meta["ocr_pages_used"] = sorted(ocr_pages_used)
-
-        entropy = cls.calculate_entropy(full_text)
-        reading_time = round(word_count / 200.0, 1)
-        legacy_enc = cls.detect_legacy_encoding(full_text)
-
-        return ExtractedDocument(
-            full_text=full_text,
-            page_count=page_count,
-            char_count=char_count,
-            word_count=word_count,
-            line_count=line_count,
-            paragraph_count=len(paragraphs),
-            table_count=table_count,
-            image_count=image_count,
-            is_scanned_pdf=is_scanned_pdf,
-            is_encrypted=False,
-            raw_type="PDF",
-            magic_signature=magic_sig,
-            entropy=entropy,
-            reading_time_minutes=reading_time,
-            legacy_encoding_warning=legacy_enc,
-            meta_properties=meta,
-            paragraphs=paragraphs,
-        )
+                pass
+            if len(raw_bytes) > 2 * 1024 * 1024:
+                import gc
+                gc.collect()
 
     @classmethod
     def _extract_docx(cls, raw_bytes: bytes, magic_sig: str) -> ExtractedDocument:
         """Extract DOCX via python-docx with table cell text and properties."""
         file_stream = io.BytesIO(raw_bytes)
-        doc = Document(file_stream)
+        try:
+            doc = Document(file_stream)
 
-        paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+            paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
 
-        table_texts: List[str] = []
-        for table in doc.tables:
-            for row in table.rows:
-                row_text = " | ".join([cell.text.strip() for cell in row.cells if cell.text.strip()])
-                if row_text:
-                    table_texts.append(row_text)
+            table_texts: List[str] = []
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = " | ".join([cell.text.strip() for cell in row.cells if cell.text.strip()])
+                    if row_text:
+                        table_texts.append(row_text)
 
-        full_text = "\n".join(paragraphs + table_texts)
-        char_count = len(full_text.strip())
-        word_count = len(full_text.split())
-        line_count = len(full_text.splitlines())
+            full_text = "\n".join(paragraphs + table_texts)
+            char_count = len(full_text.strip())
+            word_count = len(full_text.split())
+            line_count = len(full_text.splitlines())
 
-        approx_pages = max(1, round(char_count / 2200))
+            approx_pages = max(1, round(char_count / 2200))
 
-        meta = {}
-        if hasattr(doc, "core_properties"):
-            cp = doc.core_properties
-            meta = {
-                "title": cp.title or "",
-                "author": cp.author or "",
-                "created": str(cp.created) if cp.created else "",
-                "revision": cp.revision or 1,
-            }
+            meta = {}
+            if hasattr(doc, "core_properties"):
+                cp = doc.core_properties
+                meta = {
+                    "title": cp.title or "",
+                    "author": cp.author or "",
+                    "created": str(cp.created) if cp.created else "",
+                    "revision": cp.revision or 1,
+                }
 
-        entropy = cls.calculate_entropy(full_text)
-        reading_time = round(word_count / 200.0, 1)
-        legacy_enc = cls.detect_legacy_encoding(full_text)
+            entropy = cls.calculate_entropy(full_text)
+            reading_time = round(word_count / 200.0, 1)
+            legacy_enc = cls.detect_legacy_encoding(full_text)
 
-        return ExtractedDocument(
-            full_text=full_text,
-            page_count=approx_pages,
-            char_count=char_count,
-            word_count=word_count,
-            line_count=line_count,
-            paragraph_count=len(paragraphs),
-            table_count=len(doc.tables),
-            image_count=0,
-            is_scanned_pdf=False,
-            is_encrypted=False,
-            raw_type="DOCX",
-            magic_signature=magic_sig,
-            entropy=entropy,
-            reading_time_minutes=reading_time,
-            legacy_encoding_warning=legacy_enc,
-            meta_properties=meta,
-            paragraphs=paragraphs,
-        )
+            return ExtractedDocument(
+                full_text=full_text,
+                page_count=approx_pages,
+                char_count=char_count,
+                word_count=word_count,
+                line_count=line_count,
+                paragraph_count=len(paragraphs),
+                table_count=len(doc.tables),
+                image_count=0,
+                is_scanned_pdf=False,
+                is_encrypted=False,
+                raw_type="DOCX",
+                magic_signature=magic_sig,
+                entropy=entropy,
+                reading_time_minutes=reading_time,
+                legacy_encoding_warning=legacy_enc,
+                meta_properties=meta,
+                paragraphs=paragraphs,
+            )
+        finally:
+            try:
+                file_stream.close()
+            except Exception:
+                pass
+            if len(raw_bytes) > 2 * 1024 * 1024:
+                import gc
+                gc.collect()
 
     @classmethod
     def _extract_legacy_doc(cls, raw_bytes: bytes, magic_sig: str) -> ExtractedDocument:

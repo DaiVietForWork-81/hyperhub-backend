@@ -148,15 +148,48 @@ class CompetitiveProgrammingBot(commands.Bot):
         await init_db()
         try:
             await self.db.connect()
-            if getattr(settings, "EMBEDDING_ENABLED", True):
+
+            # === BẢO VỆ MÁY CHỦ RAM THẤP (LOW-RAM AUTO-GUARD) ===
+            total_ram_mb = 0
+            try:
+                import psutil
+                total_ram_mb = int(psutil.virtual_memory().total // (1024 * 1024))
+            except Exception:
+                try:
+                    # Linux /proc/meminfo fallback
+                    with open("/proc/meminfo", "r") as f:
+                        for line in f:
+                            if line.startswith("MemTotal:"):
+                                total_ram_mb = int(line.split()[1]) // 1024
+                                break
+                except Exception:
+                    pass
+
+            embedding_cfg = bool(getattr(settings, "EMBEDDING_ENABLED", False))
+            if total_ram_mb > 0 and total_ram_mb < 1200:
+                if embedding_cfg:
+                    logger.warning(
+                        f"🛡️ [Low-RAM Auto-Guard] Phát hiện máy chủ RAM thấp ({total_ram_mb}MB < 1200MB). "
+                        "Tự động tắt hoàn toàn model AI ONNX để tránh crash OOM (Out Of Memory), chuyển sang SQLite FTS5 + C++ Native Core."
+                    )
+                embedding_cfg = False
+                if getattr(settings, "OLLAMA_ENABLED", True):
+                    logger.warning(
+                        f"🛡️ [Low-RAM Auto-Guard] Phát hiện máy chủ RAM thấp ({total_ram_mb}MB < 1200MB). "
+                        "Tự động tắt OLLAMA_ENABLED=False để bảo vệ VPS 512MB RAM."
+                    )
+                    settings.OLLAMA_ENABLED = False
+
+
+            if embedding_cfg:
                 from services.embedding_service import DocumentEmbeddingService
                 self.embedding_service = DocumentEmbeddingService.get_instance(self.db)
                 self.embedding_service.start_background_sync()
             else:
                 self.embedding_service = None
                 logger.info(
-                    "Chế độ RAM thấp: EMBEDDING_ENABLED=false — bỏ qua model ONNX (~550MB), "
-                    "tìm kiếm dùng BM25/FTS."
+                    "Chế độ Tiết Kiệm RAM / Zero-AI: EMBEDDING_ENABLED=false — Không nạp model ONNX (~350MB+), "
+                    "hệ thống đọc và tra cứu tài liệu dùng 100% SQLite FTS5 (unicode61) + C++ Native Core."
                 )
 
             theme_color = await self.config.get_embed_color()

@@ -201,7 +201,7 @@ class QuestionParser:
             first_opt_start = opt_matches[0].start()
             prompt = chunk[:first_opt_start].strip()
         else:
-            # Check for True/False sub-items: a), b), c), d)
+            # Check for True/False sub-items: a), b), c), d) or a., b., c., d.
             tf_matches = list(RE_TRUE_FALSE_SUBITEMS.finditer(chunk))
             if len(tf_matches) >= 3:
                 q_type = "TRUE_FALSE_GROUP"
@@ -210,8 +210,19 @@ class QuestionParser:
                 first_sub_start = tf_matches[0].start()
                 prompt = chunk[:first_sub_start].strip()
             else:
-                prompt = chunk
-                q_type = "ESSAY_PROBLEM"
+                # Check for Short Answer question (Chuẩn Bộ GD&ĐT 2025 - Phần III)
+                is_short_answer = bool(
+                    re.search(
+                        r"(?i)\b(?:trả\s*lời\s*ngắn|điền\s*(?:đáp\s*số|kết\s*quả|vào\s*chỗ\s*trống)|kết\s*quả\s*bằng|đáp\s*số\s*[:：]|phần\s+iii\b)\b",
+                        chunk,
+                    )
+                )
+                if is_short_answer:
+                    q_type = "SHORT_ANSWER"
+                    prompt = chunk
+                else:
+                    prompt = chunk
+                    q_type = "ESSAY_PROBLEM"
 
         # Clean prompt
         prompt = re.sub(r"(?i)^(?:câu|bài|question)\s+\d+[\s*.:\)]+", "", prompt).strip()
@@ -250,22 +261,61 @@ class QuestionParser:
     def extract_answer_keys(cls, text: str) -> Dict[int, str]:
         """
         Scans document for answer tables and matrices.
-        e.g., 1-A 2-B 3-C or Câu 1: A, Câu 2: B
+        Supports:
+        - 1-A, 1.A, 1:A, 1/A (up to 200 questions)
+        - "Câu 1: A", "Câu 2. B"
+        - Continuous compact blocks: "1A 2B 3C 4D 5A 6B..."
+        - True/False format (Phần II 2025): "Câu 1: a-Đ, b-S, c-Đ, d-S"
+        - Short Answer format (Phần III 2025): "Câu 1: 3,5", "2: -12"
         """
         results: Dict[int, str] = {}
+        if not text:
+            return results
 
-        # Pattern 1: 1-A  2-C  3-D or 1.A 2.C
-        p1 = re.compile(r"\b([1-9]|[1-4][0-9]|50)\s*[-.:/]\s*([A-D])\b")
+        # Pattern 1: 1-A  2-C  3-D or 1.A 2.C (hỗ trợ tới 200 câu cho ĐGNL / chuyên ngữ)
+        p1 = re.compile(r"\b([1-9]|[1-9][0-9]|1[0-9]{2}|200)\s*[-.:/]\s*([A-D])\b")
         for match in p1.finditer(text):
             q_idx = int(match.group(1))
             ans = match.group(2).upper()
             results[q_idx] = ans
 
-        # Pattern 2: Câu 1: A, Câu 2. B
-        p2 = re.compile(r"(?i)\bcâu\s+(\d+)\s*[:.]\s*([A-D])\b")
+        # Pattern 2: Câu 1: A, Câu 2. B (chỉ nhận chữ cái in hoa [A-D])
+        p2 = re.compile(r"\b(?:[cC][âaÂA]u|[qQ]uestion)\s+(\d{1,3})\s*[:.-]?\s*([A-D])\b")
         for match in p2.finditer(text):
             q_idx = int(match.group(1))
-            ans = match.group(2).upper()
-            results[q_idx] = ans
+            if 1 <= q_idx <= 200 and q_idx not in results:
+                ans = match.group(2).upper()
+                results[q_idx] = ans
+
+        # Pattern 3: Dạng viết liền trong bảng đáp án: 1A 2B 3C 4D...
+        p3 = re.compile(r"\b(\d{1,3})([A-D])\b")
+        dense_matches = list(p3.finditer(text))
+        if len(dense_matches) >= 3:
+            for m in dense_matches:
+                q_idx = int(m.group(1))
+                if 1 <= q_idx <= 200 and q_idx not in results:
+                    results[q_idx] = m.group(2).upper()
+
+        # Pattern 4: Form 2025 Phần II - Đúng / Sai (ví dụ: "Câu 1: a-Đ, b-S, c-Đ, d-S" hoặc "1: aĐ, bS, cĐ, dS")
+        p4 = re.compile(
+            r"(?i)(?:câu\s+)?(\d{1,3})\s*[:.-]?\s*([a-d]\s*[-.:]?\s*[đds][\s,;|]+[a-d]\s*[-.:]?\s*[đds].*?)(?=\n|\b(?:câu\s+)?\d{1,3}\s*[:.-]?\s*[a-d]|$)"
+        )
+        for m in p4.finditer(text):
+            q_idx = int(m.group(1))
+            if 1 <= q_idx <= 200 and q_idx not in results:
+                results[q_idx] = m.group(2).strip()
+
+        # Pattern 5: Form 2025 Phần III - Trả lời ngắn trong bảng đáp án
+        p5 = re.compile(
+            r"(?i)(?:phần\s+iii|trả\s*lời\s*ngắn|ngắn).*?(?=\n\n|\Z)",
+            re.DOTALL,
+        )
+        part3_block = p5.search(text)
+        if part3_block:
+            p5_items = re.compile(r"(?i)(?:câu\s+)?(\d{1,3})\s*[:.-]\s*([-+]?\d+(?:[.,]\d+)?)")
+            for m in p5_items.finditer(part3_block.group(0)):
+                q_idx = int(m.group(1))
+                if 1 <= q_idx <= 200 and q_idx not in results:
+                    results[q_idx] = m.group(2)
 
         return results

@@ -18,18 +18,15 @@ class TestHelpCog(unittest.IsolatedAsyncioTestCase):
         """Kiểm tra tạo 3 Rich Embeds cẩm nang dành cho Owner."""
         embeds = self.cog.build_owner_help_embeds()
         self.assertEqual(len(embeds), 3)
-        self.assertIn("BOT OWNER", embeds[0].title)
-        self.assertIn(".skip", embeds[0].description)
-        self.assertIn(".test", embeds[0].description)
-        self.assertIn(".close", embeds[0].description)
-        self.assertIn(".list", embeds[0].description)
+        self.assertIn("SỔ TAY QUẢN TRỊ VIÊN", embeds[0].title)
+        self.assertIn("Monorepo", embeds[0].description)
 
-        self.assertIn("SLASH COMMANDS", embeds[1].title)
+        self.assertIn("LỆNH SLASH COMMANDS", embeds[1].title)
         self.assertIn("/reload", embeds[1].description)
-        self.assertIn("/setpts", embeds[1].description)
+        self.assertIn("/timde", embeds[1].description)
 
-        self.assertIn("6 KÊNH GIAO DIỆN", embeds[2].title)
-        self.assertIn("#📋・ranked", embeds[2].description)
+        self.assertIn("HỆ THỐNG KÊNH GIAO DIỆN", embeds[2].title)
+        self.assertIn("DOC_INTAKE_CHANNEL_ID", embeds[2].description)
 
     async def test_send_owner_help_dm_success(self):
         """Kiểm tra gửi DM cẩm nang cho Owner ID thành công."""

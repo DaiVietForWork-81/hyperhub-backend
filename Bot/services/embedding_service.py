@@ -18,12 +18,8 @@ import numpy as np
 if TYPE_CHECKING:
     from database.database import Database
 
-try:
-    from fastembed import TextEmbedding
-    HAS_FASTEMBED = True
-except ImportError:
-    TextEmbedding = None  # type: ignore
-    HAS_FASTEMBED = False
+TextEmbedding = None
+HAS_FASTEMBED: Optional[bool] = None
 
 from cpp_core.bridge import fast_batch_cosine
 
@@ -98,11 +94,21 @@ class DocumentEmbeddingService:
             return [("CUDAExecutionProvider", cuda_opts)]
         return [("CUDAExecutionProvider", cuda_opts), "CPUExecutionProvider"]
 
-    def _ensure_model_sync(self) -> Optional[TextEmbedding]:
+    def _ensure_model_sync(self) -> Optional[Any]:
         """Tải model TextEmbedding (đồng bộ trong thread riêng)."""
+        global TextEmbedding, HAS_FASTEMBED
         if self._model is not None:
             return self._model
-        if not HAS_FASTEMBED:
+        if HAS_FASTEMBED is None:
+            try:
+                from fastembed import TextEmbedding as _TE
+                TextEmbedding = _TE
+                HAS_FASTEMBED = True
+            except ImportError:
+                TextEmbedding = None
+                HAS_FASTEMBED = False
+
+        if not HAS_FASTEMBED or TextEmbedding is None:
             log.warning("Thư viện fastembed chưa được cài đặt. Semantic Search bị vô hiệu hóa.")
             return None
         providers = self._resolve_providers()

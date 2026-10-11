@@ -275,7 +275,22 @@ class ConflictDetector:
         involved_names = list(dict.fromkeys(involved_names))[:2]
         offending_ids = [r.message_id for r in records if r.user_id in involved_ids]
 
-        # 1. Thử phân tích qua Ollama với model siêu nhẹ (qwen2.5:0.5b)
+        # 1. Kiểm tra cờ OLLAMA_ENABLED (nếu đặt OLLAMA_ENABLED=false trong .env thì tắt 100% để bảo vệ VPS 512MB)
+        ollama_enabled = getattr(settings, "OLLAMA_ENABLED", True)
+        if not ollama_enabled:
+            is_hard_conflict = (score >= 60)
+            dur_ms = (time.time() - t0) * 1000
+            return ConflictEvaluationResult(
+                is_conflict=is_hard_conflict,
+                involved_users=involved_ids,
+                involved_names=involved_names,
+                reason="Phát hiện ngôn từ thù địch, khiêu khích và đe dọa leo thang giữa 2 thành viên.",
+                severity="high" if score >= 120 else "medium",
+                offending_message_ids=offending_ids,
+                ai_used=False,
+                evaluation_time_ms=dur_ms,
+            )
+
         active_model = model_name or getattr(settings, "CONFLICT_AI_MODEL", "qwen2.5:0.5b")
         ollama_url = getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
 
@@ -303,7 +318,7 @@ class ConflictDetector:
 
         ai_called = False
         try:
-            timeout = aiohttp.ClientTimeout(total=8)
+            timeout = aiohttp.ClientTimeout(total=2, connect=0.4)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(
                     f"{ollama_url}/api/chat",
@@ -340,7 +355,7 @@ class ConflictDetector:
 
         # 2. Fallback Heuristic Phán Quyết Thông Minh (nếu Ollama bận hoặc timeout)
         # Nếu hostility_score >= 80 (chứa các từ khóa đe dọa, xúc phạm nặng)
-        is_hard_conflict = (score >= 80)
+        is_hard_conflict = (score >= 60)
         dur_ms = (time.time() - t0) * 1000
 
         return ConflictEvaluationResult(

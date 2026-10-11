@@ -250,6 +250,9 @@ if HAS_PYDANTIC:
         AI_VERIFIER_MODEL: str = Field(
             default="gemma3:4b", description="AI Model for Problem Verification & Logic Enhancement"
         )
+        OLLAMA_ENABLED: bool = Field(
+            default=True, description="Bật/Tắt tính năng gọi Ollama AI cục bộ (Tự động tắt trên VPS 512MB RAM)"
+        )
         OLLAMA_BASE_URL: str = Field(
             default="http://localhost:11434", description="Ollama local server endpoint"
         )
@@ -343,8 +346,8 @@ if HAS_PYDANTIC:
             description="Mã khóa bí mật (Bearer/Header Secret) xác thực giữa Bot và Web",
         )
         EMBEDDING_ENABLED: bool = Field(
-            default=True,
-            description="Bật Semantic Search (model ONNX ~550MB RAM). Tắt để chạy VPS 512MB (fallback BM25/FTS).",
+            default=False,
+            description="Bật Semantic Search (model ONNX ~550MB RAM). Mặc định TẮT cho VPS 512MB (sử dụng FTS5 Super Search + C++ Native Core).",
         )
         EMBEDDING_DEVICE: str = Field(
             default="auto",
