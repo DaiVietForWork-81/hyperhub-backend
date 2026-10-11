@@ -1162,8 +1162,36 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
                     pass
 
             if not channel or not isinstance(channel, discord.TextChannel):
+                # Tự động tìm kiếm kênh tra cứu theo tên hoặc khởi tạo mới trong category tài liệu
+                cat_id = getattr(settings, "DOC_CATEGORY_ID", 1534147951797080174)
+                for guild in self.bot.guilds:
+                    for ch in guild.text_channels:
+                        ch_name = ch.name.lower()
+                        if "tra-cứu" in ch_name or "tra-cuu" in ch_name or "tim-kiem" in ch_name:
+                            channel = ch
+                            break
+                    if channel:
+                        break
+                    # Nếu chưa có, tự động tạo kênh tra cứu mới trong category tài liệu
+                    cat = guild.get_channel(cat_id)
+                    try:
+                        channel = await guild.create_text_channel(
+                            name="🔍・tra-cứu-tài-liệu",
+                            category=cat if isinstance(cat, discord.CategoryChannel) else None,
+                            topic="Kênh tra cứu kho đề thi & tài liệu học tập HyperHub Web Portal",
+                            reason="Tự động khởi tạo kênh tra cứu tài liệu HyperHub",
+                        )
+                        log.info("✨ [Self-Healing] Đã tự động tạo kênh tra cứu mới: #%s (%s)", channel.name, channel.id)
+                        break
+                    except Exception as ce:
+                        log.debug("Không thể tạo kênh tra cứu mới: %s", ce)
+
+            if not channel or not isinstance(channel, discord.TextChannel):
                 log.warning("Không tìm thấy kênh tra cứu DOC_SEARCH_CHANNEL_ID: %s", search_channel_id)
                 return
+
+            self.doc_search_channel_id = channel.id
+            setattr(settings, "DOC_SEARCH_CHANNEL_ID", channel.id)
 
             try:
                 if purge:
@@ -1194,7 +1222,7 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
         if not message.guild or message.author == self.bot.user:
             return
 
-        search_channel_id = getattr(settings, "DOC_SEARCH_CHANNEL_ID", 1553678782101979186)
+        search_channel_id = getattr(self, "doc_search_channel_id", getattr(settings, "DOC_SEARCH_CHANNEL_ID", 1553678782101979186))
         if message.channel.id == search_channel_id:
             try:
                 await message.delete()

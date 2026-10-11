@@ -99,24 +99,17 @@ class HelpCog(commands.Cog, name="Help"):
     def build_owner_help_embeds(cls, bot: commands.Bot | None = None) -> list[discord.Embed]:
         """Tạo bộ 3 Rich Embeds cẩm nang toàn diện dành riêng cho Bot Owner."""
         embed1 = create_embed(
-            title="👑 [1] SỔ TAY QUẢN TRỊ VIÊN & LỆNH BÍ MẬT BOT OWNER",
+            title="👑 [1] SỔ TAY QUẢN TRỊ VIÊN & HỆ THỐNG HYPERHUB",
             description=(
-                "### 🎯 CÁC CÂU LỆNH PREFIX TRỰC TIẾP\n\n"
-                "• **`.skip`** :\n"
-                "  - **Khi ở ngoài ticket (Kênh `#📋・ranked`):** Bỏ qua hàng chờ tìm người, tự động ghép với `🤖 Bot Tester` và tạo ngay phòng đấu với **đề bài thuộc phân hạng đỉnh cao: Division 1 (👑 HT1 / Div. 1 - 3000+ pts)**.\n"
-                "  - **Khi ở trong ticket (`#⚔️・duel-xxxxxx`):** Bỏ qua chặng hiện tại, xuất mã nguồn giải mẫu C++ chuẩn AC, gửi gợi ý và tự động phát **bài toán thuộc Division 1 (Div. 1: LT1, MT1, HT1)** cho chặng tiếp theo.\n\n"
-                "• **`.test`** : *(Chỉ Bot Owner trong ticket)*\n"
-                "  - Đóng ngay phòng đấu và xử thắng test cho Owner. ID Owner không bị tính vào BXH nhưng vẫn cập nhật điểm/role để kiểm thử.\n\n"
-                "• **`.close`** :\n"
-                "  - Yêu cầu đóng phòng đấu / đầu hàng (có bảng nút bấm xác nhận 🏳️ an toàn).\n\n"
-                "• **`.list`** :\n"
-                "  - Hiển thị bảng tổng kết chi tiết từng chặng: Tên bài, % điểm đúng của 2 đấu thủ, số mạng ❤️ còn lại.\n\n"
-                "• **`.help`** :\n"
-                "  - Gửi toàn bộ cẩm nang hướng dẫn hệ thống này vào tin nhắn riêng (DM) của Bot Owner."
+                "### 🎯 KIẾN TRÚC & NGUYÊN TẮC VẬN HÀNH\n\n"
+                "• **Kiến trúc Monorepo:** Bot Discord & Web API Bridge hoạt động song song tại cổng `8080`.\n"
+                "• **Tìm kiếm siêu việt:** Kết hợp Lexical SQLite FTS5 (không dấu), Semantic Vector ONNX đa ngôn ngữ và SIMD C++ Native.\n"
+                "• **Tự động sao lưu & Anti-Nuke:** ServerBackupService chụp snapshot cấu trúc server mỗi 6 giờ, tự động khôi phục khi có biến động.\n"
+                "• **Quyền Admin & Owner:** Chủ server và Bot Owner có quyền thực thi toàn bộ lệnh quản trị, kick, ban, mute, reset, đồng bộ kho đề."
             ),
             embed_type=EmbedType.INFO,
             color=0xF1C40F,
-            footer_text="Cẩm nang bí mật dành riêng cho Bot Owner • Trang 1/3",
+            footer_text="Cẩm nang quản trị viên HyperHub • Trang 1/3",
         )
 
         # Trang 2: liệt kê ĐỘNG toàn bộ lệnh trên server nếu có bot, fallback tĩnh nếu không
@@ -133,39 +126,37 @@ class HelpCog(commands.Cog, name="Help"):
         else:
             desc2 = (
                 "### 🛠️ LỆNH SLASH QUẢN TRỊ (ADMIN & OWNER)\n"
-                "• `/status` : [Admin] Kiểm tra trạng thái AI Core & các chỉ số sức khỏe của bot.\n"
-                "• `/reload` : [Admin/Owner] Reload toàn bộ bot, cogs, CSDL và làm mới 6 kênh giao diện.\n"
-                "• `/setpts <user> <number> [mode]` : [Admin/Owner] Thiết lập điểm Rating và Rank cho thành viên.\n"
-                "• `/color <hex>` : [Admin/Owner] Thay đổi mã màu chủ đề embed mặc định của bot.\n"
-                "• `/tha {user}` : [Owner Only] Ân xá và gỡ bỏ lệnh cấm thi đấu Ranked cho thành viên.\n"
-                "• `/admin_list` : [Admin/Owner] Thống kê số lượng đề bài Ranked 1:1 và dung lượng hệ thống.\n"
-                "• `/auto_heal <file>` : [Admin] Kích hoạt AI Core quét và tự động sửa lỗi cú pháp file.\n\n"
+                "• `/status` : [Admin] Kiểm tra tình trạng sức khỏe hệ thống, ping, C++ Core & RAM.\n"
+                "• `/reload` : [Admin/Owner] Nạp lại toàn bộ bot, cogs, CSDL và làm mới các kênh giao diện.\n"
+                "• `/dongbokhode` : [Admin/Owner] Quét và đồng bộ toàn bộ tài liệu từ các kênh về CSDL.\n"
+                "• `/gothailieu <id>` : [Admin] Gỡ tài liệu khỏi kho lưu trữ hệ thống.\n"
+                "• `/kick`, `/ban`, `/unban`, `/mute`, `/unmute`, `/reset` : Bộ lệnh kiểm duyệt kỷ luật thành viên.\n"
+                "• `/warn`, `/deletewarn`, `/warntest` : Quản lý cảnh báo thành viên vi phạm.\n\n"
                 "### 👤 LỆNH SLASH DÀNH CHO THÀNH VIÊN\n"
-                "• `/check [user]` : Kiểm tra hạn mức Token hàng ngày, Gói Hyper và tiến trình sử dụng.\n"
-                "• `/help` : Mở menu hướng dẫn sử dụng tương tác có nút bấm.\n\n"
-                "💡 *Danh sách đầy đủ, tự động cập nhật theo server: dùng `/help` → nút **📌 Danh Sách Lệnh**.*"
+                "• `/timde <từ khóa>` : Tra cứu đề thi thông minh qua FTS5 & Semantic Vector.\n"
+                "• `/layde <id>` : Tải đề thi trực tiếp theo mã ID.\n"
+                "• `/timtailieu` : Mở giao diện tra cứu và nhận liên kết Web Portal.\n"
             )
         embed2 = create_embed(
-            title="🛠️ [2] DANH SÁCH LỆNH SLASH COMMANDS QUẢN TRỊ & THÀNH VIÊN",
+            title="🛠️ [2] DANH SÁCH LỆNH SLASH COMMANDS HOẠT ĐỘNG",
             description=desc2,
             embed_type=EmbedType.INFO,
             color=0x3498DB,
-            footer_text="Cẩm nang bí mật dành riêng cho Bot Owner • Trang 2/3",
+            footer_text="Danh sách lệnh Slash Commands chuẩn • Trang 2/3",
         )
 
         embed3 = create_embed(
-            title="🌐 [3] HỆ THỐNG 6 KÊNH GIAO DIỆN TỰ ĐỘNG (AUTO-SETUP)",
+            title="🌐 [3] HỆ THỐNG KÊNH GIAO DIỆN & WEB PORTAL TỰ ĐỘNG",
             description=(
-                "1. **`#✅・accounts` (`CF_ID`)** : Xác minh tài khoản Codeforces tự động 3 bước qua bài nộp test code mẫu.\n"
-                "2. **`#📤・mode` (`CHON_ID`)** : Sổ tay 6 Embeds toàn diện và Menu chọn 2 chế độ làm bài (Mode 1 / Mode 2).\n"
-                "3. **`#📋・contest` (`BAITAP_ID`)** : Trình duyệt 3 Rich Embeds cuộc thi Codeforces + Tự động chuyển sang Chế độ Bảo trì khi CF API lỗi và tự khôi phục khi API mở lại.\n"
-                "4. **`#📤・submit` (`SUBMIT_ID`)** : Trạm nộp bài Rated/Unrated mở Form Modal chấm Themis Multi-Test Sandbox.\n"
-                "5. **`#✅・rank` (`UP_RANK`)** : Bảng xếp hạng Top 50 song song Freedom & Ranked (cập nhật 45s).\n"
-                "6. **`#📋・ranked` (`RANKED_CHANNEL_ID`)** : Đấu trường Ranked 1:1, 2 Mạng ❤️, Matchmaking ±1 Tier, hàng chờ Embed."
+                "1. **`#📄・nộp-tài-liệu` (`DOC_INTAKE_CHANNEL_ID`)** : Nộp tài liệu học tập, bot tự động quét virus/spoof, phân loại khối lớp & môn học.\n"
+                "2. **`#🔍・tra-cứu-tài-liệu` (`DOC_SEARCH_CHANNEL_ID`)** : Bảng hướng dẫn tra cứu kho đề thi chuyển tiếp trực tiếp sang Web Portal.\n"
+                "3. **`#📄・verify-link` (`LINK_SCANNER_CHANNEL_ID`)** : Trạm kiểm tra URL an toàn, chống lừa đảo & mã độc.\n"
+                "4. **`#help` (`ADMIN_GUIDE_CHANNEL_ID`)** : Panel cẩm nang lệnh Admin tự động làm mới khi khởi động bot.\n"
+                "5. **`Web Portal`** : Cổng tra cứu kho tài liệu hiện đại tại `https://hyperhub-one.vercel.app/#vault` kết nối Bot API Bridge."
             ),
             embed_type=EmbedType.INFO,
             color=0x2ECC71,
-            footer_text="Cẩm nang bí mật dành riêng cho Bot Owner • Trang 3/3",
+            footer_text="Cấu trúc giao diện HyperHub • Trang 3/3",
         )
 
         return [embed1, embed2, embed3]

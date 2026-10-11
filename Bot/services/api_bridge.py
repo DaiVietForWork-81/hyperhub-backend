@@ -777,9 +777,18 @@ class BotAPIBridge:
                 params.extend([f"%{exam_type}%", f"%{exam_type}%", f"%{exam_type}%"])
 
         if search_kw:
-            where_clauses.append("(LOWER(title) LIKE ? OR LOWER(file_name) LIKE ?)")
-            kw_param = f"%{search_kw.lower()}%"
-            params.extend([kw_param, kw_param])
+            fts_words = re.findall(r'[\w\u00C0-\u024F\u1E00-\u1EFF]+', search_kw)
+            if fts_words:
+                fts_expr = ' '.join(f'"{w}"*' for w in fts_words)
+                where_clauses.append(
+                    "(id IN (SELECT rowid FROM documents_fts WHERE documents_fts MATCH ?) OR LOWER(title) LIKE ? OR LOWER(file_name) LIKE ?)"
+                )
+                kw_param = f"%{search_kw.lower()}%"
+                params.extend([fts_expr, kw_param, kw_param])
+            else:
+                where_clauses.append("(LOWER(title) LIKE ? OR LOWER(file_name) LIKE ?)")
+                kw_param = f"%{search_kw.lower()}%"
+                params.extend([kw_param, kw_param])
 
         filter_dup = query_params.get("filter_dup", "all").strip().lower()
         if filter_dup == "unique":
