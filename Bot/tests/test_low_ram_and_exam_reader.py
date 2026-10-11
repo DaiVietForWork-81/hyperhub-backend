@@ -123,6 +123,113 @@ Câu 3: 450
         self.assertIn(101, res.involved_users)
         self.assertIn(102, res.involved_users)
 
+    def test_deep_question_extraction_solution_and_metadata(self):
+        """Kiểm tra bóc tách chi tiết: Lời giải, thang điểm, đồ thị, bảng biểu, chuyên đề môn học (Zero AI)."""
+        exam_chunk = """
+Câu 1. (0.5 điểm) Cho hàm số bậc ba y = f(x) có bảng biến thiên và đồ thị hàm số như hình vẽ bên.
+Tìm số điểm cực trị của hàm số đã cho.
+A. 1
+B. 2
+C. 3
+D. 0
+Lời giải chi tiết:
+Dựa vào bảng biến thiên, ta thấy hàm số đạt cực đại tại x = 0 và cực tiểu tại x = 2.
+Do đó hàm số có 2 điểm cực trị. Chọn B.
+
+Câu 2. (1,0 điểm) Cho bảng số liệu thống kê nhiệt độ trung bình các tháng trong năm.
+Tìm nhiệt độ cao nhất.
+A. 35
+B. 38
+C. 40
+D. 42
+Hướng dẫn giải:
+Từ bảng số liệu, nhiệt độ tháng 6 là 42 độ C. Chọn D.
+"""
+        questions, breakdown = QuestionParser.parse_all_questions(exam_chunk, subject="MATHEMATICS")
+        self.assertEqual(len(questions), 2)
+
+        # Câu 1
+        q1 = questions[0]
+        self.assertEqual(q1.score_points, 0.5)
+        self.assertTrue(q1.has_figure_or_graph)
+        self.assertTrue(q1.has_solution_text)
+        self.assertIsNotNone(q1.solution_text)
+        self.assertIn("Dựa vào bảng biến thiên", q1.solution_text)
+        self.assertIn("Chọn B", q1.solution_text)
+        # Options không bị lẫn lời giải
+        self.assertEqual(q1.options["B"], "2")
+        # Chuyên đề
+        self.assertEqual(q1.topic_domain, "Hàm số & Đồ thị")
+
+        # Câu 2
+        q2 = questions[1]
+        self.assertEqual(q2.score_points, 1.0)
+        self.assertTrue(q2.has_table_data)
+        self.assertTrue(q2.has_solution_text)
+        self.assertIsNotNone(q2.solution_text)
+        self.assertIn("Từ bảng số liệu", q2.solution_text)
+
+    def test_extract_deep_metadata_and_structure(self):
+        """Kiểm tra trích xuất siêu dữ liệu sâu: Thời gian, Kỳ thi, Mã đề, Tỉnh thành, Thang điểm, Cấu trúc 3 phần."""
+        full_exam_text = """
+SỞ GD&ĐT NAM ĐỊNH
+TRƯỜNG THPT CHUYÊN LÊ HỒNG PHONG
+NĂM HỌC 2024 - 2025
+
+ĐỀ THI KHẢO SÁT CHẤT LƯỢNG HỌC KỲ 1
+MÔN: TOÁN HỌC - KHỐI 12
+Thời gian làm bài: 90 phút (không kể thời gian phát đề)
+Mã đề thi: 105
+Điểm toàn bài: 10,0 điểm
+
+PHẦN I. Thí sinh trả lời từ câu 1 đến câu 2. Mỗi câu hỏi chỉ chọn một phương án.
+Câu 1. Hàm số y = x^3 - 3x đồng biến trên khoảng nào?
+A. (-1; 1)
+B. (1; +inf)
+C. (-inf; 0)
+D. (0; 2)
+
+Câu 2. Giá trị cực tiểu của hàm số y = x^4 - 2x^2 + 1 là:
+A. 1
+B. 0
+C. -1
+D. 2
+
+PHẦN II. Thí sinh trả lời từ câu 3. Đúng/Sai.
+Câu 3. Cho hàm số f(x) liên tục trên R.
+a) f'(x) > 0 với mọi x.
+b) Hàm số có 1 điểm cực trị.
+c) Giá trị lớn nhất bằng 5.
+d) Đồ thị hàm số đi qua gốc tọa độ.
+
+PHẦN III. Thí sinh trả lời câu hỏi ngắn.
+Câu 4. Một bể nước có thể tích bằng bao nhiêu m3? Điền đáp số:
+"""
+        questions, breakdown = QuestionParser.parse_all_questions(full_exam_text, subject="MATHEMATICS")
+        self.assertEqual(len(questions), 4)
+
+        meta = QuestionParser.extract_deep_metadata(
+            text=full_exam_text,
+            questions=questions,
+            subject="MATHEMATICS",
+        )
+
+        self.assertEqual(meta.duration_minutes, 90)
+        self.assertEqual(meta.duration_raw, "90 phút")
+        self.assertEqual(meta.exam_code, "105")
+        self.assertEqual(meta.province, "Nam Định")
+        self.assertEqual(meta.total_score, 10.0)
+        self.assertIn("học kỳ 1", meta.exam_period.lower())
+
+        # Thống kê cấu trúc chuẩn Bộ GD&ĐT 2025
+        self.assertEqual(meta.moet_part1_count, 2)  # Câu 1, 2 (MCQ_4)
+        self.assertEqual(meta.moet_part2_count, 1)  # Câu 3 (TRUE_FALSE_GROUP)
+        self.assertEqual(meta.moet_part3_count, 1)  # Câu 4 (SHORT_ANSWER)
+
+        # Chuyên đề
+        self.assertIn("Hàm số & Đồ thị", meta.topic_distribution)
+        self.assertGreaterEqual(meta.topic_distribution["Hàm số & Đồ thị"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

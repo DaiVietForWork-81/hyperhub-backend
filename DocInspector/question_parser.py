@@ -13,6 +13,7 @@ from .models import (
     CognitiveBreakdown,
     CognitiveLevel,
     ExtractedQuestion,
+    ExamDetailedMetadata,
 )
 from .signatures import (
     RE_COG_APPLICATION,
@@ -22,6 +23,17 @@ from .signatures import (
     RE_MCQ_FOUR_OPTIONS,
     RE_QUESTION_HEADING,
     RE_TRUE_FALSE_SUBITEMS,
+    RE_EXAM_DURATION,
+    RE_EXAM_PERIOD,
+    RE_EXAM_CODE,
+    RE_TOTAL_POINTS,
+    RE_QUESTION_POINTS,
+    RE_QUESTION_SOLUTION_SPLIT,
+    RE_FIGURE_GRAPH_CUE,
+    RE_TABLE_CUE,
+    RE_READING_PASSAGE_CUE,
+    VIETNAM_PROVINCES,
+    TOPIC_SIGNATURES,
 )
 
 
@@ -36,6 +48,7 @@ class QuestionParser:
         cls,
         text: str,
         answer_map: Optional[Dict[int, str]] = None,
+        subject: Optional[str] = None,
     ) -> Tuple[List[ExtractedQuestion], CognitiveBreakdown]:
         """
         Extract all discrete questions, classify cognitive levels,
@@ -125,8 +138,19 @@ class QuestionParser:
             # Bound question chunk to avoid swallowing entire answer tables
             chunk = text[start_pos:end_pos].strip()
 
-            # Separate prompt from options
-            prompt, options, sub_items, q_type = cls._dissect_question_chunk(chunk)
+            # Separate prompt from options & rich metadata
+            (
+                prompt,
+                options,
+                sub_items,
+                q_type,
+                has_solution,
+                solution_text,
+                score_pts,
+                has_fig,
+                has_table,
+                topic,
+            ) = cls._dissect_question_chunk(chunk, subject=subject)
 
             # Estimate cognitive level
             cog_level = cls._estimate_cognitive_level(chunk)
@@ -142,8 +166,6 @@ class QuestionParser:
             # Answer key binding
             ans = answer_keys.get(q_num)
 
-            has_solution = bool(re.search(r"(?i)(?:lời\s*giải|hướng\s*dẫn|giải\s*chi\s*tiết)", chunk))
-
             question_obj = ExtractedQuestion(
                 question_index=q_num,
                 label=f"Câu {q_num}",
@@ -154,6 +176,11 @@ class QuestionParser:
                 cognitive_level=cog_level,
                 detected_answer=ans,
                 has_solution_text=has_solution,
+                solution_text=solution_text,
+                score_points=score_pts,
+                has_figure_or_graph=has_fig,
+                has_table_data=has_table,
+                topic_domain=topic,
             )
             questions.append(question_obj)
 
@@ -175,59 +202,131 @@ class QuestionParser:
         return questions, breakdown
 
     @classmethod
-    def _dissect_question_chunk(
-        cls, chunk: str
-    ) -> Tuple[str, Dict[str, str], List[str], str]:
+    def detect_topic_domain(cls, text: str, subject: Optional[str] = None) -> Optional[str]:
         """
-        Dissects a raw question chunk into stem, options, and sub-items.
+        Nhận diện chuyên đề câu hỏi theo môn học bằng Regex từ điển đặc trưng (< 0.05ms).
         """
-        lines = chunk.splitlines()
-        first_line = lines[0] if lines else ""
+        if not text:
+            return None
 
+        subj_key = None
+        if subject:
+            s = str(subject).upper()
+            if any(k in s for k in ["MATH", "TOAN", "TOÁN"]):
+                subj_key = "MATHEMATICS"
+            elif any(k in s for k in ["PHYS", "LY", "LÝ"]):
+                subj_key = "PHYSICS"
+            elif any(k in s for k in ["CHEM", "HOA", "HÓA"]):
+                subj_key = "CHEMISTRY"
+            elif any(k in s for k in ["BIO", "SINH"]):
+                subj_key = "BIOLOGY"
+            elif any(k in s for k in ["ENG", "ANH"]):
+                subj_key = "ENGLISH"
+            elif s in TOPIC_SIGNATURES:
+                subj_key = s
+
+        targets = [subj_key] if (subj_key and subj_key in TOPIC_SIGNATURES) else list(TOPIC_SIGNATURES.keys())
+
+        for k in targets:
+            for topic_name, pat in TOPIC_SIGNATURES[k]:
+                if pat.search(text):
+                    return topic_name
+        return None
+
+    @classmethod
+    def _dissect_question_chunk(
+        cls, chunk: str, subject: Optional[str] = None
+    ) -> Tuple[str, Dict[str, str], List[str], str, bool, Optional[str], Optional[float], bool, bool, Optional[str]]:
+        """
+        Dissects a raw question chunk into stem, options, sub-items, and rich structural metadata.
+        Zero AI, 100% Deterministic Regex & Pattern Matching.
+        """
+        # 1. Tách phần Lời giải chi tiết khỏi đề bài nếu có (tránh làm nhiễu option A-D trong bài giải)
+        solution_text: Optional[str] = None
+        has_solution = False
+        sol_match = RE_QUESTION_SOLUTION_SPLIT.search(chunk)
+        if sol_match:
+            has_solution = True
+            question_body = chunk[:sol_match.start()].strip()
+            solution_text = chunk[sol_match.end():].strip()
+            if not question_body:
+                question_body = chunk
+        else:
+            question_body = chunk
+            has_solution = bool(re.search(r"(?i)(?:lời\s*giải|hướng\s*dẫn\s*giải|giải\s*chi\s*tiết)", chunk))
+
+        # 2. Thang điểm của câu hỏi (ví dụ: "(1,0 điểm)", "[0.5 đ]")
+        score_points: Optional[float] = None
+        pts_match = RE_QUESTION_POINTS.search(question_body)
+        if pts_match:
+            try:
+                score_points = float(pts_match.group(1).replace(",", "."))
+            except (ValueError, IndexError):
+                score_points = None
+
+        # 3. Phát hiện hình vẽ, đồ thị, bảng biến thiên
+        has_figure_or_graph = bool(RE_FIGURE_GRAPH_CUE.search(chunk))
+
+        # 4. Phát hiện bảng số liệu / bảng thống kê
+        has_table_data = bool(RE_TABLE_CUE.search(chunk))
+
+        # 5. Phân loại cấu trúc câu hỏi (MCQ_4, TRUE_FALSE_GROUP, SHORT_ANSWER, ESSAY_PROBLEM)
         options: Dict[str, str] = {}
         sub_items: List[str] = []
         q_type = "MCQ_4"
 
         # Check for 4 MCQ options: A., B., C., D.
-        # Find all occurrences of A., B., C., D.
-        opt_matches = list(RE_MCQ_FOUR_OPTIONS.finditer(chunk))
+        opt_matches = list(RE_MCQ_FOUR_OPTIONS.finditer(question_body))
         if len(opt_matches) >= 3:
             for m in opt_matches:
                 opt_letter = m.group(1).upper()
                 opt_text = m.group(2).strip()
                 options[opt_letter] = opt_text
             q_type = "MCQ_4"
-            # Stem is everything before the first option
             first_opt_start = opt_matches[0].start()
-            prompt = chunk[:first_opt_start].strip()
+            prompt = question_body[:first_opt_start].strip()
         else:
             # Check for True/False sub-items: a), b), c), d) or a., b., c., d.
-            tf_matches = list(RE_TRUE_FALSE_SUBITEMS.finditer(chunk))
+            tf_matches = list(RE_TRUE_FALSE_SUBITEMS.finditer(question_body))
             if len(tf_matches) >= 3:
                 q_type = "TRUE_FALSE_GROUP"
                 for m in tf_matches:
                     sub_items.append(f"{m.group(1).lower()}) {m.group(2).strip()}")
                 first_sub_start = tf_matches[0].start()
-                prompt = chunk[:first_sub_start].strip()
+                prompt = question_body[:first_sub_start].strip()
             else:
                 # Check for Short Answer question (Chuẩn Bộ GD&ĐT 2025 - Phần III)
                 is_short_answer = bool(
                     re.search(
                         r"(?i)\b(?:trả\s*lời\s*ngắn|điền\s*(?:đáp\s*số|kết\s*quả|vào\s*chỗ\s*trống)|kết\s*quả\s*bằng|đáp\s*số\s*[:：]|phần\s+iii\b)\b",
-                        chunk,
+                        question_body,
                     )
                 )
                 if is_short_answer:
                     q_type = "SHORT_ANSWER"
-                    prompt = chunk
+                    prompt = question_body
                 else:
-                    prompt = chunk
+                    prompt = question_body
                     q_type = "ESSAY_PROBLEM"
 
         # Clean prompt
         prompt = re.sub(r"(?i)^(?:câu|bài|question)\s+\d+[\s*.:\)]+", "", prompt).strip()
 
-        return prompt, options, sub_items, q_type
+        # 6. Nhận diện chuyên đề kiến thức (topic_domain)
+        topic_domain = cls.detect_topic_domain(prompt or question_body, subject=subject)
+
+        return (
+            prompt,
+            options,
+            sub_items,
+            q_type,
+            has_solution,
+            solution_text,
+            score_points,
+            has_figure_or_graph,
+            has_table_data,
+            topic_domain,
+        )
 
     @classmethod
     def _estimate_cognitive_level(cls, text: str) -> CognitiveLevel:
@@ -319,3 +418,152 @@ class QuestionParser:
                     results[q_idx] = m.group(2)
 
         return results
+
+    @classmethod
+    def extract_deep_metadata(
+        cls,
+        text: str,
+        questions: Optional[List[ExtractedQuestion]] = None,
+        subject: Optional[str] = None,
+    ) -> ExamDetailedMetadata:
+        """
+        Trích xuất siêu dữ liệu sâu của đề thi hoàn toàn bằng Heuristic & Regex (Zero AI):
+        - Thời gian làm bài (phút)
+        - Kỳ thi (GK1, CK1, GK2, CK2, Thi thử tốt nghiệp, KSCL, HSG, Tuyển sinh 10, ĐGNL)
+        - Mã đề thi
+        - Tỉnh / Thành phố ra đề (trong 63 tỉnh thành)
+        - Thang điểm tổng bài thi
+        - Thống kê cấu trúc chuẩn Bộ GD&ĐT 2025 (Phần I, II, III, Tự luận)
+        - Thống kê chuyên đề câu hỏi
+        - Trạng thái đáp án & lời giải chi tiết
+        - Ma trận đề thi / Bảng đặc tả
+        """
+        header_slice = text[:3500] if text else ""
+
+        # 1. Thời gian làm bài
+        duration_minutes: Optional[int] = None
+        duration_raw: Optional[str] = None
+        dur_match = RE_EXAM_DURATION.search(header_slice)
+        if dur_match:
+            try:
+                duration_minutes = int(dur_match.group(1))
+                duration_raw = f"{duration_minutes} phút"
+            except (ValueError, IndexError):
+                pass
+
+        # 2. Kỳ thi cụ thể (Hỗ trợ kết hợp như KSCL + Học kỳ 1)
+        exam_period: Optional[str] = None
+        period_matches = list(RE_EXAM_PERIOD.finditer(header_slice))
+        if period_matches:
+            periods_found: List[str] = []
+            for pm in period_matches:
+                g = pm.groups()
+                p_name: Optional[str] = None
+                if g[0]:
+                    p_raw = g[0].lower()
+                    p_name = "Giữa học kỳ 1" if ("giữa" in p_raw or "gk" in p_raw) else "Học kỳ 1"
+                elif g[1]:
+                    p_raw = g[1].lower()
+                    p_name = "Giữa học kỳ 2" if ("giữa" in p_raw or "gk" in p_raw) else "Học kỳ 2"
+                elif g[2]:
+                    p_name = "Thi thử tốt nghiệp THPT"
+                elif g[3]:
+                    p_name = "Khảo sát chất lượng (KSCL)"
+                elif g[4]:
+                    p_name = "Học sinh giỏi (HSG) / Olympic"
+                elif g[5]:
+                    p_name = "Tuyển sinh vào lớp 10"
+                elif g[6]:
+                    p_name = "Đánh giá năng lực (ĐGNL) / Đánh giá tư duy"
+                else:
+                    p_name = pm.group(0).strip()
+                if p_name and p_name not in periods_found:
+                    periods_found.append(p_name)
+            if periods_found:
+                exam_period = " - ".join(periods_found)
+
+        # 3. Mã đề thi
+        exam_code: Optional[str] = None
+        code_match = RE_EXAM_CODE.search(header_slice)
+        if code_match:
+            exam_code = code_match.group(1).strip()
+
+        # 4. Tỉnh / Thành phố ra đề
+        province: Optional[str] = None
+        for prov in VIETNAM_PROVINCES:
+            pat = re.compile(
+                r"(?i)\b(?:sở\s*(?:gd[&]?đt|giáo\s*dục(?:\s*và\s*đào\s*tạo)?)|tỉnh|thành\s*phố|tp\.?|ubnd\s*tỉnh)\s+" + re.escape(prov) + r"\b"
+            )
+            if pat.search(header_slice):
+                province = prov
+                break
+        if not province:
+            first_lines = "\n".join(header_slice.splitlines()[:15])
+            for prov in VIETNAM_PROVINCES:
+                if re.search(r"(?i)\b" + re.escape(prov) + r"\b", first_lines):
+                    province = prov
+                    break
+
+        # 5. Thang điểm tổng bài thi
+        total_score: Optional[float] = None
+        score_match = RE_TOTAL_POINTS.search(header_slice)
+        if score_match:
+            try:
+                total_score = float(score_match.group(1).replace(",", "."))
+            except (ValueError, IndexError):
+                pass
+
+        # 6. Thống kê câu hỏi & chuyên đề
+        moet_p1 = 0
+        moet_p2 = 0
+        moet_p3 = 0
+        essay_cnt = 0
+        has_ans = False
+        has_sol = False
+        topic_dist: Dict[str, int] = {}
+
+        if questions:
+            for q in questions:
+                if not q.topic_domain and subject:
+                    q.topic_domain = cls.detect_topic_domain(q.prompt, subject=subject)
+
+                if q.topic_domain:
+                    topic_dist[q.topic_domain] = topic_dist.get(q.topic_domain, 0) + 1
+
+                if q.question_type == "MCQ_4":
+                    moet_p1 += 1
+                elif q.question_type == "TRUE_FALSE_GROUP":
+                    moet_p2 += 1
+                elif q.question_type == "SHORT_ANSWER":
+                    moet_p3 += 1
+                else:
+                    essay_cnt += 1
+
+                if q.detected_answer:
+                    has_ans = True
+                if q.has_solution_text or q.solution_text:
+                    has_sol = True
+
+        if not has_ans:
+            has_ans = bool(re.search(r"(?i)\b(?:bảng\s*đáp\s*án|đáp\s*án|answer\s*keys?)\b", text))
+        if not has_sol:
+            has_sol = bool(re.search(r"(?i)\b(?:hướng\s*dẫn\s*giải|lời\s*giải\s*chi\s*tiết|giải\s*chi\s*tiết)\b", text))
+
+        has_matrix = bool(re.search(r"(?i)\b(?:ma\s*trận(?:\s*đề\s*thi|\s*đề)?|bảng\s*đặc\s*tả|matrix|specification)\b", text))
+
+        return ExamDetailedMetadata(
+            duration_minutes=duration_minutes,
+            duration_raw=duration_raw,
+            exam_period=exam_period,
+            exam_code=exam_code,
+            province=province,
+            total_score=total_score,
+            moet_part1_count=moet_p1,
+            moet_part2_count=moet_p2,
+            moet_part3_count=moet_p3,
+            essay_count=essay_cnt,
+            has_answer_keys=has_ans,
+            has_detailed_solutions=has_sol,
+            has_matrix_or_spec=has_matrix,
+            topic_distribution=topic_dist,
+        )

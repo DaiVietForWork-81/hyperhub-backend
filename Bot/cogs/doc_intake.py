@@ -98,6 +98,41 @@ class JumpButtonView(discord.ui.View):
         )
 
 
+def format_rich_exam_metadata(report: Any) -> str:
+    """Định dạng siêu dữ liệu đề thi chi tiết (năm học, trường, thời gian, mã đề, kỳ thi, cấu trúc, chuyên đề)."""
+    extra = ""
+    if hasattr(report, 'academic_year') and report.academic_year:
+        extra += f"\n📅 **Năm học:** `{report.academic_year}`"
+    if hasattr(report, 'school_or_department') and report.school_or_department:
+        extra += f"\n🏫 **Trường / Sở GD:** `{report.school_or_department}`"
+
+    meta = getattr(report, 'detailed_metadata', None)
+    if meta:
+        if getattr(meta, 'duration_minutes', None):
+            extra += f"\n⏱️ **Thời gian làm bài:** `{meta.duration_minutes} phút`"
+        if getattr(meta, 'exam_code', None):
+            extra += f"\n🔢 **Mã đề:** `{meta.exam_code}`"
+        if getattr(meta, 'exam_period', None):
+            extra += f"\n📋 **Kỳ thi:** `{meta.exam_period}`"
+        if getattr(meta, 'total_score', None):
+            extra += f"\n🎯 **Thang điểm:** `{meta.total_score} điểm`"
+
+        p1 = getattr(meta, 'moet_part1_count', 0)
+        p2 = getattr(meta, 'moet_part2_count', 0)
+        p3 = getattr(meta, 'moet_part3_count', 0)
+        if p1 or p2 or p3:
+            extra += f"\n📊 **Cấu trúc 2025:** `Phần I: {p1}c` | `Phần II: {p2}c` | `Phần III: {p3}c`"
+
+        topic_dist = getattr(meta, 'topic_distribution', None)
+        if topic_dist and isinstance(topic_dist, dict):
+            top_topics = sorted(topic_dist.items(), key=lambda x: x[1], reverse=True)[:3]
+            if top_topics:
+                top_str = ", ".join(f"{k} ({v})" for k, v in top_topics)
+                extra += f"\n🏷️ **Chuyên đề chính:** `{top_str}`"
+
+    return extra
+
+
 class SubmitDocModal(discord.ui.Modal, title="📤 Nộp Đường Dẫn Tài Liệu Đề Thi"):
     """Modal cho phép người dùng dán link Google Drive hoặc link học tập."""
 
@@ -160,14 +195,7 @@ class SubmitDocModal(discord.ui.Modal, title="📤 Nộp Đường Dẫn Tài Li
                 file_path_or_bytes=raw_url,
                 note=note,
             )
-            reply_text = routing.submission_reply_message
-            # Thêm thông tin năm học và trường nếu có
-            extra_info = ""
-            if hasattr(report, 'academic_year') and report.academic_year:
-                extra_info += f"\n📅 **Năm học:** `{report.academic_year}`"
-            if hasattr(report, 'school_or_department') and report.school_or_department:
-                extra_info += f"\n🏫 **Trường / Sở GD:** `{report.school_or_department}`"
-            reply_text += extra_info
+            reply_text = (routing.submission_reply_message or "") + format_rich_exam_metadata(report)
 
             view = JumpButtonView(posted_msg.jump_url) if posted_msg else None
             await interaction.followup.send(reply_text, view=view, ephemeral=True)
@@ -1259,10 +1287,7 @@ class DocumentIntakeCog(commands.Cog):
                 if note:
                     post_content += f"\n📝 **Ghi chú của người gửi:** {note}"
 
-                if hasattr(report, 'academic_year') and report.academic_year:
-                    post_content += f"\n📅 **Năm học:** `{report.academic_year}`"
-                if hasattr(report, 'school_or_department') and report.school_or_department:
-                    post_content += f"\n🏫 **Trường / Sở GD:** `{report.school_or_department}`"
+                post_content += format_rich_exam_metadata(report)
 
                 try:
                     if isinstance(file_path_or_bytes, bytes) and file_name:
@@ -1370,14 +1395,7 @@ class DocumentIntakeCog(commands.Cog):
                             file_name=file_name,
                         )
 
-                        reply_text = routing.submission_reply_message
-                        # Thêm thông tin năm học và trường nếu có
-                        extra_info = ""
-                        if hasattr(report, 'academic_year') and report.academic_year:
-                            extra_info += f"\n📅 **Năm học:** `{report.academic_year}`"
-                        if hasattr(report, 'school_or_department') and report.school_or_department:
-                            extra_info += f"\n🏫 **Trường / Sở GD:** `{report.school_or_department}`"
-                        reply_text += extra_info
+                        reply_text = (routing.submission_reply_message or "") + format_rich_exam_metadata(report)
 
                         view = JumpButtonView(posted_msg.jump_url) if posted_msg else None
 
@@ -1477,14 +1495,7 @@ class DocumentIntakeCog(commands.Cog):
                         file_path_or_bytes=raw_url,
                     )
 
-                    reply_text = routing.submission_reply_message
-                    # Thêm thông tin năm học và trường nếu có
-                    extra_info = ""
-                    if hasattr(report, 'academic_year') and report.academic_year:
-                        extra_info += f"\n📅 **Năm học:** `{report.academic_year}`"
-                    if hasattr(report, 'school_or_department') and report.school_or_department:
-                        extra_info += f"\n🏫 **Trường / Sở GD:** `{report.school_or_department}`"
-                    reply_text += extra_info
+                    reply_text = (routing.submission_reply_message or "") + format_rich_exam_metadata(report)
 
                     view = JumpButtonView(posted_msg.jump_url) if posted_msg else None
 

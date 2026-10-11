@@ -381,3 +381,123 @@ RE_SCHOOL_PROVINCE: Pattern = re.compile(
     r")"
 )
 
+# ============================================================================
+# DEEP EXAM METADATA & QUESTION DETAIL SIGNATURES (ZERO AI)
+# ============================================================================
+
+# 1. Thời gian làm bài: "Thời gian làm bài: 50 phút", "Thời gian: 90 phút", "120 mins"
+RE_EXAM_DURATION: Pattern = re.compile(
+    r"(?i)(?:thời\s*gian(?:\s*làm\s*bài)?|thoi\s*gian|time(?:\s*allowed)?)\s*[:：]?\s*(\d{2,3})\s*(?:phút|phut|min(?:ute)?s?)",
+)
+
+# 2. Kỳ thi cụ thể (Giữa kỳ 1, Cuối kỳ 1, Giữa kỳ 2, Cuối kỳ 2, Thi thử tốt nghiệp, KSCL, HSG, Tuyển sinh 10, ĐGNL)
+RE_EXAM_PERIOD: Pattern = re.compile(
+    r"(?i)(?:"
+    r"(giữa\s*(?:học\s*)?kỳ\s*1|giữa\s*kì\s*1|gk1|hk1|học\s*kỳ\s*1|kỳ\s*1|kì\s*1)"
+    r"|(giữa\s*(?:học\s*)?kỳ\s*2|giữa\s*kì\s*2|gk2|hk2|học\s*kỳ\s*2|kỳ\s*2|kì\s*2)"
+    r"|(thi\s*thử(?:\s*tốt\s*nghiệp)?(?:\s*thpt)?)"
+    r"|(khảo\s*sát\s*chất\s*lượng|kscl)"
+    r"|(học\s*sinh\s*giỏi|hsg|olympic)"
+    r"|(tuyển\s*sinh(?:\s*vào)?\s*(?:lớp\s*)?10)"
+    r"|(đánh\s*giá\s*năng\s*lực|đgnl|đánh\s*giá\s*tư\s*duy|đgtd)"
+    r")"
+)
+
+# 3. Mã đề thi: "Mã đề: 101", "Mã đề thi 204", "MÃ ĐỀ: A", "Mã đề 001"
+RE_EXAM_CODE: Pattern = re.compile(
+    r"(?i)\b(?:mã\s*đề(?:\s*thi)?|ma\s*de|code|test\s*code)\s*[:：]?\s*([a-zA-Z0-9_-]{1,8})\b"
+)
+
+# 4. Thang điểm tổng bài thi: "Thang điểm 10", "Điểm toàn bài: 10,0", "Tổng: 100 điểm"
+RE_TOTAL_POINTS: Pattern = re.compile(
+    r"(?i)(?:thang\s*điểm|tổng\s*(?:số\s*)?điểm|điểm\s*toàn\s*bài)\s*[:：]?\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:điểm|đ)?"
+)
+
+# 5. Thang điểm câu hỏi: "(1,0 điểm)", "(0.5 điểm)", "(2,0đ)", "[1 điểm]", "(0,25 điểm)"
+RE_QUESTION_POINTS: Pattern = re.compile(
+    r"(?i)(?:[\(\[]\s*(\d+(?:[.,]\d+)?)\s*(?:điểm|đ|pts?|points?)[\)\]])"
+)
+
+# 6. Tách Lời giải / Hướng dẫn giải trong từng câu hỏi
+RE_QUESTION_SOLUTION_SPLIT: Pattern = re.compile(
+    r"(?i)(?:\n|\r|\A)\s*(?:▶\s*|\*+\s*)?(?:lời\s*giải(?:\s*chi\s*tiết)?|hướng\s*dẫn\s*giải|giải\s*chi\s*tiết|hdg|hướng\s*dẫn)\s*[:：]\s*",
+)
+
+# 7. Phát hiện Hình vẽ, Đồ thị, Bảng biến thiên, Mạch điện trong câu hỏi
+RE_FIGURE_GRAPH_CUE: Pattern = re.compile(
+    r"(?i)\b(?:hình\s*(?:vẽ\s*)?(?:bên|dưới|sau|trên|\d+)|đồ\s*thị(?:\s*hàm\s*số)?(?:\s*(?:như|bên|sau|dưới))?|bảng\s*biến\s*thiên|mạch\s*điện|sơ\s*đồ\s*(?:như\s*)?(?:bên|sau)|xem\s*hình)\b"
+)
+
+# 8. Phát hiện Bảng số liệu, Bảng dữ liệu trong câu hỏi
+RE_TABLE_CUE: Pattern = re.compile(
+    r"(?i)\b(?:bảng\s*số\s*liệu|bảng\s*dữ\s*liệu|bảng\s*thống\s*kê|cho\s*bảng|bảng\s*xét\s*dấu)\b"
+)
+
+# 9. Phát hiện Đoạn văn đọc hiểu / Reading Comprehension passage
+RE_READING_PASSAGE_CUE: Pattern = re.compile(
+    r"(?i)\b(?:đọc\s*đoạn\s*(?:trích|văn)\s*sau|read\s*the\s*following\s*passage|dựa\s*vào\s*thông\s*tin\s*dưới\s*đây)\b"
+)
+
+# 10. Danh sách tỉnh thành phố ra đề phổ biến tại Việt Nam
+VIETNAM_PROVINCES = [
+    "Hà Nội", "Hồ Chí Minh", "TP.HCM", "Nam Định", "Nghệ An", "Hải Phòng",
+    "Bắc Ninh", "Thanh Hóa", "Đà Nẵng", "Thừa Thiên Huế", "Huế", "Thái Bình",
+    "Vĩnh Phúc", "Phú Thọ", "Hải Dương", "Quảng Ninh", "Hưng Yên", "Hà Nam",
+    "Ninh Bình", "Bắc Giang", "Thái Nguyên", "Lạng Sơn", "Tuyên Quang",
+    "Yên Bái", "Lào Cai", "Sơn La", "Điện Biên", "Lai Châu", "Hòa Bình",
+    "Hà Tĩnh", "Quảng Bình", "Quảng Trị", "Quảng Nam", "Quảng Ngãi",
+    "Bình Định", "Phú Yên", "Khánh Hòa", "Ninh Thuận", "Bình Thuận",
+    "Kon Tum", "Gia Lai", "Đắk Lắk", "Đắk Nông", "Lâm Đồng", "Bình Phước",
+    "Tây Ninh", "Bình Dương", "Đồng Nai", "Bà Rịa - Vũng Tàu", "Long An",
+    "Tiền Giang", "Bến Tre", "Trà Vinh", "Vĩnh Long", "Đồng Tháp", "An Giang",
+    "Kiên Giang", "Cần Thơ", "Hậu Giang", "Sóc Trăng", "Bạc Liêu", "Cà Mau",
+    "Cao Bằng", "Bắc Kạn", "Hà Giang"
+]
+
+# 11. Từ điển nhận diện chuyên đề môn học (Zero-AI, <0.1ms, cực kỳ chính xác)
+TOPIC_SIGNATURES: Dict[str, List[Tuple[str, Pattern]]] = {
+    "MATHEMATICS": [
+        ("Hàm số & Đồ thị", re.compile(r"(?i)\b(?:hàm\s*số|đồng\s*biến|nghịch\s*biến|cực\s*trị|cực\s*đại|cực\s*tiểu|tiệm\s*cận|bảng\s*biến\s*thiên|đồ\s*thị|tương\s*giao)\b")),
+        ("Mũ & Logarit", re.compile(r"(?i)\b(?:logarit|logarithm|phương\s*trình\s*mũ|bất\s*phương\s*trình\s*mũ|tập\s*nghiệm\s*của\s*bất\s*phương\s*trình|ln|log)\b")),
+        ("Nguyên hàm & Tích phân", re.compile(r"(?i)\b(?:nguyên\s*hàm|tích\s*phân|diện\s*tích\s*hình\s*phẳng|thể\s*tích\s*khối\s*tròn\s*xoay)\b")),
+        ("Hình không gian & Khối đa diện", re.compile(r"(?i)\b(?:hình\s*chóp|lăng\s*trụ|mặt\s*cầu|hình\s*nón|hình\s*trụ|thể\s*tích\s*khối|khoảng\s*cách\s*từ|góc\s*giữa)\b")),
+        ("Phương pháp tọa độ Oxyz", re.compile(r"(?i)\b(?:ox\s*y\s*z|hệ\s*tọa\s*độ|mặt\s*phẳng\s*\([a-z]\)|đường\s*thẳng|vectơ\s*pháp\s*tuyến|tâm\s*mặt\s*cầu|bán\s*kính)\b")),
+        ("Số phức", re.compile(r"(?i)\b(?:số\s*phức|phần\s*thực|phần\s*ảo|môđun|mô-đun|số\s*phức\s*liên\s*hợp)\b")),
+        ("Xác suất & Thống kê", re.compile(r"(?i)\b(?:xác\s*suất|không\s*gian\s*mẫu|biến\s*cố|chỉnh\s*hợp|tổ\s*hợp|hoán\s*vị|phương\s*sai|độ\s*lệch\s*chuẩn)\b")),
+        ("Dãy số & Cấp số", re.compile(r"(?i)\b(?:cấp\s*số\s*cộng|cấp\s*số\s*nhân|công\s*sai|công\s*bội|dãy\s*số)\b")),
+    ],
+    "PHYSICS": [
+        ("Dao động cơ", re.compile(r"(?i)\b(?:dao\s*động\s*điều\s*hòa|con\s*lắc\s*lò\s*xo|con\s*lắc\s*đơn|biên\s*độ|chu\s*kì|tần\s*số\s*góc|cơ\s*năng|thế\s*năng)\b")),
+        ("Sóng cơ & Sóng âm", re.compile(r"(?i)\b(?:sóng\s*cơ|giao\s*thoa\s*sóng|bước\s*sóng|sóng\s*dừng|sóng\s*âm|mức\s*cường\s*độ\s*âm)\b")),
+        ("Dòng điện xoay chiều", re.compile(r"(?i)\b(?:dòng\s*điện\s*xoay\s*chiều|cảm\s*kháng|dung\s*kháng|trở\s*kháng|hệ\s*số\s*công\s*suất|máy\s*biến\s*áp|mạch\s*rlc)\b")),
+        ("Dao động & Sóng điện từ", re.compile(r"(?i)\b(?:mạch\s*dao\s*động|sóng\s*điện\s*từ|điện\s*từ\s*trường|sóng\s*vô\s*tuyến)\b")),
+        ("Sóng ánh sáng", re.compile(r"(?i)\b(?:tán\s*sắc\s*ánh\s*sáng|giao\s*thoa\s*ánh\s*sáng|khoảng\s*vân|quang\s*phổ|tia\s*hồng\s*ngoại|tia\s*tử\s*ngoại|tia\s*x)\b")),
+        ("Lượng tử ánh sáng", re.compile(r"(?i)\b(?:quang\s*điện|lượng\s*tử|photon|công\s*thoát|giới\s*hạn\s*quang\s*điện|quang\s*phổ\s*vạch)\b")),
+        ("Hạt nhân nguyên tử", re.compile(r"(?i)\b(?:hạt\s*nhân|phóng\s*xạ|độ\s*hụt\s*khối|năng\s*lượng\s*liên\s*kết|đồng\s*vị|phân\s*hạch|nhiệt\s*hạch)\b")),
+    ],
+    "CHEMISTRY": [
+        ("Este - Lipit - Xà phòng", re.compile(r"(?i)\b(?:este|lipit|chất\s*béo|xà\s*phòng|thủy\s*phân|triglixerit|axit\s*béo)\b")),
+        ("Cacbohiđrat", re.compile(r"(?i)\b(?:cacbohiđrat|glucozơ|fructozơ|saccarozơ|tinh\s*bột|xenlulozơ)\b")),
+        ("Amin - Amino axit - Peptit - Protein", re.compile(r"(?i)\b(?:amin|amino\s*axit|peptit|protein|liên\s*kết\s*peptit|anilin)\b")),
+        ("Polime & Vật liệu polime", re.compile(r"(?i)\b(?:polime|trùng\s*hợp|trùng\s*ngưng|cao\s*su|tơ|nilon|chất\s*dẻo)\b")),
+        ("Đại cương kim loại & Dãy điện hóa", re.compile(r"(?i)\b(?:kim\s*loại|dãy\s*điện\s*hóa|ăn\s*mòn|điện\s*phân|tính\s*khử)\b")),
+        ("Kim loại kiềm, kiềm thổ & Nhôm", re.compile(r"(?i)\b(?:kiềm|kiềm\s*thổ|nhôm|alumin|nước\s*cứng|hiđroxit)\b")),
+        ("Sắt & Hợp chất của Sắt", re.compile(r"(?i)\b(?:sắt|fe2\+|fe3\+|gang|thép|oxit\s*sắt)\b")),
+    ],
+    "BIOLOGY": [
+        ("Cơ chế di truyền & Biến dị", re.compile(r"(?i)\b(?:adn|arn|marn|tarn|nhân\s*đôi|phiên\s*mã|dịch\s*mã|đột\s*biến|nhiễm\s*sắc\s*thể|gen)\b")),
+        ("Quy luật di truyền", re.compile(r"(?i)\b(?:menđen|phân\s*li|trội|lặn|hoán\s*vị\s*gen|liên\s*kết\s*gen|tương\s*tác\s*gen|phả\s*hệ)\b")),
+        ("Di truyền quần thể", re.compile(r"(?i)\b(?:quần\s*thể|hacđi-vanbec|cân\s*bằng\s*di\s*truyền|tần\s*số\s*alen)\b")),
+        ("Tiến hóa", re.compile(r"(?i)\b(?:tiến\s*hóa|chọn\s*lọc\s*tự\s*nhiên|đác-uyn|bằng\s*chứng\s*tiến\s*hóa|loài\s*mới)\b")),
+        ("Sinh thái học", re.compile(r"(?i)\b(?:sinh\s*thái|chuỗi\s*thức\s*ăn|lưới\s*thức\s*ăn|quần\s*xã|hệ\s*sinh\s*thái|bậc\s*dinh\s*dưỡng)\b")),
+    ],
+    "ENGLISH": [
+        ("Phonetics & Stress", re.compile(r"(?i)\b(?:pronunciation|stressed|differs?\s*from|primary\s*stress|pronounced)\b")),
+        ("Grammar & Vocabulary", re.compile(r"(?i)\b(?:best\s*completes?|closest\s*in\s*meaning|opposite\s*in\s*meaning|correct\s*form)\b")),
+        ("Error Identification", re.compile(r"(?i)\b(?:underlined\s*part|needs?\s*correction|find\s*the\s*mistake)\b")),
+        ("Reading Comprehension", re.compile(r"(?i)\b(?:passage|according\s*to\s*the\s*passage|stated\s*in\s*the\s*passage|inferred)\b")),
+        ("Sentence Transformation", re.compile(r"(?i)\b(?:closest\s*in\s*meaning\s*to\s*each|combine\s*each\s*pair|meaningful\s*sentence)\b")),
+    ],
+}
+
+

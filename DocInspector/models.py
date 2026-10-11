@@ -186,6 +186,11 @@ class ExtractedQuestion:
     cognitive_level: CognitiveLevel = CognitiveLevel.COMPREHENSION
     detected_answer: Optional[str] = None
     has_solution_text: bool = False
+    solution_text: Optional[str] = None
+    score_points: Optional[float] = None
+    has_figure_or_graph: bool = False
+    has_table_data: bool = False
+    topic_domain: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -198,7 +203,50 @@ class ExtractedQuestion:
             "cognitive_level": self.cognitive_level.value,
             "detected_answer": self.detected_answer,
             "has_solution": self.has_solution_text,
+            "solution_text": self.solution_text,
+            "score_points": self.score_points,
+            "has_figure_or_graph": self.has_figure_or_graph,
+            "has_table_data": self.has_table_data,
+            "topic_domain": self.topic_domain,
         }
+
+
+@dataclass
+class ExamDetailedMetadata:
+    """Deep structural and administrative exam metadata (Zero AI)."""
+    duration_minutes: Optional[int] = None
+    duration_raw: Optional[str] = None
+    exam_period: Optional[str] = None
+    exam_code: Optional[str] = None
+    province: Optional[str] = None
+    total_score: Optional[float] = None
+    moet_part1_count: int = 0
+    moet_part2_count: int = 0
+    moet_part3_count: int = 0
+    essay_count: int = 0
+    has_answer_keys: bool = False
+    has_detailed_solutions: bool = False
+    has_matrix_or_spec: bool = False
+    topic_distribution: Dict[str, int] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "duration_minutes": self.duration_minutes,
+            "duration_raw": self.duration_raw,
+            "exam_period": self.exam_period,
+            "exam_code": self.exam_code,
+            "province": self.province,
+            "total_score": self.total_score,
+            "moet_part1_count": self.moet_part1_count,
+            "moet_part2_count": self.moet_part2_count,
+            "moet_part3_count": self.moet_part3_count,
+            "essay_count": self.essay_count,
+            "has_answer_keys": self.has_answer_keys,
+            "has_detailed_solutions": self.has_detailed_solutions,
+            "has_matrix_or_spec": self.has_matrix_or_spec,
+            "topic_distribution": self.topic_distribution,
+        }
+
 
 
 @dataclass
@@ -255,6 +303,7 @@ class Pass2Report:
     candidate_exam_types: List[ExamType] = field(default_factory=list)
     grade_level: GradeLevel = GradeLevel.UNKNOWN
     execution_time_ms: float = 0.0
+    detailed_metadata: ExamDetailedMetadata = field(default_factory=ExamDetailedMetadata)
 
 
 @dataclass
@@ -538,6 +587,8 @@ class InspectionReport:
     programming_language: Optional[str] = None
     detailed_exam_track: Optional[str] = None
     
+    detailed_metadata: ExamDetailedMetadata = field(default_factory=ExamDetailedMetadata)
+    
     difficulty_assessment: DifficultyAssessment = field(default_factory=DifficultyAssessment)
     quality_audit: PedagogicalQualityAudit = field(default_factory=PedagogicalQualityAudit)
     requirement_audit: Optional[RequirementAuditResult] = None
@@ -570,6 +621,7 @@ class InspectionReport:
             "grade_level": self.grade_level.value,
             "grade_level_label_vi": self.grade_level_label_vi,
             "confidence_score": round(self.confidence_score, 4),
+            "detailed_metadata": self.detailed_metadata.to_dict(),
             "is_spoofed_filename": self.is_spoofed_filename,
             "spoof_details": self.spoof_details,
             "human_summary": self.human_summary,

@@ -425,6 +425,17 @@ class DocumentInspector:
                     school_str = re.sub(r'\s*[-–—]\s*$', '', school_str).strip()
                     break
 
+        # --- BÓC TÁCH SIÊU DỮ LIỆU ĐỀ THI CHI TIẾT (ZERO AI) ---
+        subj_val = subject.value if hasattr(subject, "value") else str(subject)
+        deep_metadata = QuestionParser.extract_deep_metadata(
+            text=_raw_text,
+            questions=pass2.questions,
+            subject=subj_val,
+        )
+        pass2.detailed_metadata = deep_metadata
+        if not school_str and deep_metadata.province:
+            school_str = deep_metadata.province
+
         diff_assessment = DifficultyAssessor.assess(
             category=category,
             exam_type=exam_type,
@@ -467,6 +478,14 @@ class DocumentInspector:
             summary += f" | Năm học: {academic_year_str}"
         if school_str:
             summary += f" | Nguồn: {school_str}"
+        if deep_metadata.duration_minutes:
+            summary += f" | ⏱️ {deep_metadata.duration_minutes} phút"
+        if deep_metadata.exam_code:
+            summary += f" | Mã đề: {deep_metadata.exam_code}"
+        if deep_metadata.exam_period:
+            summary += f" | Kỳ thi: {deep_metadata.exam_period}"
+        if (deep_metadata.moet_part1_count or deep_metadata.moet_part2_count or deep_metadata.moet_part3_count):
+            summary += f" | Cấu trúc 2025: [P.I: {deep_metadata.moet_part1_count}c, P.II: {deep_metadata.moet_part2_count}c, P.III: {deep_metadata.moet_part3_count}c]"
 
         # -------------------------------------------------------------
         # 4-TIER DEFINITIVE VERIFICATION VERDICT
@@ -521,6 +540,7 @@ class DocumentInspector:
             verdict=verdict,
             verdict_label_vi=verdict_label,
             verdict_rationale=verdict_rationale,
+            detailed_metadata=deep_metadata,
             difficulty_assessment=diff_assessment,
             quality_audit=quality_audit,
             pass1=pass1,
