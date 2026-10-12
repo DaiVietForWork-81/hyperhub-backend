@@ -68,8 +68,15 @@ class Subject(str, Enum):
     FRENCH = "FRENCH"                           # Tiếng Pháp
     HISTORY = "HISTORY"                         # Lịch sử
     GEOGRAPHY = "GEOGRAPHY"                     # Địa lý
-    CIVIC_EDUCATION = "CIVIC_EDUCATION"         # GDCD / Kinh tế & Pháp luật
-    NATURAL_SCIENCE = "NATURAL_SCIENCE"         # Khoa học tự nhiên
+    CIVIC_EDUCATION = "CIVIC_EDUCATION"         # Giáo dục công dân (Cấp 2)
+    ECONOMIC_LEGAL_EDU = "ECONOMIC_LEGAL_EDU"   # Giáo dục kinh tế và pháp luật (Cấp 3)
+    NATURAL_SCIENCE = "NATURAL_SCIENCE"         # Khoa học tự nhiên (Cấp 2)
+    HISTORY_GEOGRAPHY = "HISTORY_GEOGRAPHY"     # Lịch sử và Địa lý (Cấp 2)
+    TECHNOLOGY = "TECHNOLOGY"                   # Công nghệ
+    PHYSICAL_EDUCATION = "PHYSICAL_EDUCATION"   # Giáo dục thể chất
+    DEFENSE_SECURITY_EDU = "DEFENSE_SECURITY_EDU" # Giáo dục quốc phòng và an ninh (Cấp 3)
+    EXPERIENTIAL_CAREER_ACT = "EXPERIENTIAL_CAREER_ACT" # Hoạt động trải nghiệm, hướng nghiệp (Cấp 3)
+    LOCAL_EDUCATION = "LOCAL_EDUCATION"         # Nội dung giáo dục của địa phương (Cấp 3)
     GENERAL = "GENERAL"                         # Đa môn / Chung
     NON_ACADEMIC = "NON_ACADEMIC"               # Phi học thuật / Khác
 
