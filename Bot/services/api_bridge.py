@@ -329,7 +329,7 @@ class BotAPIBridge:
         self.app.router.add_get("/api/documents/request_exam", self.handle_request_exam)
         self.app.router.add_get("/api/documents/random", self.handle_request_exam)
         self.app.router.add_get("/api/documents/{id}/download", self.handle_download_document)
-        self.app.router.add_get("/api/documents/{id}/file_url", self.handle_get_document_file_url)
+        self.app.router.add_get("/api/documents/check_hash", self.handle_check_hash)
         self.app.router.add_post("/api/documents/upload", self.handle_upload_document)
         self.app.router.add_post("/api/documents/import_gdrive", self.handle_import_gdrive)
         # Endpoints Admin Portal
@@ -1369,6 +1369,49 @@ class BotAPIBridge:
             "jump_url": jump_url,
         })
 
+    async def handle_check_hash(self, request: web.Request) -> web.Response:
+        """GET /api/documents/check_hash?hash=...: Kiểm tra nhanh mã SHA-256 chống nộp trùng lặp."""
+        file_hash = request.query.get("hash", "").strip()
+        if not file_hash or len(file_hash) != 64:
+            return web.json_response({"error": "Mã hash không hợp lệ (yêu cầu 64 ký tự SHA-256)"}, status=400)
+
+        existing = None
+        if hasattr(self.bot, "db"):
+            existing = await self.bot.db.fetchone(
+                "SELECT id, title, author_name, timestamp, jump_url FROM documents_archive WHERE file_hash = ?",
+                file_hash,
+            )
+
+        if not existing:
+            try:
+                from database.turso_client import turso_db
+                if turso_db.is_configured:
+                    existing_t = await turso_db.fetchone(
+                        "SELECT id, title, author_name, timestamp, jump_url FROM documents_archive WHERE file_hash = ?",
+                        file_hash,
+                    )
+                    if existing_t:
+                        existing = (
+                            existing_t.get("id"),
+                            existing_t.get("title"),
+                            existing_t.get("author_name"),
+                            existing_t.get("timestamp"),
+                            existing_t.get("jump_url"),
+                        )
+            except Exception:
+                pass
+
+        if existing:
+            return web.json_response({
+                "exists": True,
+                "is_duplicate": True,
+                "message": f"Tài liệu trùng lặp! Tệp '{existing[1]}' đã được nộp trước đó bởi '{existing[2]}' vào {existing[3]}.",
+                "doc_id": existing[0],
+                "title": existing[1],
+            })
+
+        return web.json_response({"exists": False, "is_duplicate": False})
+
     async def handle_upload_document(self, request: web.Request) -> web.Response:
         """POST /api/documents/upload: Kéo thả / Nộp đề thi từ Web Dashboard và gọi Bot DocInspector nhận dạng."""
         if not hasattr(self.bot, "db"):
@@ -1429,6 +1472,19 @@ class BotAPIBridge:
         file_name = "de_thi_upload.pdf"
         custom_subject = ""
         custom_grade = ""
+        client_pre_parsed = False
+        client_hash = ""
+        moet_part1_count = 0
+        moet_part2_count = 0
+        moet_part3_count = 0
+        moet_2025_compliant = False
+        has_answer_keys = False
+        has_detailed_solutions = False
+        client_year = ""
+        client_school = ""
+        client_summary = ""
+        client_exam_type = ""
+        client_question_count = 0
 
         while True:
             part = await reader.next()
@@ -1441,6 +1497,44 @@ class BotAPIBridge:
                 custom_subject = (await part.text()).strip()
             elif part.name == "grade":
                 custom_grade = (await part.text()).strip()
+            elif part.name == "client_pre_parsed":
+                client_pre_parsed = (await part.text()).strip().lower() in ("true", "1")
+            elif part.name == "file_hash":
+                client_hash = (await part.text()).strip()
+            elif part.name == "moet_2025_compliant":
+                moet_2025_compliant = (await part.text()).strip().lower() in ("true", "1")
+            elif part.name == "moet_part1_count":
+                try:
+                    moet_part1_count = int((await part.text()).strip())
+                except Exception:
+                    pass
+            elif part.name == "moet_part2_count":
+                try:
+                    moet_part2_count = int((await part.text()).strip())
+                except Exception:
+                    pass
+            elif part.name == "moet_part3_count":
+                try:
+                    moet_part3_count = int((await part.text()).strip())
+                except Exception:
+                    pass
+            elif part.name == "has_answer_keys":
+                has_answer_keys = (await part.text()).strip().lower() in ("true", "1")
+            elif part.name == "has_detailed_solutions":
+                has_detailed_solutions = (await part.text()).strip().lower() in ("true", "1")
+            elif part.name == "academic_year":
+                client_year = (await part.text()).strip()
+            elif part.name == "school_or_department":
+                client_school = (await part.text()).strip()
+            elif part.name == "summary":
+                client_summary = (await part.text()).strip()
+            elif part.name == "exam_type":
+                client_exam_type = (await part.text()).strip()
+            elif part.name == "question_count":
+                try:
+                    client_question_count = int((await part.text()).strip())
+                except Exception:
+                    pass
 
         if not file_bytes:
             return web.json_response({"error": "Không tìm thấy tệp đính kèm để nộp"}, status=400)
@@ -1504,14 +1598,17 @@ class BotAPIBridge:
                 "message": "Hệ thống chỉ chấp nhận tệp tài liệu PDF, DOCX, DOC, XLSX hoặc văn bản thuần hợp lệ.",
             }, status=415)
 
-        # 1. Tính SHA-256 hash của tệp
+        # 1. Tính hoặc tái sử dụng SHA-256 hash của tệp
         file_hash = None
-        try:
-            from cpp_core.bridge import fast_sha256
-            file_hash = fast_sha256(file_bytes)
-        except Exception:
-            import hashlib
-            file_hash = hashlib.sha256(file_bytes).hexdigest()
+        if client_hash and len(client_hash) == 64:
+            file_hash = client_hash
+        else:
+            try:
+                from cpp_core.bridge import fast_sha256
+                file_hash = fast_sha256(file_bytes)
+            except Exception:
+                import hashlib
+                file_hash = hashlib.sha256(file_bytes).hexdigest()
 
         # 2. Kiểm tra trùng lặp trong kho (bằng mã băm SHA-256 hoặc tên tệp + dung lượng)
         existing = await self.bot.db.fetchone(
@@ -1535,37 +1632,54 @@ class BotAPIBridge:
                 "file_hash": file_hash,
             })
 
-        # 3. Chạy DocInspector phân tích nội dung tệp
+        # 3. Phân tích nội dung tệp (ƯU TIÊN CLIENT PRE-PARSED ĐỂ GIẢM 90% CPU VPS)
         detected_subject = custom_subject or "MATHEMATICS"
         detected_grade = custom_grade or "Chung ( chung cho tất cả khối )"
         exam_type_str = "THI_THU_THPT"
         confidence = 0.95
         question_count = 0
-        page_count = 1
+        page_count = max(1, len(file_bytes) // (150 * 1024))
         raw_text_summary = ""
         academic_year = None
         school_name = None
 
-        try:
-            from DocInspector.core import DocumentInspector
-            report = await asyncio.to_thread(
-                DocumentInspector.inspect,
-                file_path_or_bytes=file_bytes,
-                file_name=file_name,
-            )
-            if report:
-                detected_subject = getattr(report.detected_subject, "name", str(report.detected_subject))
-                detected_grade = getattr(report, "grade_level_label_vi", str(report.grade_level))
-                exam_type_str = getattr(report.exam_type, "value", str(report.exam_type))
-                confidence = round(getattr(report, "confidence_score", 0.95), 2)
-                raw_text_summary = getattr(report, "human_summary", "")
-                academic_year = getattr(report, "academic_year", None)
-                school_name = getattr(report, "school_or_department", None)
-                if hasattr(report, "pass1") and report.pass1:
-                    question_count = getattr(report.pass1, "question_count", 0)
-                    page_count = getattr(report.pass1, "page_count", 1)
-        except Exception as e:
-            logger.warning(f"Lỗi khi chạy DocInspector: {e}")
+        if client_pre_parsed and custom_subject:
+            # === CLIENT OFF-LOADING: BỎ QUA HOÀN TOÀN BỘ PHÂN TÍCH PYTHON NẶNG TRÊN VPS ===
+            detected_subject = custom_subject
+            detected_grade = custom_grade or "Khối 12 (Ôn thi THPT)"
+            exam_type_str = client_exam_type or "THI_THU_THPT"
+            confidence = 0.98
+            question_count = client_question_count or (moet_part1_count + moet_part2_count + moet_part3_count)
+            raw_text_summary = client_summary or f"Tài liệu {detected_subject} {detected_grade}"
+            academic_year = client_year or None
+            school_name = client_school or None
+        else:
+            try:
+                from DocInspector.core import DocumentInspector
+                report = await asyncio.to_thread(
+                    DocumentInspector.inspect,
+                    file_path_or_bytes=file_bytes,
+                    file_name=file_name,
+                )
+                if report:
+                    detected_subject = getattr(report.detected_subject, "name", str(report.detected_subject))
+                    detected_grade = getattr(report, "grade_level_label_vi", str(report.grade_level))
+                    exam_type_str = getattr(report.exam_type, "value", str(report.exam_type))
+                    confidence = round(getattr(report, "confidence_score", 0.95), 2)
+                    raw_text_summary = getattr(report, "human_summary", "")
+                    academic_year = getattr(report, "academic_year", None)
+                    school_name = getattr(report, "school_or_department", None)
+                    moet_2025_compliant = getattr(report, "moet_2025_compliant", False)
+                    moet_part1_count = getattr(report, "moet_part1_count", 0)
+                    moet_part2_count = getattr(report, "moet_part2_count", 0)
+                    moet_part3_count = getattr(report, "moet_part3_count", 0)
+                    has_answer_keys = getattr(report, "has_answer_keys", False)
+                    has_detailed_solutions = getattr(report, "has_detailed_solutions", False)
+                    if hasattr(report, "pass1") and report.pass1:
+                        question_count = getattr(report.pass1, "question_count", 0)
+                        page_count = getattr(report.pass1, "page_count", 1)
+            except Exception as e:
+                logger.warning(f"Lỗi khi chạy DocInspector: {e}")
 
         # 4. Lưu tệp lên ổ đĩa local để phục vụ tải về / xem trước
         upload_dir = os.path.join(BOT_BASE_DIR, "storage", "uploads")
@@ -1574,7 +1688,7 @@ class BotAPIBridge:
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
         file_ext = os.path.splitext(file_name)[1].lower().replace(".", "").upper() or "PDF"
 
-        # 5. Lưu vào database documents_archive
+        # 5. Lưu vào database documents_archive (Local SQLite)
         try:
             insert_sql = """
                 INSERT INTO documents_archive (
@@ -1655,6 +1769,49 @@ class BotAPIBridge:
         except Exception as fe:
             logger.warning(f"Không thể lưu file upload: {fe}")
 
+        # 6. Đồng bộ sang Turso libSQL Cloud Database (Kho 5GB)
+        try:
+            from database.turso_client import turso_db
+            if turso_db.is_configured:
+                turso_sql = """
+                    INSERT INTO documents_archive (
+                        subject, title, file_name, file_size_bytes, file_type,
+                        estimated_level, question_count, page_count, author_id,
+                        author_name, channel_id, message_id, jump_url, timestamp,
+                        file_hash, raw_text, notes, academic_year, school_or_department,
+                        verdict, exam_track, confidence, moet_2025_compliant,
+                        moet_part1_count, moet_part2_count, moet_part3_count,
+                        has_answer_keys, has_detailed_solutions, queue_status,
+                        client_pre_parsed, created_via
+                    ) VALUES (
+                        ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?,
+                        ?, ?, ?,
+                        ?, ?, ?,
+                        ?, ?
+                    )
+                """
+                await turso_db.execute(
+                    turso_sql,
+                    detected_subject, file_name, file_name, len(file_bytes), file_ext,
+                    detected_grade, question_count, page_count, uploader_id,
+                    uploader_name, 0, 0, "https://hyperhub-one.vercel.app/#vault", now_iso,
+                    file_hash, raw_text_summary[:50000] if raw_text_summary else "",
+                    raw_text_summary, academic_year, school_name,
+                    "XAC_MINH", exam_type_str, confidence,
+                    1 if moet_2025_compliant else 0,
+                    moet_part1_count, moet_part2_count, moet_part3_count,
+                    1 if has_answer_keys else 0, 1 if has_detailed_solutions else 0,
+                    "synced_discord",
+                    1 if client_pre_parsed else 0,
+                    "web"
+                )
+        except Exception as te:
+            logger.debug("Không thể đồng bộ đề lên Turso: %s", te)
+
         return web.json_response({
             "success": True,
             "id": doc_id,
@@ -1672,6 +1829,12 @@ class BotAPIBridge:
             "school_or_department": school_name,
             "summary": raw_text_summary,
             "file_hash": file_hash,
+            "moet_2025_compliant": bool(moet_2025_compliant),
+            "moet_part1_count": moet_part1_count,
+            "moet_part2_count": moet_part2_count,
+            "moet_part3_count": moet_part3_count,
+            "has_answer_keys": bool(has_answer_keys),
+            "has_detailed_solutions": bool(has_detailed_solutions),
             "download_url": f"/api/documents/{doc_id}/download",
             "message": "Đã tiếp nhận và nhận dạng đề thi thành công! Đề đã được thêm vào Kho Đề.",
         })

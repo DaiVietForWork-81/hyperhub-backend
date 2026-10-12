@@ -210,6 +210,14 @@ if HAS_PYDANTIC:
             default="sqlite+aiosqlite:///bot.db",
             description="Async SQLAlchemy database URL",
         )
+        TURSO_DATABASE_URL: str = Field(
+            default="https://daiviet-daiviet.aws-ap-northeast-1.turso.io",
+            description="Turso libSQL Database URL",
+        )
+        TURSO_AUTH_TOKEN: str = Field(
+            default="",
+            description="Turso libSQL Auth Token",
+        )
 
         CF_API_KEY: str | None = Field(default=None, description="Codeforces API Key")
         CF_API_SECRET: str | None = Field(
@@ -691,6 +699,11 @@ else:
             if db_url.startswith("sqlite:///"):
                 db_url = db_url.replace("sqlite:///", "sqlite+aiosqlite:///")
             self.DATABASE_URL = db_url
+
+            self.TURSO_DATABASE_URL = os.environ.get(
+                "TURSO_DATABASE_URL", "https://daiviet-daiviet.aws-ap-northeast-1.turso.io"
+            )
+            self.TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
 
             self.CF_API_KEY = os.environ.get("CF_API_KEY")
             self.CF_API_SECRET = os.environ.get("CF_API_SECRET")

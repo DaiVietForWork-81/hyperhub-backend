@@ -255,6 +255,174 @@ class DocumentIntakeCog(commands.Cog):
         self._panel_message_id: Optional[int] = None
         self._pending_panel_update: bool = False
         self._last_panel_update: float = 0.0
+        self._sync_turso_task: Optional[asyncio.Task] = None
+
+    async def cog_load(self) -> None:
+        """Khởi động task nền tự động đồng bộ đề thi đang chờ từ Turso Cloud."""
+        self._sync_turso_task = asyncio.create_task(self._turso_pending_sync_loop())
+
+    async def cog_unload(self) -> None:
+        if self._sync_turso_task and not self._sync_turso_task.done():
+            self._sync_turso_task.cancel()
+
+    async def _turso_pending_sync_loop(self) -> None:
+        """Lắng nghe và tự động đăng các đề thi được nộp lên Turso khi bot offline."""
+        await self.bot.wait_until_ready()
+        await asyncio.sleep(5)  # Chờ 5s cho bot hoàn tất kết nối Discord
+        while not self.bot.is_closed():
+            try:
+                await self.sync_pending_turso_documents()
+            except Exception as e:
+                log.debug("Lỗi trong vòng lặp sync Turso: %s", e)
+            await asyncio.sleep(45)  # Quét mỗi 45 giây (tối ưu hạn ngạch 500M reads của Turso)
+
+    async def sync_pending_turso_documents(self) -> int:
+        """Đồng bộ các đề thi nộp từ Web lúc Bot offline từ Turso Cloud sang các kênh Discord."""
+        from database.turso_client import turso_db
+        if not turso_db.is_configured:
+            return 0
+
+        pending_docs = await turso_db.fetchall(
+            """
+            SELECT id, subject, title, file_name, file_size_bytes, file_type,
+                   estimated_level, question_count, page_count, author_id, author_name,
+                   timestamp, file_hash, academic_year, school_or_department,
+                   moet_2025_compliant, moet_part1_count, moet_part2_count, moet_part3_count,
+                   has_answer_keys, has_detailed_solutions
+            FROM documents_archive
+            WHERE queue_status = 'pending_bot'
+            ORDER BY id ASC
+            LIMIT 5
+            """
+        )
+
+        if not pending_docs:
+            return 0
+
+        synced_count = 0
+        guilds = self.bot.guilds
+        if not guilds:
+            return 0
+        guild = guilds[0]
+        category_id = getattr(settings, "DOC_CATEGORY_ID", 1534147951797080174)
+
+        subject_channel_slugs = {
+            "TOAN": ("toán-học", "📐", "Toán Học"),
+            "MATHEMATICS": ("toán-học", "📐", "Toán Học"),
+            "NGU_VAN": ("ngữ-văn", "📖", "Ngữ Văn"),
+            "LITERATURE": ("ngữ-văn", "📖", "Ngữ Văn"),
+            "TIENG_ANH": ("tiếng-anh", "🇬🇧", "Tiếng Anh"),
+            "ENGLISH": ("tiếng-anh", "🇬🇧", "Tiếng Anh"),
+            "VAT_LY": ("vật-lý", "⚡", "Vật Lý"),
+            "PHYSICS": ("vật-lý", "⚡", "Vật Lý"),
+            "HOA_HOC": ("hóa-học", "🧪", "Hóa Học"),
+            "CHEMISTRY": ("hóa-học", "🧪", "Hóa Học"),
+            "SINH_HOC": ("sinh-học", "🧬", "Sinh Học"),
+            "BIOLOGY": ("sinh-học", "🧬", "Sinh Học"),
+            "TIN_HOC": ("tin-học", "💻", "Tin Học"),
+            "INFORMATICS": ("tin-học", "💻", "Tin Học"),
+            "LICH_SU": ("lịch-sử", "🏛️", "Lịch Sử"),
+            "HISTORY": ("lịch-sử", "🏛️", "Lịch Sử"),
+            "DIA_LY": ("địa-lý", "🗺️", "Địa Lý"),
+            "GEOGRAPHY": ("địa-lý", "🗺️", "Địa Lý"),
+        }
+
+        for doc in pending_docs:
+            doc_id = doc.get("id")
+            subject = str(doc.get("subject") or "GENERAL").upper()
+            title = doc.get("title") or doc.get("file_name") or "Đề thi"
+            author_name = doc.get("author_name") or "Khách (Web)"
+            grade = doc.get("estimated_level") or "Chung"
+            q_cnt = doc.get("question_count") or 0
+            p_cnt = doc.get("page_count") or 1
+            academic_year = doc.get("academic_year")
+            school = doc.get("school_or_department")
+            is_moet_2025 = bool(doc.get("moet_2025_compliant"))
+            has_ans = bool(doc.get("has_answer_keys"))
+            has_sol = bool(doc.get("has_detailed_solutions"))
+
+            slug_info = subject_channel_slugs.get(subject, ("kho-đề-chung", "📚", subject))
+            target_ch = await self._get_or_create_subject_channel(
+                guild=guild,
+                category_id=category_id,
+                channel_slug=slug_info[0],
+                icon=slug_info[1],
+                subject_name=slug_info[2],
+            )
+
+            if target_ch and isinstance(target_ch, discord.TextChannel):
+                embed = discord.Embed(
+                    title=f"📥 [ĐỀ THI MỚI - TỰ ĐỘNG TỪ WEB] {title[:200]}",
+                    description=(
+                        f"✨ *Đề thi nộp qua Web Dashboard trong lúc Bot offline, hệ thống tự động đồng bộ hóa.*\\n\\n"
+                        f"👤 **Người nộp:** `{author_name}`\\n"
+                        f"📖 **Môn học:** `{slug_info[2]}` | 🎓 **Khối:** `{grade}`\\n"
+                        f"📊 **Quy mô:** `{q_cnt}` câu • `{p_cnt}` trang\\n"
+                    ),
+                    color=0x9B59B6,
+                )
+                if academic_year:
+                    embed.add_field(name="📅 Năm học", value=f"`{academic_year}`", inline=True)
+                if school:
+                    embed.add_field(name="🏫 Nguồn / Trường", value=f"`{school}`", inline=True)
+                if is_moet_2025:
+                    p1 = doc.get("moet_part1_count") or 0
+                    p2 = doc.get("moet_part2_count") or 0
+                    p3 = doc.get("moet_part3_count") or 0
+                    embed.add_field(
+                        name="✨ Chuẩn Bộ GD&ĐT 2025",
+                        value=f"✅ Đạt chuẩn (Phần I: {p1}, Phần II: {p2}, Phần III: {p3})",
+                        inline=False,
+                    )
+                badges = []
+                if has_ans:
+                    badges.append("📝 Có đáp án")
+                if has_sol:
+                    badges.append("✨ Lời giải chi tiết")
+                if badges:
+                    embed.add_field(name="🏷️ Phụ lục", value=" • ".join(badges), inline=True)
+
+                embed.add_field(
+                    name="🔗 Truy cập Kho Đề Web",
+                    value="[Mở Web Dashboard](https://hyperhub-one.vercel.app/#vault)",
+                    inline=False,
+                )
+
+                try:
+                    posted_msg = await target_ch.send(embed=embed)
+                    if posted_msg:
+                        await turso_db.execute(
+                            "UPDATE documents_archive SET queue_status = 'synced_discord', channel_id = ?, message_id = ?, jump_url = ? WHERE id = ?",
+                            target_ch.id,
+                            posted_msg.id,
+                            posted_msg.jump_url,
+                            doc_id,
+                        )
+                        if hasattr(self.bot, "db"):
+                            try:
+                                await self.bot.db.execute(
+                                    """
+                                    INSERT INTO documents_archive (
+                                        subject, title, file_name, file_size_bytes, file_type,
+                                        estimated_level, question_count, page_count, author_id,
+                                        author_name, channel_id, message_id, jump_url, timestamp,
+                                        file_hash, raw_text, academic_year, school_or_department
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    """,
+                                    subject, title, title, doc.get("file_size_bytes", 0), doc.get("file_type", "PDF"),
+                                    grade, q_cnt, p_cnt, doc.get("author_id", 0),
+                                    author_name, target_ch.id, posted_msg.id, posted_msg.jump_url,
+                                    doc.get("timestamp") or datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                                    doc.get("file_hash"), "", academic_year, school
+                                )
+                            except Exception:
+                                pass
+                        synced_count += 1
+                        log.info("Đã tự động đồng bộ đề thi #%s (%s) từ Turso Cloud sang Discord thành công!", doc_id, title)
+                except Exception as post_err:
+                    log.warning("Lỗi khi gửi đề từ Turso sang Discord: %s", post_err)
+
+        return synced_count
 
     async def _get_or_create_subject_channel(
         self, guild: discord.Guild, category_id: int, channel_slug: str, icon: str, subject_name: str
@@ -642,6 +810,77 @@ class DocumentIntakeCog(commands.Cog):
                         )
                 except Exception as emb_e:
                     log.debug("Lỗi kích hoạt embedding cho tài liệu mới: %s", emb_e)
+
+            # Đồng bộ sang Turso libSQL Cloud Database để Web Vault cập nhật tức thì
+            try:
+                from database.turso_client import turso_db
+                if turso_db.is_configured:
+                    turso_sql = """
+                        INSERT INTO documents_archive (
+                            subject, title, file_name, file_size_bytes, file_type,
+                            estimated_level, question_count, page_count, author_id,
+                            author_name, channel_id, message_id, jump_url, timestamp,
+                            file_hash, raw_text, notes, academic_year, school_or_department,
+                            verdict, exam_track, confidence, moet_2025_compliant,
+                            moet_part1_count, moet_part2_count, moet_part3_count,
+                            has_answer_keys, has_detailed_solutions, queue_status,
+                            client_pre_parsed, created_via
+                        ) VALUES (
+                            ?, ?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?, ?, ?, ?,
+                            ?, ?, ?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?
+                        )
+                    """
+                    p1_cnt = getattr(report, "moet_part1_count", 0) or 0
+                    p2_cnt = getattr(report, "moet_part2_count", 0) or 0
+                    p3_cnt = getattr(report, "moet_part3_count", 0) or 0
+                    is_m25 = 1 if getattr(report, "moet_2025_compliant", False) else 0
+                    has_ans = 1 if getattr(report, "has_answer_keys", False) else 0
+                    has_sol = 1 if getattr(report, "has_detailed_solutions", False) else 0
+                    acad_yr = getattr(report, "academic_year", None)
+                    sch_dept = getattr(report, "school_or_department", None)
+
+                    await turso_db.execute(
+                        turso_sql,
+                        subject_name,
+                        report.file_name,
+                        report.file_name,
+                        file_bytes,
+                        report.document_category.value if hasattr(report.document_category, "value") else "EXAM",
+                        f"{report.grade_level_label_vi} ({report.exam_track_label_vi})",
+                        len(report.pass2.questions) if hasattr(report, "pass2") and hasattr(report.pass2, "questions") else 0,
+                        report.pass1.page_count if hasattr(report, "pass1") else 1,
+                        author.id,
+                        author.name,
+                        target_channel.id,
+                        message.id,
+                        message.jump_url,
+                        now_iso,
+                        file_hash,
+                        raw_text[:50000] if raw_text else "",
+                        report.human_summary,
+                        acad_yr,
+                        sch_dept,
+                        _verdict or "XAC_MINH",
+                        _track or "NOT_AN_EXAM",
+                        _conf or 0.95,
+                        is_m25,
+                        p1_cnt,
+                        p2_cnt,
+                        p3_cnt,
+                        has_ans,
+                        has_sol,
+                        "synced_discord",
+                        0,
+                        "discord",
+                    )
+            except Exception as te:
+                log.debug("Lỗi mirror đề thi sang Turso Cloud: %s", te)
         except Exception as e:
             log.warning("Lỗi ghi nhận documents_archive: %s", e)
 
