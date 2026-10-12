@@ -288,11 +288,11 @@ class DocumentIntakeCog(commands.Cog):
                    estimated_level, question_count, page_count, author_id, author_name,
                    timestamp, file_hash, academic_year, school_or_department,
                    moet_2025_compliant, moet_part1_count, moet_part2_count, moet_part3_count,
-                   has_answer_keys, has_detailed_solutions
+                   has_answer_keys, has_detailed_solutions, file_content_base64
             FROM documents_archive
             WHERE queue_status = 'pending_bot'
             ORDER BY id ASC
-            LIMIT 5
+            LIMIT 10
             """
         )
 
@@ -306,31 +306,57 @@ class DocumentIntakeCog(commands.Cog):
         guild = guilds[0]
         category_id = getattr(settings, "DOC_CATEGORY_ID", 1534147951797080174)
 
+        # Danh mục môn học chuẩn GDPT 2018 (Đầy đủ Cấp 2 & Cấp 3)
         subject_channel_slugs = {
-            "TOAN": ("toán-học", "📐", "Toán Học"),
-            "MATHEMATICS": ("toán-học", "📐", "Toán Học"),
-            "NGU_VAN": ("ngữ-văn", "📖", "Ngữ Văn"),
-            "LITERATURE": ("ngữ-văn", "📖", "Ngữ Văn"),
-            "TIENG_ANH": ("tiếng-anh", "🇬🇧", "Tiếng Anh"),
-            "ENGLISH": ("tiếng-anh", "🇬🇧", "Tiếng Anh"),
-            "VAT_LY": ("vật-lý", "⚡", "Vật Lý"),
-            "PHYSICS": ("vật-lý", "⚡", "Vật Lý"),
-            "HOA_HOC": ("hóa-học", "🧪", "Hóa Học"),
-            "CHEMISTRY": ("hóa-học", "🧪", "Hóa Học"),
-            "SINH_HOC": ("sinh-học", "🧬", "Sinh Học"),
-            "BIOLOGY": ("sinh-học", "🧬", "Sinh Học"),
-            "TIN_HOC": ("tin-học", "💻", "Tin Học"),
-            "INFORMATICS": ("tin-học", "💻", "Tin Học"),
-            "LICH_SU": ("lịch-sử", "🏛️", "Lịch Sử"),
-            "HISTORY": ("lịch-sử", "🏛️", "Lịch Sử"),
-            "DIA_LY": ("địa-lý", "🗺️", "Địa Lý"),
-            "GEOGRAPHY": ("địa-lý", "🗺️", "Địa Lý"),
+            # --- CẤP 2 (THCS) ---
+            "NATURAL_SCIENCE": ("khoa-học-tự-nhiên", "🔬", "Khoa học tự nhiên (Cấp 2)"),
+            "KHTN": ("khoa-học-tự-nhiên", "🔬", "Khoa học tự nhiên (Cấp 2)"),
+            "HISTORY_GEOGRAPHY": ("lịch-sử-địa-lý", "🗺️", "Lịch sử và Địa lý (Cấp 2)"),
+            "LS_DL": ("lịch-sử-địa-lý", "🗺️", "Lịch sử và Địa lý (Cấp 2)"),
+            "CIVIC_EDUCATION": ("giáo-dục-công-dân", "⚖️", "Giáo dục công dân (Cấp 2)"),
+            "GDCD": ("giáo-dục-công-dân", "⚖️", "Giáo dục công dân (Cấp 2)"),
+            "TECHNOLOGY": ("công-nghệ", "⚙️", "Công nghệ"),
+            "CONG_NGHE": ("công-nghệ", "⚙️", "Công nghệ"),
+            "PHYSICAL_EDUCATION": ("thể-chất", "🏃", "Giáo dục thể chất"),
+            "THE_CHAT": ("thể-chất", "🏃", "Giáo dục thể chất"),
+            # --- CẤP 3 (THPT) BẮT BUỘC & TỰ CHỌN ---
+            "ECONOMIC_LEGAL_EDU": ("gdkt-pl", "📊", "Giáo dục kinh tế và pháp luật (Cấp 3)"),
+            "GDKT_PL": ("gdkt-pl", "📊", "Giáo dục kinh tế và pháp luật (Cấp 3)"),
+            "DEFENSE_SECURITY_EDU": ("gdqp-an", "🛡️", "Giáo dục quốc phòng và an ninh (Cấp 3)"),
+            "GDQP_AN": ("gdqp-an", "🛡️", "Giáo dục quốc phòng và an ninh (Cấp 3)"),
+            "EXPERIENTIAL_CAREER_ACT": ("hđtn-hn", "🧭", "Hoạt động trải nghiệm, hướng nghiệp (Cấp 3)"),
+            "HDTN_HN": ("hđtn-hn", "🧭", "Hoạt động trải nghiệm, hướng nghiệp (Cấp 3)"),
+            "LOCAL_EDUCATION": ("gd-địa-phương", "🏛️", "Nội dung giáo dục địa phương (Cấp 3)"),
+            "GDDP": ("gd-địa-phương", "🏛️", "Nội dung giáo dục địa phương (Cấp 3)"),
+            "VAT_LY": ("vật-lí", "⚡", "Vật lí"),
+            "PHYSICS": ("vật-lí", "⚡", "Vật lí"),
+            "HOA_HOC": ("hóa-học", "🧪", "Hóa học"),
+            "CHEMISTRY": ("hóa-học", "🧪", "Hóa học"),
+            "SINH_HOC": ("sinh-học", "🧬", "Sinh học"),
+            "BIOLOGY": ("sinh-học", "🧬", "Sinh học"),
+            "LICH_SU": ("lịch-sử", "📜", "Lịch sử"),
+            "HISTORY": ("lịch-sử", "📜", "Lịch sử"),
+            "DIA_LY": ("địa-lí", "🌏", "Địa lí"),
+            "GEOGRAPHY": ("địa-lí", "🌏", "Địa lí"),
+            # --- XUYÊN SUỐT CẢ 2 CẤP ---
+            "TOAN": ("toán-học", "📐", "Toán"),
+            "MATHEMATICS": ("toán-học", "📐", "Toán"),
+            "NGU_VAN": ("ngữ-văn", "📖", "Ngữ văn"),
+            "LITERATURE": ("ngữ-văn", "📖", "Ngữ văn"),
+            "TIENG_ANH": ("tiếng-anh", "🇬🇧", "Ngoại ngữ 1 (Tiếng Anh)"),
+            "ENGLISH": ("tiếng-anh", "🇬🇧", "Ngoại ngữ 1 (Tiếng Anh)"),
+            "TIN_HOC": ("tin-học", "💻", "Tin học"),
+            "INFORMATICS": ("tin-học", "💻", "Tin học"),
         }
+
+        import base64
+        import io
 
         for doc in pending_docs:
             doc_id = doc.get("id")
             subject = str(doc.get("subject") or "GENERAL").upper()
             title = doc.get("title") or doc.get("file_name") or "Đề thi"
+            file_name = doc.get("file_name") or f"de_thi_{doc_id}.pdf"
             author_name = doc.get("author_name") or "Khách (Web)"
             grade = doc.get("estimated_level") or "Chung"
             q_cnt = doc.get("question_count") or 0
@@ -340,6 +366,7 @@ class DocumentIntakeCog(commands.Cog):
             is_moet_2025 = bool(doc.get("moet_2025_compliant"))
             has_ans = bool(doc.get("has_answer_keys"))
             has_sol = bool(doc.get("has_detailed_solutions"))
+            raw_b64 = doc.get("file_content_base64")
 
             slug_info = subject_channel_slugs.get(subject, ("kho-đề-chung", "📚", subject))
             target_ch = await self._get_or_create_subject_channel(
@@ -388,11 +415,28 @@ class DocumentIntakeCog(commands.Cog):
                     inline=False,
                 )
 
+                # Chuẩn bị tệp đính kèm thật từ base64 nếu có
+                discord_file: discord.File | None = None
+                if raw_b64:
+                    try:
+                        clean_b64 = raw_b64.split(",", 1)[1] if "," in raw_b64 else raw_b64
+                        file_bytes = base64.b64decode(clean_b64)
+                        discord_file = discord.File(io.BytesIO(file_bytes), filename=file_name)
+                    except Exception as b64_err:
+                        log.warning("Lỗi giải mã base64 file #%s: %s", doc_id, b64_err)
+
                 try:
-                    posted_msg = await target_ch.send(embed=embed)
+                    send_kwargs: dict[str, Any] = {"embed": embed}
+                    if discord_file:
+                        send_kwargs["file"] = discord_file
+
+                    posted_msg = await target_ch.send(**send_kwargs)
                     if posted_msg:
+                        # Cập nhật trạng thái và giải phóng file_content_base64 trong Turso để bảo toàn 5GB storage
                         await turso_db.execute(
-                            "UPDATE documents_archive SET queue_status = 'synced_discord', channel_id = ?, message_id = ?, jump_url = ? WHERE id = ?",
+                            """UPDATE documents_archive 
+                               SET queue_status = 'synced_discord', channel_id = ?, message_id = ?, jump_url = ?, file_content_base64 = NULL 
+                               WHERE id = ?""",
                             target_ch.id,
                             posted_msg.id,
                             posted_msg.jump_url,
@@ -409,7 +453,7 @@ class DocumentIntakeCog(commands.Cog):
                                         file_hash, raw_text, academic_year, school_or_department
                                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                     """,
-                                    subject, title, title, doc.get("file_size_bytes", 0), doc.get("file_type", "PDF"),
+                                    subject, title, file_name, doc.get("file_size_bytes", 0), doc.get("file_type", "PDF"),
                                     grade, q_cnt, p_cnt, doc.get("author_id", 0),
                                     author_name, target_ch.id, posted_msg.id, posted_msg.jump_url,
                                     doc.get("timestamp") or datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -418,10 +462,9 @@ class DocumentIntakeCog(commands.Cog):
                             except Exception:
                                 pass
                         synced_count += 1
-                        log.info("Đã tự động đồng bộ đề thi #%s (%s) từ Turso Cloud sang Discord thành công!", doc_id, title)
+                        log.info("Đã tự động đồng bộ đề thi #%s (%s) kèm tệp thật từ Turso Cloud sang Discord thành công!", doc_id, title)
                 except Exception as post_err:
                     log.warning("Lỗi khi gửi đề từ Turso sang Discord: %s", post_err)
-
         return synced_count
 
     async def _get_or_create_subject_channel(
