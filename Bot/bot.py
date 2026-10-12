@@ -280,16 +280,18 @@ class CompetitiveProgrammingBot(commands.Bot):
         except Exception as e:
             logger.warning(f"Lỗi khi kiểm tra/đồng bộ Slash Commands: {e}")
 
-        # Đăng ký các Persistent Views để các nút bấm hoạt động vĩnh viễn không bao giờ timeout
         from cogs.doc_intake import DocumentIntakeControlView
         from cogs.link_scanner import LinkScannerControlView
         from cogs.exam_generator_cog import GenerateControlPanelView
         from cogs.info_board_cog import InfoBoardRefreshView
+        from services.system_sync_service import SystemControlView, SystemUpdateView
 
         self.add_view(DocumentIntakeControlView())
         self.add_view(LinkScannerControlView())
         self.add_view(GenerateControlPanelView(self))
         self.add_view(InfoBoardRefreshView())
+        self.add_view(SystemControlView())
+        self.add_view(SystemUpdateView())
 
         # Khởi chạy BanScheduler
         self.loop.create_task(self._start_ban_scheduler())
@@ -398,6 +400,11 @@ class CompetitiveProgrammingBot(commands.Bot):
             logger.info("🟢 Bot đã kết nối lại Gateway Discord (Reconnected). Giữ nguyên trạng thái kênh và bộ nhớ.")
             return
         self._ready_initialized = True
+
+        # Gửi thông báo khởi động và link Vercel vào kênh đồng bộ 1536199276273860638
+        from services.system_sync_service import system_sync_service
+        asyncio.create_task(system_sync_service.send_startup_announcement(self))
+        asyncio.create_task(system_sync_service.start_periodic_update_checker(self))
 
         # Khởi chạy cập nhật các kênh và tự động cấp Role Thành viên (Học sinh) trong background task
         asyncio.create_task(self._auto_setup_channels())

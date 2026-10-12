@@ -143,223 +143,22 @@ class AdminCog(commands.Cog, name="Admin"):
 
         await interaction.response.defer(ephemeral=True)
 
-        # 1. Khởi tạo & cập nhật schema database
-        try:
-            await init_db()
-        except Exception as e:
-            logger.error(f"Lỗi khi init_db trong reload: {e}")
+        from services.system_sync_service import system_sync_service
+        summary = await system_sync_service.perform_optimized_reload(self.bot)
 
-        # 2. Hot-reload toàn bộ các Cogs với cơ chế AI Local Auto-Healing
-        target_cogs: list[str] = []
-        try:
-            from bot import INITIAL_EXTENSIONS
-            target_cogs = list(INITIAL_EXTENSIONS)
-        except Exception:
-            pass
+        reloaded = summary.get("reloaded_cogs", [])
+        failed = summary.get("failed_cogs", [])
+        total_cogs = summary.get("total_cogs", 0)
+        synced_count = summary.get("slash_commands", 0)
+        sync_note = summary.get("slash_note", "không đổi")
+        channel_status = summary.get("channels", [])
+        duration_ms = summary.get("duration_ms", 0)
 
-        for ext in list(self.bot.extensions.keys()):
-            if ext not in target_cogs and not ext.startswith("not_finished."):
-                target_cogs.append(ext)
-
-        for arch in ["cogs.profile", "cogs.ranked_duel"]:
-            if arch in target_cogs:
-                target_cogs.remove(arch)
-
-        reloaded = []
-        failed = []
-
-        for cog in target_cogs:
-            try:
-                if cog in self.bot.extensions:
-                    await self.bot.reload_extension(cog)
-                else:
-                    await self.bot.load_extension(cog)
-                reloaded.append(cog)
-            except Exception as e:
-                try:
-                    from services.self_healer import SelfHealer
-                    healed = await SelfHealer.try_heal_extension(cog, e)
-                    if healed:
-                        if cog in self.bot.extensions:
-                            await self.bot.reload_extension(cog)
-                        else:
-                            await self.bot.load_extension(cog)
-                        reloaded.append(f"{cog} *(✨ AI Healed)*")
-                        continue
-                except Exception as heal_e:
-                    logger.warning(f"Self-Healing thất bại cho {cog}: {heal_e}")
-
-                logger.error(f"Lỗi khi reload cog {cog}: {e}")
-                failed.append(f"`{cog}` ({e})")
-
-        # 3. Làm mới các kênh giao diện cố định
-        channel_status = []
-
-        # 3.1. Kênh #✅・accounts (CF_ID)
-        cf_cog = self.bot.get_cog("Codeforces")
-        if cf_cog and hasattr(cf_cog, "auto_setup_cf_channel") and settings.CF_ID > 0:
-            try:
-                await cf_cog.auto_setup_cf_channel()
-                channel_status.append(f"• <#{settings.CF_ID}>: Đã cập nhật ✅")
-            except Exception as e:
-                channel_status.append(f"• <#{settings.CF_ID}>: Lỗi (`{e}`) ❌")
-
-        # 3.2. Kênh #📤・mode (CHON_ID)
-        mode_cog = self.bot.get_cog("Mode Selection")
-        if (
-            mode_cog
-            and hasattr(mode_cog, "auto_setup_chon_channel")
-            and settings.CHON_ID > 0
-        ):
-            try:
-                await mode_cog.auto_setup_chon_channel()
-                channel_status.append(
-                    f"• <#{settings.CHON_ID}>: Đã cập nhật (6 Embeds Sổ Tay) ✅"
-                )
-            except Exception as e:
-                channel_status.append(f"• <#{settings.CHON_ID}>: Lỗi (`{e}`) ❌")
-
-        # 3.3. Kênh #📝・submit (SUBMIT_ID)
-        submit_cog = self.bot.get_cog("Submission")
-        if (
-            submit_cog
-            and hasattr(submit_cog, "auto_setup_submit_channel")
-            and settings.SUBMIT_ID > 0
-        ):
-            try:
-                await submit_cog.auto_setup_submit_channel()
-                channel_status.append(f"• <#{settings.SUBMIT_ID}>: Đã cập nhật ✅")
-            except Exception as e:
-                channel_status.append(f"• <#{settings.SUBMIT_ID}>: Lỗi (`{e}`) ❌")
-
-        # 3.4. Kênh #🏆・up-rank (UP_RANK)
-        leaderboard_cog = self.bot.get_cog("Leaderboard")
-        if (
-            leaderboard_cog
-            and hasattr(leaderboard_cog, "auto_setup_rank_channel")
-            and settings.UP_RANK > 0
-        ):
-            try:
-                await leaderboard_cog.auto_setup_rank_channel()
-                channel_status.append(
-                    f"• <#{settings.UP_RANK}>: Đã cập nhật (2 Embeds: Freedom & Ranked 1:1, 45p) ✅"
-                )
-            except Exception as e:
-                channel_status.append(f"• <#{settings.UP_RANK}>: Lỗi (`{e}`) ❌")
-
-        # 3.5. Kênh #📚・bai-tap (BAITAP_ID)
-        contest_cog = self.bot.get_cog("Contests & Problems")
-        if (
-            contest_cog
-            and hasattr(contest_cog, "auto_setup_baitap_channel")
-            and settings.BAITAP_ID > 0
-        ):
-            try:
-                await contest_cog.auto_setup_baitap_channel()
-                channel_status.append(
-                    f"• <#{settings.BAITAP_ID}>: Đã cập nhật (3 Embeds Catalog) ✅"
-                )
-            except Exception as e:
-                channel_status.append(f"• <#{settings.BAITAP_ID}>: Lỗi (`{e}`) ❌")
-
-        # 3.6. Kênh #📋・ranked (RANKED_CHANNEL_ID)
-        ranked_cog = self.bot.get_cog("RankedDuelCog")
-        if (
-            ranked_cog
-            and hasattr(ranked_cog, "_auto_setup_ranked_channel")
-            and settings.RANKED_CHANNEL_ID > 0
-        ):
-            try:
-                await ranked_cog._auto_setup_ranked_channel()
-                channel_status.append(
-                    f"• <#{settings.RANKED_CHANNEL_ID}>: Đã cập nhật (Đấu Trường 1:1) ✅"
-                )
-            except Exception as e:
-                channel_status.append(
-                    f"• <#{settings.RANKED_CHANNEL_ID}>: Lỗi (`{e}`) ❌"
-                )
-
-        # 3.7. Kênh #📤・nộp-tài-liệu (DOC_INTAKE_CHANNEL_ID)
-        doc_cog = self.bot.get_cog("DocumentIntakeCog")
-        intake_id = getattr(settings, "DOC_INTAKE_CHANNEL_ID", 1535278288828633138)
-        if (
-            doc_cog
-            and hasattr(doc_cog, "auto_setup_intake_channel")
-            and intake_id > 0
-        ):
-            try:
-                await doc_cog.auto_setup_intake_channel(purge=True)
-                channel_status.append(
-                    f"• <#{intake_id}>: Đã dọn sạch & làm mới Bảng Nộp Đề ✅"
-                )
-            except Exception as e:
-                channel_status.append(f"• <#{intake_id}>: Lỗi (`{e}`) ❌")
-
-        # 3.8. Kênh #📄・tra-cứu (DOC_SEARCH_CHANNEL_ID)
-        search_cog = self.bot.get_cog("DocumentSearch")
-        search_id = getattr(settings, "DOC_SEARCH_CHANNEL_ID", 1553678782101979186)
-        if (
-            search_cog
-            and hasattr(search_cog, "auto_setup_search_channel")
-            and search_id > 0
-        ):
-            try:
-                await search_cog.auto_setup_search_channel(purge=True)
-                channel_status.append(
-                    f"• <#{search_id}>: Đã dọn sạch & làm mới Bảng Tra Cứu ✅"
-                )
-            except Exception as e:
-                channel_status.append(f"• <#{search_id}>: Lỗi (`{e}`) ❌")
-
-        # 3.9. Kênh #🔍・kiểm-tra-link (LINK_SCANNER_CHANNEL_ID)
-        link_cog = self.bot.get_cog("LinkScannerCog")
-        scanner_id = getattr(settings, "LINK_SCANNER_CHANNEL_ID", 1546522680638054461)
-        if (
-            link_cog
-            and hasattr(link_cog, "auto_setup_scanner_channel")
-            and scanner_id > 0
-        ):
-            try:
-                await link_cog.auto_setup_scanner_channel(purge=True)
-                channel_status.append(
-                    f"• <#{scanner_id}>: Đã dọn sạch & làm mới Bảng Quét Link ✅"
-                )
-            except Exception as e:
-                channel_status.append(f"• <#{scanner_id}>: Lỗi (`{e}`) ❌")
-
-        # 4. Cắt lệnh ngoài allowlist + đồng bộ Slash Commands CHỈ khi có thay đổi (tránh spam API)
-        synced_count = 0
-        sync_note = "không đổi"
-        try:
-            from bot import prune_tree_commands
-            prune_tree_commands(self.bot)
-        except Exception as pe:
-            logger.warning(f"Lỗi khi cắt slash commands trong reload: {pe}")
-
-        try:
-            import hashlib
-            cmd_sigs = sorted([f"{c.name}:{c.description}" for c in self.bot.tree.get_commands()])
-            current_hash = hashlib.md5("".join(cmd_sigs).encode("utf-8")).hexdigest()
-            hash_file = Path(__file__).resolve().parent.parent / "data" / ".tree_sync.hash"
-            last_hash = hash_file.read_text("utf-8").strip() if hash_file.exists() else ""
-            if current_hash != last_hash:
-                synced = await self.bot.tree.sync()
-                synced_count = len(synced)
-                hash_file.parent.mkdir(parents=True, exist_ok=True)
-                hash_file.write_text(current_hash, encoding="utf-8")
-                sync_note = f"đã đồng bộ {synced_count} lệnh"
-            else:
-                synced_count = len(cmd_sigs)
-        except Exception as e:
-            logger.error(f"Lỗi khi đồng bộ slash commands trong reload: {e}")
-            sync_note = f"lỗi đồng bộ ({e})"
-
-        # 5. Phản hồi kết quả bằng Rich Embed
-        total_cogs = len(target_cogs)
+        # Phản hồi kết quả bằng Rich Embed
         fields = [
             {
                 "name": "📦 Cogs Hot-Reload",
-                "value": f"✅ Đã tải lại thành công **{len(reloaded)}/{total_cogs}** modules.\n"
+                "value": f"✅ Đã tải lại thành công **{len(reloaded)}/{total_cogs}** modules ({duration_ms}ms).\n"
                 + (f"❌ Thất bại: {', '.join(failed)}" if failed else "Không có lỗi."),
                 "inline": False,
             },
@@ -373,7 +172,7 @@ class AdminCog(commands.Cog, name="Admin"):
         if channel_status:
             fields.append(
                 {
-                    "name": "🖥️ Tự Động Làm Mới 6 Kênh Giao Diện",
+                    "name": "🖥️ Tự Động Làm Mới Kênh Giao Diện",
                     "value": "\n".join(channel_status),
                     "inline": False,
                 }
@@ -381,11 +180,11 @@ class AdminCog(commands.Cog, name="Admin"):
 
         embed = create_embed(
             title="RELOAD TOÀN BỘ BOT THÀNH CÔNG! 🔄",
-            description=f"Hệ thống đã được làm mới toàn diện theo yêu cầu của {interaction.user.mention}.",
+            description=f"Hệ thống đã được làm mới toàn diện trong **{duration_ms}ms** theo yêu cầu của {interaction.user.mention}.",
             embed_type=EmbedType.SUCCESS,
             fields=fields,
             color=0x00B894,
-            footer_text="Lệnh Quản Trị Duy Nhất • Hot Reload & Channel Refresh (Admin/Owner Only)",
+            footer_text="HyperHub System Engine • Optimized Hot-Reload (Admin/Owner Only)",
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
 

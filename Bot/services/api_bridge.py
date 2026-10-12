@@ -292,10 +292,11 @@ class BotAPIBridge:
     async def _auth_middleware(self, request: web.Request, handler: Any) -> web.Response:
         """Kiểm tra token cho các endpoint POST, DELETE, PATCH, PUT / yêu cầu bảo mật."""
         if request.method in ("POST", "DELETE", "PATCH", "PUT"):
-            # Endpoint upload, import_gdrive, notify, account/link và admin endpoints sẽ tự kiểm tra xác thực bên trong handler
+            # Endpoint upload, import_gdrive, notify, account/link, admin và system endpoints sẽ tự kiểm tra xác thực bên trong handler
             if (
                 request.path in ("/api/documents/upload", "/api/documents/import_gdrive", "/api/notify", "/api/account/link")
                 or request.path.startswith("/api/admin/")
+                or request.path.startswith("/api/system/")
             ):
                 return await handler(request)
 
@@ -350,6 +351,12 @@ class BotAPIBridge:
         self.app.router.add_post("/api/admin/archive/lockdown", self.handle_admin_archive_lockdown)
         self.app.router.add_post("/api/admin/channels", self.handle_admin_create_channel)
         self.app.router.add_post("/api/admin/channels/{id}/lockdown", self.handle_admin_channel_lockdown)
+        # Endpoints Đồng Bộ Hệ Thống & Cập Nhật GitHub
+        self.app.router.add_get("/api/system/update_status", self.handle_system_update_status)
+        self.app.router.add_post("/api/system/check_update", self.handle_system_check_update)
+        self.app.router.add_post("/api/system/apply_update", self.handle_system_apply_update)
+        self.app.router.add_post("/api/system/reload", self.handle_system_reload)
+        self.app.router.add_post("/api/system/announce_startup", self.handle_system_announce_startup)
 
     async def handle_status(self, request: web.Request) -> web.Response:
         """GET /api/status: Trả về trạng thái hoạt động của Bot."""
@@ -2742,6 +2749,105 @@ class BotAPIBridge:
                 "notes": new_notes,
             }
         })
+
+    # =========================================================================
+    # ENDPOINTS ĐỒNG BỘ HỆ THỐNG, GITHUB UPDATE & HOT-RELOAD
+    # =========================================================================
+
+    async def handle_system_update_status(self, request: web.Request) -> web.Response:
+        """GET /api/system/update_status: Trả về trạng thái cập nhật GitHub và git commit hiện tại."""
+        try:
+            from services.system_sync_service import system_sync_service
+            git_info = await system_sync_service.get_current_git_info()
+            pending = system_sync_service.pending_update
+            return web.json_response({
+                "current_hash": git_info.get("hash", "dev"),
+                "full_hash": git_info.get("full_hash", "dev"),
+                "commit_msg": git_info.get("commit_msg", ""),
+                "branch": git_info.get("branch", "main"),
+                "has_update": bool(pending and pending.get("has_update")),
+                "remote_hash": pending.get("remote_hash") if pending else git_info.get("hash", "dev"),
+                "commits": pending.get("commits", []) if pending else [],
+                "last_check_timestamp": int(system_sync_service._last_check_time),
+            })
+        except Exception as e:
+            logger.error("Lỗi khi lấy update status: %s", e)
+            return web.json_response({
+                "current_hash": "dev",
+                "has_update": False,
+                "remote_hash": "dev",
+                "commits": [],
+                "error": str(e),
+            })
+
+    async def handle_system_check_update(self, request: web.Request) -> web.Response:
+        """POST /api/system/check_update: Kích hoạt kiểm tra cập nhật GitHub ngay lập tức."""
+        admin_info = await self._verify_admin_access(request)
+        if not admin_info:
+            return web.json_response({"error": "Forbidden", "message": "Yêu cầu quyền Quản trị viên"}, status=403)
+
+        try:
+            from services.system_sync_service import system_sync_service
+            result = await system_sync_service.check_github_update()
+            if result.get("has_update"):
+                # Gửi thông báo đến kênh Discord nếu có update mới
+                await system_sync_service.notify_github_update(self.bot, result)
+            return web.json_response(result)
+        except Exception as e:
+            logger.error("Lỗi khi kiểm tra update GitHub: %s", e)
+            return web.json_response({"error": f"Lỗi kiểm tra cập nhật: {e}"}, status=500)
+
+    async def handle_system_apply_update(self, request: web.Request) -> web.Response:
+        """POST /api/system/apply_update: 1-Click Update từ GitHub và hot-reload toàn bộ bot."""
+        admin_info = await self._verify_admin_access(request)
+        if not admin_info:
+            return web.json_response({"error": "Forbidden", "message": "Yêu cầu quyền Quản trị viên"}, status=403)
+
+        logger.info(f"Admin {admin_info.get('username')} đã kích hoạt 1-Click Update từ Web Admin Hub!")
+        try:
+            from services.system_sync_service import system_sync_service
+            result = await system_sync_service.perform_system_update(self.bot)
+            status_code = 200 if result.get("success") else 500
+            return web.json_response(result, status=status_code)
+        except Exception as e:
+            logger.error("Lỗi khi thực hiện system update: %s", e)
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+
+    async def handle_system_reload(self, request: web.Request) -> web.Response:
+        """POST /api/system/reload: Kích hoạt tối ưu & hot-reload hệ thống từ Web Admin Hub."""
+        admin_info = await self._verify_admin_access(request)
+        if not admin_info:
+            return web.json_response({"error": "Forbidden", "message": "Yêu cầu quyền Quản trị viên"}, status=403)
+
+        logger.info(f"Admin {admin_info.get('username')} đã kích hoạt Hot-Reload từ Web Admin Hub!")
+        try:
+            from services.system_sync_service import system_sync_service
+            summary = await system_sync_service.perform_optimized_reload(self.bot)
+            return web.json_response({
+                "success": summary.get("success", True),
+                "message": f"Đã reload thành công {len(summary.get('reloaded_cogs', []))}/{summary.get('total_cogs', 0)} cogs trong {summary.get('duration_ms')}ms.",
+                "reload_summary": summary,
+            })
+        except Exception as e:
+            logger.error("Lỗi khi reload hệ thống: %s", e)
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+
+    async def handle_system_announce_startup(self, request: web.Request) -> web.Response:
+        """POST /api/system/announce_startup: Gửi lại thông báo khởi động và link Vercel vào kênh Discord."""
+        admin_info = await self._verify_admin_access(request)
+        if not admin_info:
+            return web.json_response({"error": "Forbidden", "message": "Yêu cầu quyền Quản trị viên"}, status=403)
+
+        try:
+            from services.system_sync_service import system_sync_service
+            sent = await system_sync_service.send_startup_announcement(self.bot)
+            return web.json_response({
+                "success": sent,
+                "message": "Đã gửi thông báo khởi động và link Vercel vào kênh Discord thành công!" if sent else "Không thể gửi tin nhắn vào Discord.",
+            })
+        except Exception as e:
+            logger.error("Lỗi khi gửi thông báo khởi động: %s", e)
+            return web.json_response({"success": False, "error": str(e)}, status=500)
 
     async def start(self) -> None:
         """Khởi chạy HTTP Server trên background task."""

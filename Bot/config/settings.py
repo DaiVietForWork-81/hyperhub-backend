@@ -69,6 +69,10 @@ if HAS_PYDANTIC:
             default=1536199276273860638,
             description="Kênh nhật ký lưu trữ lịch sử đấu, transcript và báo cáo chống gian lận Ranked 1:1",
         )
+        SYSTEM_SYNC_CHANNEL_ID: int = Field(
+            default=1536199276273860638,
+            description="Kênh thông báo đồng bộ hệ thống, khởi động và cập nhật GitHub",
+        )
         PROBLEM_ARCHIVE_CHANNEL_ID: int = Field(
             default=1548627763467128912,
             description="Kênh lưu trữ đề bài, lời giải và code mẫu tự động sau mỗi bài Freedom/Ranked",
@@ -499,6 +503,10 @@ else:
             )
             self.DUEL_LOG_CHANNEL_ID = int(
                 os.environ.get("DUEL_LOG_CHANNEL_ID", "1536199276273860638")
+                or "1536199276273860638"
+            )
+            self.SYSTEM_SYNC_CHANNEL_ID = int(
+                os.environ.get("SYSTEM_SYNC_CHANNEL_ID", "1536199276273860638")
                 or "1536199276273860638"
             )
             self.PROBLEM_ARCHIVE_CHANNEL_ID = int(
