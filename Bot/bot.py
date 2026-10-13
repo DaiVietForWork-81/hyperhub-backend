@@ -32,12 +32,25 @@ try:
 except Exception:
     pass
 
+# Chế độ headless (pythonw.exe / service ẩn): sys.stdout / sys.stderr là None
+# Cần gán os.devnull ngay từ đầu để các lệnh print() trong run_preflight_checks() không gây crash
+if sys.stdout is None:
+    try:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")
+    except Exception:
+        pass
+if sys.stderr is None:
+    try:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")
+    except Exception:
+        pass
+
 # Đảm bảo UTF-8 an toàn cho console trên Windows
 if sys.platform == "win32":
     try:
-        if hasattr(sys.stdout, "reconfigure"):
+        if sys.stdout is not None and hasattr(sys.stdout, "reconfigure"):
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        if hasattr(sys.stderr, "reconfigure"):
+        if sys.stderr is not None and hasattr(sys.stderr, "reconfigure"):
             sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass

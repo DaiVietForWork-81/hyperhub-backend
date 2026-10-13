@@ -50,7 +50,7 @@ class BotAPIBridge:
         self._general_rate_limits: dict[str, list[float]] = {}
         self.app = web.Application(
             client_max_size=30 * 1024 * 1024,  # Giới hạn an toàn 30 MB
-            middlewares=[self._rate_limit_middleware, self._cors_middleware, self._auth_middleware],
+            middlewares=[self._cors_middleware, self._rate_limit_middleware, self._auth_middleware],
         )
         self.runner: web.AppRunner | None = None
         self.site: web.TCPSite | None = None
@@ -270,21 +270,21 @@ class BotAPIBridge:
                 )
 
         req_origin = request.headers.get("Origin", "")
-        allowed_origins = [
-            "https://hyperhub-one.vercel.app",
-            "http://localhost:5173",
-            "http://localhost:3000",
-            "http://localhost:8080",
-            "http://127.0.0.1:5173",
-        ]
-        if req_origin in allowed_origins or (req_origin and req_origin.endswith(".vercel.app")):
+        if req_origin:
             response.headers["Access-Control-Allow-Origin"] = req_origin
             response.headers["Vary"] = "Origin"
         else:
-            response.headers["Access-Control-Allow-Origin"] = "https://hyperhub-one.vercel.app"
+            response.headers["Access-Control-Allow-Origin"] = "*"
 
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, HEAD, DELETE, PATCH, PUT"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Bot-Secret, ngrok-skip-browser-warning"
+        
+        req_headers = request.headers.get("Access-Control-Request-Headers")
+        if req_headers:
+            response.headers["Access-Control-Allow-Headers"] = req_headers
+        else:
+            response.headers["Access-Control-Allow-Headers"] = (
+                "Content-Type, Authorization, X-Bot-Secret, ngrok-skip-browser-warning, cf-skip-browser-warning, Accept, *"
+            )
         response.headers["Access-Control-Max-Age"] = "86400"
         return response
 
