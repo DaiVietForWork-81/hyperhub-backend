@@ -48,6 +48,8 @@ class BotAPIBridge:
         self._upload_rate_limits: dict[str, list[float]] = {}
         self._import_rate_limits: dict[str, list[float]] = {}
         self._general_rate_limits: dict[str, list[float]] = {}
+        self._doc_stats_cache: tuple[dict, float] | None = None
+        self._doc_min_id_cache: tuple[dict[str, tuple[int, int]], float] | None = None
         self.app = web.Application(
             client_max_size=30 * 1024 * 1024,  # Giới hạn an toàn 30 MB
             middlewares=[self._cors_middleware, self._rate_limit_middleware, self._auth_middleware],
@@ -55,6 +57,11 @@ class BotAPIBridge:
         self.runner: web.AppRunner | None = None
         self.site: web.TCPSite | None = None
         self._setup_routes()
+
+    def invalidate_doc_caches(self) -> None:
+        """Xóa cache tài liệu khi có nộp mới, sửa hoặc xóa để đảm bảo tính nhất quán tức thì."""
+        self._doc_stats_cache = None
+        self._doc_min_id_cache = None
 
     @web.middleware
     async def _rate_limit_middleware(self, request: web.Request, handler: Any) -> web.Response:
@@ -809,13 +816,18 @@ class BotAPIBridge:
         count_row = await self.bot.db.fetchone(count_sql, *params)
         total = count_row[0] if count_row else 0
 
-        # Map min_id và count cho từng hash / tên file để xác định bản gốc vs bản trùng
-        min_id_rows = await self.bot.db.fetchall("""
-            SELECT COALESCE(NULLIF(file_hash, ''), LOWER(file_name)), MIN(id), COUNT(*)
-            FROM documents_archive
-            GROUP BY COALESCE(NULLIF(file_hash, ''), LOWER(file_name))
-        """)
-        doc_stats_map = {r[0]: (r[1], r[2]) for r in min_id_rows if r[0]}
+        # Map min_id và count cho từng hash / tên file để xác định bản gốc vs bản trùng (Cache 60s)
+        now_ts = time.time()
+        if self._doc_min_id_cache and now_ts - self._doc_min_id_cache[1] < 60.0:
+            doc_stats_map = self._doc_min_id_cache[0]
+        else:
+            min_id_rows = await self.bot.db.fetchall("""
+                SELECT COALESCE(NULLIF(file_hash, ''), LOWER(file_name)), MIN(id), COUNT(*)
+                FROM documents_archive
+                GROUP BY COALESCE(NULLIF(file_hash, ''), LOWER(file_name))
+            """)
+            doc_stats_map = {r[0]: (r[1], r[2]) for r in min_id_rows if r[0]}
+            self._doc_min_id_cache = (doc_stats_map, now_ts)
 
         base_cols = (
             "id, subject, title, file_name, file_size_bytes, file_type, estimated_level,"
@@ -918,9 +930,13 @@ class BotAPIBridge:
         })
 
     async def handle_document_stats(self, request: web.Request) -> web.Response:
-        """GET /api/documents/stats: Thống kê kho tài liệu (Tổng số thực tế, đề độc bản & đề trùng)."""
+        """GET /api/documents/stats: Thống kê kho tài liệu (Tổng số thực tế, đề độc bản & đề trùng) có Cache 30s."""
         if not hasattr(self.bot, "db"):
             return web.json_response({"error": "Cơ sở dữ liệu chưa sẵn sàng"}, status=503)
+
+        now_ts = time.time()
+        if self._doc_stats_cache and now_ts - self._doc_stats_cache[1] < 30.0:
+            return web.json_response(self._doc_stats_cache[0])
 
         total_row = await self.bot.db.fetchone(
             "SELECT COUNT(*), COALESCE(SUM(file_size_bytes), 0) FROM documents_archive"
@@ -955,7 +971,7 @@ class BotAPIBridge:
             for r in subject_rows
         ]
 
-        return web.json_response({
+        result_payload = {
             "success": True,
             "total_items": total_items,
             "total_real": total_items,
@@ -963,7 +979,9 @@ class BotAPIBridge:
             "duplicate_items": duplicate_items,
             "total_bytes": total_bytes,
             "subjects": subjects,
-        })
+        }
+        self._doc_stats_cache = (result_payload, now_ts)
+        return web.json_response(result_payload)
 
     async def handle_request_exam(self, request: web.Request) -> web.Response:
         """GET /api/documents/request_exam: Lấy ngẫu nhiên 1 đề thi theo lớp, loại đề và mô tả."""
@@ -1819,6 +1837,7 @@ class BotAPIBridge:
         except Exception as te:
             logger.debug("Không thể đồng bộ đề lên Turso: %s", te)
 
+        self.invalidate_doc_caches()
         return web.json_response({
             "success": True,
             "id": doc_id,
@@ -2669,6 +2688,7 @@ class BotAPIBridge:
 
         # 3. Xóa bản ghi trong CSDL (Trigger documents_fts sẽ tự xóa khỏi bảng tìm kiếm FTS5)
         await self.bot.db.execute("DELETE FROM documents_archive WHERE id = ?", doc_id)
+        self.invalidate_doc_caches()
         logger.info(f"Admin {admin_info.get('username')} đã xóa hoàn toàn đề thi #{doc_id} ('{doc_title}')")
 
         return web.json_response({
@@ -2735,7 +2755,7 @@ class BotAPIBridge:
                WHERE id = ?""",
             new_title, new_subject, new_level, new_notes, doc_id
         )
-
+        self.invalidate_doc_caches()
         logger.info(f"Admin {admin_info.get('username')} đã cập nhật đề thi #{doc_id}: '{new_title}', notes='{new_notes}'")
 
         return web.json_response({

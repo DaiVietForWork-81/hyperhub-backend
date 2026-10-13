@@ -332,6 +332,24 @@ class Database:
             )
         except Exception:
             pass
+        try:
+            await self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_doc_archive_level ON documents_archive (estimated_level)"
+            )
+        except Exception:
+            pass
+        try:
+            await self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_doc_archive_year ON documents_archive (academic_year)"
+            )
+        except Exception:
+            pass
+        try:
+            await self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_doc_archive_filename ON documents_archive (file_name)"
+            )
+        except Exception:
+            pass
 
         await self._conn.execute(
             """
