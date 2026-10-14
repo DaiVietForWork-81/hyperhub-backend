@@ -283,6 +283,7 @@ SUBJECT_LEXICONS: Dict[str, Dict[str, float]] = {
     # NGỮ VĂN (CHUYÊN VĂN & THPTQG)
     "LITERATURE": {
         "đọc hiểu": 3.0, "ngữ liệu": 3.5, "nghị luận xã hội": 4.5, "nghị luận văn học": 5.0,
+        "nlxh": 5.0, "nlvh": 5.0, "nghị luận": 3.5, "văn mẫu": 4.0, "tập làm văn": 4.0,
         "lý luận văn học": 5.0, "tác giả": 3.0, "tác phẩm": 3.0, "nhân vật": 3.0,
         "hình tượng": 3.5, "cảm hứng lãng mạn": 4.0, "hiện thực": 3.0, "biện pháp tu từ": 4.0,
         "nhân hóa": 3.5, "so sánh": 2.5, "ẩn dụ": 4.0, "hoán dụ": 4.0, "điệp từ": 3.5,

@@ -507,7 +507,7 @@ class DocumentInspector:
         from .hybrid_classifier import detect_programming_language
         prog_lang = detect_programming_language(_raw_text, name)
         if prog_lang and subject != Subject.INFORMATICS:
-            if subject == Subject.GENERAL or any(k in (_raw_text + name).lower() for k in ["tin học", "tin hoc", "code", "lập trình", "lap trinh", "algorithm", "thuat toan", "thuật toán"]):
+            if subject == Subject.GENERAL and any(k in (_raw_text + name).lower() for k in ["tin học", "tin hoc", "code", "lập trình", "lap trinh", "algorithm", "thuat toan", "thuật toán"]):
                 subject = Subject.INFORMATICS
 
         detailed_track_str = detect_detailed_exam_track(
@@ -518,8 +518,10 @@ class DocumentInspector:
             doc_cat=category,
         )
 
-        is_moet_2025 = pass2.curriculum.moet_2025_compliant or (
-            deep_metadata.moet_part1_count > 0 and (deep_metadata.moet_part2_count > 0 or deep_metadata.moet_part3_count > 0)
+        is_moet_2025 = (subject != Subject.LITERATURE) and (
+            pass2.curriculum.moet_2025_compliant or (
+                deep_metadata.moet_part1_count > 0 and (deep_metadata.moet_part2_count > 0 or deep_metadata.moet_part3_count > 0)
+            )
         )
 
         report = InspectionReport(
