@@ -397,7 +397,6 @@ class BotAPIBridge:
                     "elements_count": 200,
                     "categories_count": 14,
                     "installed": has_lucian,
-                    "web_lab_url": "/ux-lab/index.html",
                     "repo": "https://github.com/Seokwoooo/lucian-uxui-prompt",
                 },
                 {

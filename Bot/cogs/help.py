@@ -266,10 +266,10 @@ class HelpCog(commands.Cog, name="Help"):
         view = discord.ui.View(timeout=180.0)
         view.add_item(
             discord.ui.Button(
-                label="Mở UX/UI Lab (Web)",
-                url="https://hyperhub-one.vercel.app/ux-lab/index.html",
+                label="Mở Web Portal (Kho Đề)",
+                url="https://hyperhub-one.vercel.app/#vault",
                 style=discord.ButtonStyle.link,
-                emoji="✨",
+                emoji="🌐",
             )
         )
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
