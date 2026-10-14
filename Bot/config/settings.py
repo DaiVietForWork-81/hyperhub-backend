@@ -358,8 +358,8 @@ if HAS_PYDANTIC:
             description="Cổng (Port) của Bot API Bridge",
         )
         BOT_API_SECRET: str = Field(
-            default="hyperhub_bridge_secret_key_2026",
-            description="Mã khóa bí mật (Bearer/Header Secret) xác thực giữa Bot và Web",
+            default="",
+            description="Mã khóa bí mật (Bearer/Header Secret) xác thực giữa Bot và Web (bắt buộc cấu hình qua biến môi trường .env)",
         )
         EMBEDDING_ENABLED: bool = Field(
             default=False,

@@ -117,6 +117,25 @@ class BotAPIBridge:
             logger.error(f"Error verifying Discord token: {e}")
             return None
 
+    @staticmethod
+    def _is_valid_bot_api_secret(token: str) -> bool:
+        """Kiểm tra token có khớp với BOT_API_SECRET hợp lệ (chống timing attack, cấm secret mặc định lộ công khai)."""
+        if not token:
+            return False
+        configured = (getattr(settings, "BOT_API_SECRET", "") or "").strip()
+        insecure_keys = {
+            "hyperhub_bridge_secret_key_2026",
+            "secret",
+            "changeme",
+            "default_secret",
+            "admin",
+            "123456",
+        }
+        if not configured or len(configured) < 16 or configured.lower() in insecure_keys:
+            return False
+        import hmac
+        return hmac.compare_digest(token, configured)
+
     async def _verify_admin_access(self, request: web.Request) -> dict | None:
         """Xác thực quyền Quản trị viên (4 role Admin, Bot Owner, Guild Owner/Administrator).
         Điều kiện bắt buộc với token Discord OAuth2:
@@ -134,8 +153,8 @@ class BotAPIBridge:
         elif "X-Bot-Secret" in request.headers:
             token = request.headers["X-Bot-Secret"].strip()
 
-        # 1. Khóa bí mật BOT_API_SECRET luôn có toàn quyền quản trị cao nhất
-        if token and token == settings.BOT_API_SECRET:
+        # 1. Khóa bí mật BOT_API_SECRET luôn có toàn quyền quản trị cao nhất (chỉ chấp nhận secret an toàn)
+        if self._is_valid_bot_api_secret(token):
             return {
                 "is_admin": True,
                 "user_id": BOT_OWNER_ID,
@@ -314,9 +333,9 @@ class BotAPIBridge:
             elif "X-Bot-Secret" in request.headers:
                 token = request.headers["X-Bot-Secret"].strip()
 
-            if token != settings.BOT_API_SECRET:
+            if not self._is_valid_bot_api_secret(token):
                 return web.json_response(
-                    {"error": "Unauthorized", "message": "Sai mã khóa bí mật BOT_API_SECRET"},
+                    {"error": "Unauthorized", "message": "Sai mã khóa bí mật BOT_API_SECRET hoặc khóa không an toàn"},
                     status=401,
                 )
         return await handler(request)
@@ -632,7 +651,7 @@ class BotAPIBridge:
 
         auth_header = request.headers.get("Authorization", "")
         token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
-        if not token or token == settings.BOT_API_SECRET:
+        if not token or self._is_valid_bot_api_secret(token):
             return web.json_response({"error": "Yêu cầu Bearer token Discord OAuth2"}, status=401)
 
         user_data = await self._verify_discord_bearer_token(token)
@@ -684,7 +703,7 @@ class BotAPIBridge:
 
         auth_header = request.headers.get("Authorization", "")
         token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
-        if not token or token == settings.BOT_API_SECRET:
+        if not token or self._is_valid_bot_api_secret(token):
             return web.json_response({"error": "Yêu cầu Bearer token Discord OAuth2"}, status=401)
 
         user_data = await self._verify_discord_bearer_token(token)
@@ -726,9 +745,9 @@ class BotAPIBridge:
         # 1. Ưu tiên khóa bí mật máy chủ
         auth_header = request.headers.get("Authorization", "")
         token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
-        secret_ok = bool(token) and token == settings.BOT_API_SECRET
-        if "X-Bot-Secret" in request.headers and request.headers["X-Bot-Secret"].strip() == settings.BOT_API_SECRET:
-            secret_ok = True
+        secret_ok = self._is_valid_bot_api_secret(token)
+        if not secret_ok and "X-Bot-Secret" in request.headers:
+            secret_ok = self._is_valid_bot_api_secret(request.headers["X-Bot-Secret"].strip())
 
         admin_info = None
         if not secret_ok:
@@ -1045,9 +1064,9 @@ class BotAPIBridge:
         # 2. BẮT BUỘC là thành viên Discord Server (kèm email đã xác minh)
         auth_header = request.headers.get("Authorization", "")
         token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
-        secret_ok = bool(token) and token == settings.BOT_API_SECRET
-        if "X-Bot-Secret" in request.headers and request.headers["X-Bot-Secret"].strip() == settings.BOT_API_SECRET:
-            secret_ok = True
+        secret_ok = self._is_valid_bot_api_secret(token)
+        if not secret_ok and "X-Bot-Secret" in request.headers:
+            secret_ok = self._is_valid_bot_api_secret(request.headers["X-Bot-Secret"].strip())
 
         if not secret_ok:
             if not token:
@@ -1494,7 +1513,7 @@ class BotAPIBridge:
 
         user_data = None
         is_bot_admin = False
-        if token == settings.BOT_API_SECRET:
+        if self._is_valid_bot_api_secret(token):
             is_bot_admin = True
             uploader_name = "Bot Administrator"
             uploader_id = 0
@@ -1930,7 +1949,7 @@ class BotAPIBridge:
             token = request.headers["X-Bot-Secret"].strip()
 
         uploader_name = "Web User (Google Drive)"
-        if token != settings.BOT_API_SECRET:
+        if not self._is_valid_bot_api_secret(token):
             user_data = await self._verify_discord_bearer_token(token) if token else None
             if not user_data or not user_data.get("verified", False):
                 return web.json_response({
