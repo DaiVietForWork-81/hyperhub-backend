@@ -1,0 +1,252 @@
+<!doctype html>
+<!-- Lucian UX/UI Prompt #007 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#007 -->
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Play–pause morph · lucianLabs UI</title>
+<style>
+:root{
+  color-scheme:light;
+  --ux-page:#F4F2EE;
+  --ux-surface:#FFFFFF;
+  --ux-surface-2:#F5F3EF;
+  --ux-surface-3:#EAE7E1;
+  --ux-ink:#16151B;
+  --ux-ink-2:#57535F;
+  --ux-ink-3:#8E8A97;
+  --ux-line:rgba(22,21,27,.09);
+  --ux-line-2:rgba(22,21,27,.17);
+  --ux-accent:#6A57F2;
+  --ux-accent-2:#2F8FE0;
+  --ux-accent-soft:rgba(106,87,242,.12);
+  --ux-accent-ink:#FFFFFF;
+  --ux-mint:#119C72;
+  --ux-warn:#D6731E;
+  --ux-danger:#D93A55;
+  --ux-glass:rgba(255,255,255,.58);
+  --ux-glass-line:rgba(255,255,255,.85);
+  --ux-shadow:rgba(40,30,80,.14);
+  --ux-shadow-strong:rgba(40,30,80,.3);
+  --ux-grad:linear-gradient(120deg,#7B61FF,#3D8BFF 55%,#1FB89A);
+  --ux-ease:cubic-bezier(.2,.8,.2,1);
+  --ux-spring:cubic-bezier(.34,1.45,.64,1);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ux-page:#07080D;
+    --ux-surface:#13141C;
+    --ux-surface-2:#1A1B25;
+    --ux-surface-3:#252632;
+    --ux-ink:#F4F0E8;
+    --ux-ink-2:rgba(244,240,232,.68);
+    --ux-ink-3:rgba(244,240,232,.42);
+    --ux-line:rgba(255,255,255,.08);
+    --ux-line-2:rgba(255,255,255,.16);
+    --ux-accent:#B7A4FF;
+    --ux-accent-2:#7DB4FF;
+    --ux-accent-soft:rgba(183,164,255,.15);
+    --ux-accent-ink:#0B0C12;
+    --ux-mint:#7EE8C0;
+    --ux-warn:#FFB26B;
+    --ux-danger:#FF7D8C;
+    --ux-glass:rgba(255,255,255,.07);
+    --ux-glass-line:rgba(255,255,255,.18);
+    --ux-shadow:rgba(0,0,0,.45);
+    --ux-shadow-strong:rgba(0,0,0,.72);
+    --ux-grad:linear-gradient(120deg,#B7A4FF,#7DB4FF 55%,#A5F2D3);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ux-page:#07080D;
+  --ux-surface:#13141C;
+  --ux-surface-2:#1A1B25;
+  --ux-surface-3:#252632;
+  --ux-ink:#F4F0E8;
+  --ux-ink-2:rgba(244,240,232,.68);
+  --ux-ink-3:rgba(244,240,232,.42);
+  --ux-line:rgba(255,255,255,.08);
+  --ux-line-2:rgba(255,255,255,.16);
+  --ux-accent:#B7A4FF;
+  --ux-accent-2:#7DB4FF;
+  --ux-accent-soft:rgba(183,164,255,.15);
+  --ux-accent-ink:#0B0C12;
+  --ux-mint:#7EE8C0;
+  --ux-warn:#FFB26B;
+  --ux-danger:#FF7D8C;
+  --ux-glass:rgba(255,255,255,.07);
+  --ux-glass-line:rgba(255,255,255,.18);
+  --ux-shadow:rgba(0,0,0,.45);
+  --ux-shadow-strong:rgba(0,0,0,.72);
+  --ux-grad:linear-gradient(120deg,#B7A4FF,#7DB4FF 55%,#A5F2D3);
+}
+
+.ux,.ux *,.ux *::before,.ux *::after{box-sizing:border-box}
+.ux{
+  font-family:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+  color:var(--ux-ink);-webkit-font-smoothing:antialiased;letter-spacing:-.01em;
+  -webkit-tap-highlight-color:transparent;
+  word-break:keep-all;overflow-wrap:break-word;
+}
+
+:where(.ux) :is(button,input,textarea,select){font:inherit;color:inherit}
+:where(.ux) button{cursor:pointer}
+.ux :focus-visible{outline:2px solid var(--ux-accent);outline-offset:3px}
+.ux [hidden]{display:none!important}
+
+@media (prefers-reduced-motion:reduce){
+  .ux,.ux *,.ux *::before,.ux *::after{
+    animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important;scroll-behavior:auto!important;
+  }
+}
+</style>
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:48px 24px;background:var(--ux-page);box-sizing:border-box}
+.ux-theme-btn{position:fixed;top:16px;right:16px;height:38px;padding:0 16px;border-radius:999px;border:1px solid var(--ux-line-2);background:var(--ux-surface);color:var(--ux-ink);font:600 13px/1 system-ui,sans-serif;cursor:pointer}
+</style>
+</head>
+<body>
+<style>
+.u007{--grad1:#8B6CFF;--grad2:#FF6B8B;position:relative;width:320px;height:320px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.u007-info{text-align:center}
+.u007-info b{display:block;font-size:19px;font-weight:740;letter-spacing:-.03em}
+.u007-info span{display:block;margin-top:4px;font-size:13.5px;color:var(--ux-ink-3)}
+.u007-disc{position:relative;width:160px;height:160px;margin:18px 0 16px;display:grid;place-items:center}
+.u007-ring{position:absolute;inset:0;transform:rotate(-90deg)}
+.u007-ring circle{fill:none;stroke-width:4;stroke-linecap:round}
+.u007-ring .u007-track{stroke:var(--ux-line-2)}
+.u007-ring .u007-arc{stroke:url(#u007-g);stroke-dasharray:452.4;stroke-dashoffset:calc(452.4 * (1 - var(--p,0)))}
+.u007-btn{position:relative;width:112px;height:112px;border:0;padding:0;border-radius:50%;color:#fff;background:linear-gradient(145deg,var(--grad1),var(--grad2));
+  box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),inset 0 -10px 18px -10px rgba(40,10,80,.45),0 24px 44px -20px color-mix(in srgb,var(--grad1) 80%,transparent);
+  transition:transform .5s var(--ux-spring),box-shadow .5s var(--ux-ease)}
+.u007-btn:hover{transform:scale(1.04)}
+.u007-btn:active{transform:scale(.92)}
+.u007-btn:focus-visible{outline:2px solid var(--ux-accent);outline-offset:6px}
+.u007-btn svg{width:46px;height:46px;display:block;margin:auto}
+.u007-btn polygon{fill:currentColor;stroke:currentColor;stroke-width:2.4;stroke-linejoin:round}
+.u007-pulse{position:absolute;inset:6px;border-radius:50%;background:linear-gradient(145deg,var(--grad1),var(--grad2));opacity:0;z-index:-1}
+.u007.is-play .u007-pulse{animation:u007-pulse 2.4s var(--ux-ease) infinite}
+@keyframes u007-pulse{0%{opacity:.45;transform:scale(.9)}100%{opacity:0;transform:scale(1.5)}}
+.u007-wave{display:flex;align-items:center;gap:3px;height:40px;width:270px;cursor:pointer;touch-action:none;border-radius:8px}
+.u007-wave:focus-visible{outline:2px solid var(--ux-accent);outline-offset:4px}
+.u007-wave i{flex:1;height:calc(var(--h) * 1%);min-height:4px;border-radius:3px;background:var(--ux-line-2);transform-origin:50% 50%;transition:background-color .25s var(--ux-ease)}
+.u007-wave i.on{background:linear-gradient(180deg,var(--grad1),var(--grad2))}
+.u007.is-play .u007-wave i.on:nth-last-child(-n+40){animation:u007-eq .9s ease-in-out infinite alternate;animation-delay:calc(var(--d) * -1s)}
+@keyframes u007-eq{from{transform:scaleY(.82)}to{transform:scaleY(1.06)}}
+.u007-time{display:flex;justify-content:space-between;width:270px;margin-top:8px;font-size:12.5px;font-weight:600;color:var(--ux-ink-3);font-variant-numeric:tabular-nums}
+.u007-time b{color:var(--ux-ink-2);font-weight:650}
+</style>
+<div class="ux u007">
+  <div class="u007-info"><b>Midnight Drive</b><span>Lumen · Synthwave</span></div>
+  <div class="u007-disc">
+    <svg class="u007-ring" viewBox="0 0 160 160" aria-hidden="true">
+      <defs><linearGradient id="u007-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8B6CFF"/><stop offset="1" stop-color="#FF6B8B"/></linearGradient></defs>
+      <circle class="u007-track" cx="80" cy="80" r="72"/><circle class="u007-arc" cx="80" cy="80" r="72"/>
+    </svg>
+    <span class="u007-pulse" aria-hidden="true"></span>
+    <button class="u007-btn" type="button" aria-label="Play" aria-pressed="false">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><polygon class="u007-l"/><polygon class="u007-r"/></svg>
+    </button>
+  </div>
+  <div class="u007-wave" role="slider" tabindex="0" aria-label="Playback position" aria-valuemin="0" aria-valuemax="220" aria-valuenow="72" aria-valuetext="1 min 12 s"></div>
+  <div class="u007-time"><b class="u007-now">1:12</b><span>3:40</span></div>
+</div>
+<button class="ux-theme-btn" type="button" id="ux-theme-btn">Switch theme</button>
+<script>
+(function () {
+  var root = document.currentScript.previousElementSibling;
+  var btn = root.querySelector('.u007-btn');
+  var L = root.querySelector('.u007-l'), R = root.querySelector('.u007-r');
+  var wave = root.querySelector('.u007-wave');
+  var nowEl = root.querySelector('.u007-now');
+  var rm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var gid = 'u007-g-' + Math.random().toString(36).slice(2, 7);
+  root.querySelector('linearGradient').id = gid;
+  root.querySelector('.u007-arc').style.stroke = 'url(#' + gid + ')';
+
+  var PLAY = [[[13, 8], [22.5, 13.6], [22.5, 26.4], [13, 32]], [[22.5, 13.6], [32, 20], [32, 20], [22.5, 26.4]]];
+  var PAUSE = [[[11, 9], [17, 9], [17, 31], [11, 31]], [[23, 9], [29, 9], [29, 31], [23, 31]]];
+  var shape = 0, raf = 0;
+  function draw(t) {
+    [L, R].forEach(function (poly, k) {
+      poly.setAttribute('points', PLAY[k].map(function (p, j) {
+        var q = PAUSE[k][j];
+        return (p[0] + (q[0] - p[0]) * t).toFixed(2) + ',' + (p[1] + (q[1] - p[1]) * t).toFixed(2);
+      }).join(' '));
+    });
+  }
+  function morph(to) {
+    cancelAnimationFrame(raf);
+    var from = shape, t0 = performance.now(), D = rm ? 1 : 420;
+    (function f(now) {
+      var x = Math.min(1, (now - t0) / D);
+      var e = 1 + 2.2 * Math.pow(x - 1, 3) + 1.2 * Math.pow(x - 1, 2);
+      shape = from + (to - from) * e;
+      draw(shape);
+      if (x < 1) raf = requestAnimationFrame(f);
+    })(t0);
+  }
+  draw(0);
+
+  var N = 44, bars = [];
+  for (var i = 0; i < N; i++) {
+    var b = document.createElement('i');
+    var h = 30 + Math.abs(Math.sin(i * 0.9) * 46 + Math.sin(i * 0.37) * 24);
+    b.style.setProperty('--h', Math.min(100, h).toFixed(0));
+    b.style.setProperty('--d', (i % 7) / 7);
+    wave.appendChild(b);
+    bars.push(b);
+  }
+  var TOTAL = 220, pos = 72, playing = false, last = 0, loop = 0;
+  function fmt(s) { s = Math.floor(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  function render() {
+    var p = pos / TOTAL;
+    root.style.setProperty('--p', p.toFixed(4));
+    var on = Math.round(p * N);
+    bars.forEach(function (b, k) { b.classList.toggle('on', k < on); });
+    nowEl.textContent = fmt(pos);
+    wave.setAttribute('aria-valuenow', String(Math.floor(pos)));
+    wave.setAttribute('aria-valuetext', Math.floor(pos / 60) + ' min ' + Math.floor(pos % 60) + ' s');
+  }
+  function tick(now) {
+    if (!root.isConnected || !playing) return;
+    pos += (now - (last || now)) / 1000;
+    last = now;
+    if (pos >= TOTAL) { pos = 0; }
+    render();
+    loop = requestAnimationFrame(tick);
+  }
+  function setPlay(v) {
+    playing = v;
+    root.classList.toggle('is-play', v);
+    btn.setAttribute('aria-pressed', String(v));
+    btn.setAttribute('aria-label', v ? 'Pause' : 'Play');
+    morph(v ? 1 : 0);
+    cancelAnimationFrame(loop);
+    if (v) { last = 0; loop = requestAnimationFrame(tick); }
+  }
+  btn.addEventListener('click', function () { setPlay(!playing); });
+
+  function seek(x) {
+    var r = wave.getBoundingClientRect();
+    pos = Math.max(0, Math.min(1, (x - r.left) / r.width)) * TOTAL;
+    render();
+  }
+  wave.addEventListener('pointerdown', function (e) { wave.setPointerCapture(e.pointerId); seek(e.clientX); });
+  wave.addEventListener('pointermove', function (e) { if (wave.hasPointerCapture(e.pointerId)) seek(e.clientX); });
+  wave.addEventListener('keydown', function (e) {
+    var d = { ArrowRight: 5, ArrowUp: 5, ArrowLeft: -5, ArrowDown: -5 }[e.key];
+    if (e.key === 'Home') d = -TOTAL; if (e.key === 'End') d = TOTAL;
+    if (d) { e.preventDefault(); pos = Math.max(0, Math.min(TOTAL - 1, pos + d)); render(); }
+  });
+  render();
+})();
+</script>
+<script>
+(function(){var r=document.documentElement,b=document.getElementById("ux-theme-btn"),K="ux-theme";try{var s=localStorage.getItem(K);if(s)r.setAttribute("data-theme",s)}catch(e){}b.addEventListener("click",function(){var dark=r.getAttribute("data-theme")==="dark"||(!r.hasAttribute("data-theme")&&matchMedia("(prefers-color-scheme: dark)").matches);var next=dark?"light":"dark";r.setAttribute("data-theme",next);try{localStorage.setItem(K,next)}catch(e){}});})();
+</script>
+</body>
+</html>

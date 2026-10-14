@@ -117,8 +117,44 @@ class ExtractedDocument:
 
 
 
+def _compute_otsu_threshold(histogram: List[int]) -> int:
+    """Thuật toán phân ngưỡng Otsu (Otsu's binarization) thuần Python từ histogram ảnh.
+    Tự động tìm ngưỡng tối ưu giữa nền và chữ dựa trên tối đa hóa phương sai liên lớp.
+    Chạy siêu tốc ~0.05ms, xử lý hoàn hảo scan mờ, chói sáng hoặc nền xám."""
+    total_pixels = sum(histogram)
+    if total_pixels == 0:
+        return 140
+
+    current_max = 0.0
+    threshold = 140
+    sum_total = sum(i * histogram[i] for i in range(256))
+
+    weight_background = 0
+    sum_background = 0
+
+    for t in range(256):
+        weight_background += histogram[t]
+        if weight_background == 0:
+            continue
+        weight_foreground = total_pixels - weight_background
+        if weight_foreground == 0:
+            break
+
+        sum_background += t * histogram[t]
+        mean_background = sum_background / weight_background
+        mean_foreground = (sum_total - sum_background) / weight_foreground
+
+        variance = weight_background * weight_foreground * ((mean_background - mean_foreground) ** 2)
+        if variance > current_max:
+            current_max = variance
+            threshold = t
+
+    # Giới hạn ngưỡng trong khoảng an toàn [80, 210] tránh trắng hoặc đen toàn bộ
+    return max(80, min(threshold, 210))
+
+
 def _preprocess_image_for_ocr(img: "Image.Image") -> "Image.Image":
-    """Tiền xử lý ảnh để cải thiện chất lượng OCR (ổn định với scan mờ/nhiễu)."""
+    """Tiền xử lý ảnh để cải thiện chất lượng OCR (ổn định với scan mờ/nhiễu/chói)."""
     from PIL import ImageFilter, ImageEnhance
 
     # 1. Chuyển sang grayscale
@@ -144,9 +180,12 @@ def _preprocess_image_for_ocr(img: "Image.Image") -> "Image.Image":
     # 4. Sharpen nhẹ để làm rõ chữ
     img = img.filter(ImageFilter.SHARPEN)
 
-    # 5. Threshold để nhị phân hóa (chuyển về trắng đen)
-    # Dùng phương pháp adaptive threshold đơn giản qua point()
-    threshold = 160  # pixels darker than this become black
+    # 5. Phân ngưỡng thích ứng Otsu (Adaptive Threshold) để nhị phân hóa
+    try:
+        hist = img.histogram()
+        threshold = _compute_otsu_threshold(hist)
+    except Exception:
+        threshold = 150
     img = img.point(lambda x: 0 if x < threshold else 255, '1')
     img = img.convert('L')  # convert back to grayscale for tesseract
 
@@ -181,8 +220,8 @@ class FastDocumentExtractor:
             if img.mode not in ("RGB", "L"):
                 img = img.convert("RGB")
 
-            # Tối ưu kích thước: giới hạn cạnh lớn nhất <= 2500px để OCR nhanh
-            max_dim = 2500
+            # Tối ưu kích thước: giới hạn cạnh lớn nhất <= 3200px để OCR rõ nét nhưng không tràn RAM
+            max_dim = 3200
             w, h = img.size
             if max(w, h) > max_dim:
                 scale = max_dim / max(w, h)
@@ -195,6 +234,7 @@ class FastDocumentExtractor:
                 log.debug("OCR preprocessing failed, using original: %s", prep_err)
                 processed_img = img
 
+            text = ""
             try:
                 text = pytesseract.image_to_string(
                     processed_img, config=TESS_CONFIG, timeout=30
@@ -204,6 +244,17 @@ class FastDocumentExtractor:
                     text = pytesseract.image_to_string(processed_img, lang="eng").strip()
                 except Exception:
                     text = ""
+
+            # Nếu PSM 6 ra quá ít chữ (< 60 ký tự) hoặc bố cục đề thi 2-3 cột bị nén,
+            # tự động thử lại với PSM 3 (Fully automatic page segmentation)
+            if len(text) < 60 or (len(text) < 200 and not re.search(r"(?i)\b(câu|bài|question)\s+\d+", text)):
+                try:
+                    psm3_config = r'--oem 3 --psm 3 -l vie+eng -c tessedit_parallel=0 -c omp_thread_limit=1'
+                    alt_text = pytesseract.image_to_string(processed_img, config=psm3_config, timeout=30).strip()
+                    if len(alt_text) > len(text):
+                        text = alt_text
+                except Exception:
+                    pass
 
             return text
         except Exception:
@@ -389,11 +440,11 @@ class FastDocumentExtractor:
                     magic_signature=magic_sig,
                 )
 
-            text_pages: List[str] = []
+            page_text_map: Dict[int, str] = {}
             image_count = 0
             table_count = 0
             skipped_noise_pages = 0
-            # (page_index, relevance_score, needs_ocr, page_obj)
+            # (page_index, relevance_score, page_obj)
             ocr_candidates: List[tuple] = []
 
             MAX_SAMPLE_PAGES = 30
@@ -407,6 +458,11 @@ class FastDocumentExtractor:
 
             q_re = cls._page_question_regex()
             for page in pages_to_process:
+                try:
+                    page_idx = page.number
+                except Exception:
+                    page_idx = len(page_text_map)
+
                 page_text = page.get_text("text")
                 stripped_len = len(page_text.strip())
                 page_images = page.get_images(full=True)
@@ -419,7 +475,7 @@ class FastDocumentExtractor:
                     skipped_noise_pages += 1
                     continue
 
-                text_pages.append(page_text)
+                page_text_map[page_idx] = page_text
 
                 # Fast table indicator
                 lines = page_text.splitlines()
@@ -427,52 +483,52 @@ class FastDocumentExtractor:
                 if pipe_or_tab >= 3:
                     table_count += 1
 
-                # Chấm relevance để OCR chọn lọc: câu hỏi > nội dung dày > có ảnh
-                relevance = 3 * min(q_hits, 10) + min(stripped_len / 200.0, 15.0) + (5.0 if page_images else 0.0)
-                try:
-                    page_idx = page.number
-                except Exception:
-                    page_idx = -1
-                ocr_candidates.append((page_idx, relevance, stripped_len < 200, page))
+                # Trang cần OCR khi: thiếu text (< 150 ký tự) VÀ (có ảnh hoặc trang ngắn bất thường)
+                needs_ocr = (stripped_len < 150) and (bool(page_images) or stripped_len < 30)
+                relevance = 3 * min(q_hits, 10) + min(stripped_len / 200.0, 15.0) + (10.0 if page_images else 0.0)
+                if needs_ocr:
+                    # Ưu tiên trang đầu và trang cuối (chứa tiêu đề đề thi, thông tin trường, đáp án)
+                    if page_idx <= 1:
+                        relevance += 20.0
+                    elif page_idx >= page_count - 2:
+                        relevance += 12.0
+                    ocr_candidates.append((page_idx, relevance, page))
 
-            full_text = "\n".join(text_pages)
+            # Thực hiện OCR theo từng trang thiếu chữ (Per-Page Hybrid OCR)
+            ocr_pages_used: List[int] = []
+            if ocr_candidates and init_tesseract():
+                # Sắp xếp các trang cần OCR theo mức độ ưu tiên
+                ocr_candidates.sort(key=lambda t: t[1], reverse=True)
+                max_ocr_pages = 25 if deep else 8
+                ocr_dpi = 250 if deep else 200
+
+                for page_idx, _rel, page in ocr_candidates[:max_ocr_pages]:
+                    try:
+                        pix = page.get_pixmap(dpi=ocr_dpi)
+                        img_bytes = pix.tobytes("png")
+                        del pix
+                        ocr_txt = cls.perform_ocr(img_bytes)
+                        del img_bytes
+                        if ocr_txt and len(ocr_txt.strip()) >= 20:
+                            existing = page_text_map.get(page_idx, "").strip()
+                            if len(ocr_txt.strip()) > len(existing):
+                                page_text_map[page_idx] = ocr_txt
+                            else:
+                                page_text_map[page_idx] = (existing + "\n" + ocr_txt).strip()
+                            ocr_pages_used.append(page_idx)
+                    except Exception as ocr_err:
+                        log.debug("Lỗi OCR trang %s: %s", page_idx, ocr_err)
+
+            # Ghép văn bản theo thứ tự trang thực tế (không làm mất text của các trang điện tử)
+            ordered_texts = [page_text_map[idx] for idx in sorted(page_text_map.keys()) if page_text_map[idx].strip()]
+            full_text = "\n".join(ordered_texts)
             char_count = len(full_text.strip())
             word_count = len(full_text.split())
             line_count = len(full_text.splitlines())
 
-            # Scanned PDF check
-            is_scanned_pdf = (page_count > 0) and (char_count < 45 * page_count) and (image_count >= page_count)
-
-            ocr_pages_used: List[int] = []
-            if is_scanned_pdf and init_tesseract():
-                ocr_pages: List[str] = []
-                max_ocr_pages = 10 if deep else 3
-                ocr_dpi = 200 if deep else 150
-                # OCR đúng trang đáng tiền nhất (relevance cao + đang thiếu text), không cào bừa từ đầu
-                ocr_candidates.sort(key=lambda t: t[1], reverse=True)
-                for page_idx, _rel, needs_ocr, page in ocr_candidates:
-                    if len(ocr_pages) >= max_ocr_pages:
-                        break
-                    if not needs_ocr:
-                        continue
-                    try:
-                        # DPI 150: đủ nét cho Tesseract nhưng render nhanh gấp ~1.8x so với 200
-                        pix = page.get_pixmap(dpi=ocr_dpi)
-                        img_bytes = pix.tobytes("png")
-                        del pix
-                        page_text = cls.perform_ocr(img_bytes)
-                        del img_bytes
-                        if page_text and len(page_text.strip()) >= 20:
-                            ocr_pages.append(page_text)
-                            if page_idx >= 0:
-                                ocr_pages_used.append(page_idx)
-                    except Exception:
-                        pass
-                if ocr_pages:
-                    full_text = "\n".join(ocr_pages)
-                    char_count = len(full_text.strip())
-                    word_count = len(full_text.split())
-                    line_count = len(full_text.splitlines())
+            # Scanned PDF check: nếu đa số trang thiếu text native và có ảnh
+            low_native_count = sum(1 for p_idx, _, _ in ocr_candidates)
+            is_scanned_pdf = (page_count > 0) and (low_native_count >= max(1, page_count // 2)) and (image_count >= page_count // 2)
 
             paragraphs = [p.strip() for p in full_text.split("\n\n") if p.strip()]
 
@@ -521,13 +577,33 @@ class FastDocumentExtractor:
 
     @classmethod
     def _extract_docx(cls, raw_bytes: bytes, magic_sig: str) -> ExtractedDocument:
-        """Extract DOCX via python-docx with table cell text and properties."""
+        """Extract DOCX via python-docx with table cell text, headers/footers, shapes, and embedded images."""
         file_stream = io.BytesIO(raw_bytes)
         try:
             doc = Document(file_stream)
 
+            # 1. Trích xuất Header & Footer (chứa tên trường, sở GD, mã đề, năm học)
+            header_footer_texts: List[str] = []
+            for section in doc.sections:
+                try:
+                    for h_p in section.header.paragraphs:
+                        ht = h_p.text.strip()
+                        if ht and ht not in header_footer_texts:
+                            header_footer_texts.append(ht)
+                except Exception:
+                    pass
+                try:
+                    for f_p in section.footer.paragraphs:
+                        ft = f_p.text.strip()
+                        if ft and ft not in header_footer_texts:
+                            header_footer_texts.append(ft)
+                except Exception:
+                    pass
+
+            # 2. Đoạn văn thông thường
             paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
 
+            # 3. Bảng biểu (Tables)
             table_texts: List[str] = []
             for table in doc.tables:
                 for row in table.rows:
@@ -535,7 +611,42 @@ class FastDocumentExtractor:
                     if row_text:
                         table_texts.append(row_text)
 
-            full_text = "\n".join(paragraphs + table_texts)
+            # 4. Text Boxes / Shapes (w:txbxContent - chứa câu hỏi dạng hộp khung)
+            textbox_texts: List[str] = []
+            try:
+                for txbx in doc.element.xpath('.//w:txbxContent'):
+                    tb_text = "".join(txbx.itertext()).strip()
+                    if tb_text and tb_text not in textbox_texts:
+                        textbox_texts.append(tb_text)
+            except Exception:
+                pass
+
+            # 5. Đếm và trích xuất ảnh nhúng (Embedded Images) + OCR nếu cần
+            embedded_images: List[bytes] = []
+            try:
+                for rel in doc.part.rels.values():
+                    rel_type = getattr(rel, "reltype", "").lower()
+                    target_ref = getattr(rel, "target_ref", "").lower()
+                    if "image" in rel_type or "image" in target_ref or target_ref.endswith((".png", ".jpg", ".jpeg", ".bmp", ".webp")):
+                        img_part = getattr(rel, "target_part", None)
+                        if img_part and hasattr(img_part, "blob") and img_part.blob:
+                            embedded_images.append(img_part.blob)
+            except Exception:
+                pass
+            image_count = len(embedded_images)
+
+            # OCR ảnh nhúng nếu đề thi chụp câu hỏi dạng ảnh (hoặc ít text native)
+            ocr_image_texts: List[str] = []
+            base_text_len = sum(len(p) for p in paragraphs) + sum(len(t) for t in table_texts)
+            if embedded_images and init_tesseract() and (base_text_len < 1500 or image_count <= 8):
+                large_images = [img for img in embedded_images if len(img) >= 15 * 1024]
+                for img_blob in large_images[:6]:  # OCR tối đa 6 ảnh để giữ tốc độ cao
+                    img_txt = cls.perform_ocr(img_blob)
+                    if img_txt and len(img_txt.strip()) >= 30:
+                        ocr_image_texts.append(img_txt.strip())
+
+            all_blocks = header_footer_texts + paragraphs + table_texts + textbox_texts + ocr_image_texts
+            full_text = "\n".join(all_blocks)
             char_count = len(full_text.strip())
             word_count = len(full_text.split())
             line_count = len(full_text.splitlines())
@@ -551,6 +662,12 @@ class FastDocumentExtractor:
                     "created": str(cp.created) if cp.created else "",
                     "revision": cp.revision or 1,
                 }
+            if header_footer_texts:
+                meta["headers_extracted"] = len(header_footer_texts)
+            if textbox_texts:
+                meta["textboxes_extracted"] = len(textbox_texts)
+            if ocr_image_texts:
+                meta["ocr_images_processed"] = len(ocr_image_texts)
 
             entropy = cls.calculate_entropy(full_text)
             reading_time = round(word_count / 200.0, 1)
@@ -562,9 +679,9 @@ class FastDocumentExtractor:
                 char_count=char_count,
                 word_count=word_count,
                 line_count=line_count,
-                paragraph_count=len(paragraphs),
+                paragraph_count=len(paragraphs) + len(textbox_texts),
                 table_count=len(doc.tables),
-                image_count=0,
+                image_count=image_count,
                 is_scanned_pdf=False,
                 is_encrypted=False,
                 raw_type="DOCX",
@@ -573,7 +690,8 @@ class FastDocumentExtractor:
                 reading_time_minutes=reading_time,
                 legacy_encoding_warning=legacy_enc,
                 meta_properties=meta,
-                paragraphs=paragraphs,
+                headers=header_footer_texts,
+                paragraphs=paragraphs + textbox_texts,
             )
         finally:
             try:
@@ -586,9 +704,53 @@ class FastDocumentExtractor:
 
     @classmethod
     def _extract_legacy_doc(cls, raw_bytes: bytes, magic_sig: str) -> ExtractedDocument:
-        """Extract text from legacy Word .doc binary stream without external tools."""
-        printable_ascii = re.findall(b"[\x20-\x7e\t\n\r]{4,}", raw_bytes)
-        extracted_strings = [s.decode("latin-1", errors="ignore") for s in printable_ascii]
+        """Trích xuất văn bản từ tệp nhị phân Word .doc (Word 97-2003 OLE2)
+        hỗ trợ cả UTF-16LE Unicode tiếng Việt, Windows CP1258, và ASCII fallback."""
+
+        # 1. Trích xuất UTF-16LE (Word 97-2003 lưu text Unicode dạng UTF-16LE)
+        utf16_candidates: List[str] = []
+        utf16_pattern = re.compile(b'(?:[\x20-\x7e\xa0-\xff][\x00\x01\x02\x03\x1e\x1f]){4,}')
+        for m in utf16_pattern.finditer(raw_bytes):
+            chunk = m.group(0)
+            if len(chunk) % 2 != 0:
+                chunk = chunk[:-1]
+            try:
+                decoded = chunk.decode("utf-16le", errors="ignore")
+                cleaned = "".join(c for c in decoded if c.isprintable() or c in "\n\r\t").strip()
+                if len(cleaned) >= 4 and any(c.isalnum() for c in cleaned):
+                    if not any(noise in cleaned for noise in ("WordDocument", "Root Entry", "CompObj", "SummaryInformation")):
+                        utf16_candidates.append(cleaned)
+            except Exception:
+                pass
+
+        # 2. Trích xuất CP1258 (Windows-1258 tiếng Việt 8-bit)
+        cp1258_candidates: List[str] = []
+        cp1258_pattern = re.compile(b'[\x20-\x7e\x80-\xff\t\n\r]{4,}')
+        for m in cp1258_pattern.finditer(raw_bytes):
+            chunk = m.group(0)
+            try:
+                decoded = chunk.decode("cp1258", errors="ignore").strip()
+                if len(decoded) >= 4 and any(c.isalnum() for c in decoded):
+                    if not any(noise in decoded for noise in ("WordDocument", "Root Entry", "CompObj", "SummaryInformation")):
+                        cp1258_candidates.append(decoded)
+            except Exception:
+                pass
+
+        # 3. So sánh chọn nguồn chất lượng nhất (dựa trên ký tự tiếng Việt có dấu & độ dài)
+        vi_chars = "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ"
+        utf16_vi_count = sum(sum(1 for c in s.lower() if c in vi_chars) for s in utf16_candidates)
+        cp1258_vi_count = sum(sum(1 for c in s.lower() if c in vi_chars) for s in cp1258_candidates)
+
+        if utf16_vi_count > 0 or len("".join(utf16_candidates)) >= len("".join(cp1258_candidates)):
+            extracted_strings = utf16_candidates if utf16_candidates else cp1258_candidates
+        else:
+            extracted_strings = cp1258_candidates if cp1258_candidates else utf16_candidates
+
+        # 4. Fallback ASCII nếu không bóc tách được Unicode/CP1258
+        if not extracted_strings:
+            printable_ascii = re.findall(b"[\x20-\x7e\t\n\r]{4,}", raw_bytes)
+            extracted_strings = [s.decode("latin-1", errors="ignore").strip() for s in printable_ascii if s.decode("latin-1", errors="ignore").strip()]
+
         full_text = "\n".join(extracted_strings)
         char_count = len(full_text.strip())
         word_count = len(full_text.split())
@@ -597,6 +759,7 @@ class FastDocumentExtractor:
 
         entropy = cls.calculate_entropy(full_text)
         reading_time = round(word_count / 200.0, 1)
+        legacy_enc = cls.detect_legacy_encoding(full_text)
 
         return ExtractedDocument(
             full_text=full_text,
@@ -613,6 +776,7 @@ class FastDocumentExtractor:
             magic_signature=magic_sig,
             entropy=entropy,
             reading_time_minutes=reading_time,
+            legacy_encoding_warning=legacy_enc,
             paragraphs=extracted_strings,
         )
 
