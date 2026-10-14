@@ -1,0 +1,128 @@
+<!-- @meta {"title":"공항 자동완성","category":"입력·검색","summary":"글자를 치면 남은 이름이 흐리게 이어 보이고 Tab으로 바로 받아들입니다. 아래 목록은 맞는 글자를 강조하며 걸러지고, 방향키를 따라 강조 막대가 미끄러집니다. 고르면 비행기 아이콘과 함께 확정됩니다.","hint":"‘도’, ‘오’, ‘방’처럼 입력해 보세요. Tab으로 자동완성, 방향키와 Enter로 고릅니다","shape":"square","hue":"#3D8BFF","hue2":"#22C3A6","tags":["autocomplete","combobox","typeahead","search","listbox"]} -->
+<!-- @demo [["wait",700],["tap",".u034-in"],["erase",".u034-in",0,"all",60],["wait",300],["type",".u034-in",0,{"ko":"방","en":"Ba"},180],["wait",900],["key",".u034-in",0,"Tab"],["wait",1700],["erase",".u034-in",0,"all",18],["wait",300],["type",".u034-in",0,{"ko":"도","en":"To"},180],["wait",700],["key",".u034-in",0,"ArrowDown"],["wait",600],["key",".u034-in",0,"Enter"],["wait",1700],["reset"]] -->
+<!-- @en {"title":"Airport autocomplete","summary":"As you type, the rest of the name appears faintly and Tab accepts it. The list below filters with the matching letters highlighted, and the highlight bar glides along with the arrow keys. Choosing one locks it in with a plane icon.","hint":"Type “To”, “O” or “Ba”. Tab completes; arrow keys and Enter choose","map":[
+  ["도착 공항", "Arriving at"],
+  ["value=\"도\"", "value=\"To\""],
+  ["도시나 공항 코드", "City or airport code"],
+  ["aria-label=\"공항\"", "aria-label=\"Airports\""],
+  ["\">‘' + esc(q) + '’ 공항을 찾지 못했어요</li>'", "\">No airports match ‘' + esc(q) + '’</li>'"],
+  ["['도쿄', '나리타 국제공항', 'NRT', '2시간 25분'", "['Tokyo', 'Narita International', 'NRT', '2h 25m'"],
+  ["['도쿄', '하네다 공항', 'HND', '2시간 20분'", "['Tokyo', 'Haneda Airport', 'HND', '2h 20m'"],
+  ["['도하', '하마드 국제공항', 'DOH', '10시간 40분'", "['Doha', 'Hamad International', 'DOH', '10h 40m'"],
+  ["['오사카', '간사이 국제공항', 'KIX', '1시간 50분'", "['Osaka', 'Kansai International', 'KIX', '1h 50m'"],
+  ["['오클랜드', '오클랜드 공항', 'AKL', '11시간 30분'", "['Auckland', 'Auckland Airport', 'AKL', '11h 30m'"],
+  ["['방콕', '수완나품 공항', 'BKK', '5시간 50분'", "['Bangkok', 'Suvarnabhumi Airport', 'BKK', '5h 50m'"],
+  ["['다낭', '다낭 국제공항', 'DAD', '4시간 30분'", "['Da Nang', 'Da Nang International', 'DAD', '4h 30m'"]
+]} -->
+<style>
+.u034{position:relative;width:340px;height:380px}
+.u034-lab{display:block;margin:0 4px 8px;font-size:13px;font-weight:700;color:var(--ux-ink-3)}
+.u034-box{position:relative;display:flex;align-items:center;gap:10px;height:60px;padding:0 16px;border-radius:18px;background:var(--ux-surface);box-shadow:0 0 0 1.5px var(--ux-line-2);transition:box-shadow .25s var(--ux-ease)}
+.u034-box:focus-within{box-shadow:0 0 0 2px var(--ux-accent),0 0 0 6px var(--ux-accent-soft)}
+.u034-pl{width:22px;height:22px;flex:none;fill:none;stroke:var(--ux-ink-3);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;transition:stroke .3s,transform .6s var(--ux-spring)}
+.u034.is-set .u034-pl{stroke:var(--ux-accent);transform:translateX(3px) rotate(-12deg)}
+.u034-wrap{position:relative;flex:1;height:100%}
+.u034-ghost,.u034-in{position:absolute;inset:0;width:100%;padding:0;border:0;font:inherit;font-size:17px;font-weight:650;letter-spacing:-.02em;line-height:60px;background:none;white-space:pre}
+.u034-ghost{color:var(--ux-ink-3);pointer-events:none;opacity:.7}
+.u034-ghost b{font-weight:inherit;color:transparent}
+.u034-in{outline:0;color:var(--ux-ink)}
+.u034-in:focus-visible{outline:none}
+.u034-code{flex:none;padding:5px 9px;border-radius:9px;background:var(--ux-accent-soft);color:var(--ux-accent);font-size:12.5px;font-weight:800;letter-spacing:.06em;opacity:0;transform:scale(.6);transition:opacity .2s,transform .45s var(--ux-spring)}
+.u034.is-set .u034-code{opacity:1;transform:none}
+.u034-list{position:relative;margin:10px 0 0;padding:6px;list-style:none;border-radius:20px;background:var(--ux-surface);box-shadow:0 0 0 1px var(--ux-line),0 26px 50px -30px var(--ux-shadow-strong);height:268px;overflow:hidden;transition:opacity .25s var(--ux-ease)}
+.u034-hl{position:absolute;left:6px;right:6px;top:6px;height:64px;border-radius:14px;background:var(--ux-surface-2);transform:translateY(calc(var(--i,0) * 64px));transition:transform .35s var(--ux-spring),opacity .2s;pointer-events:none}
+.u034-o{position:relative;display:flex;align-items:center;gap:12px;height:64px;padding:0 12px;border-radius:14px;cursor:pointer;animation:u034-in .35s var(--ux-spring) backwards}
+@keyframes u034-in{from{opacity:0;transform:translateY(6px)}}
+.u034-o i{width:38px;height:38px;flex:none;border-radius:12px;display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:800;letter-spacing:.04em;color:#fff;background:var(--c)}
+.u034-o b{display:block;font-size:15px;font-weight:680}
+.u034-o b mark{background:none;color:var(--ux-accent)}
+.u034-o small{display:block;margin-top:2px;font-size:12.5px;color:var(--ux-ink-3)}
+.u034-o em{margin-left:auto;font-style:normal;font-size:12px;font-weight:650;color:var(--ux-ink-3);font-variant-numeric:tabular-nums}
+.u034-none{padding:90px 0;text-align:center;font-size:14px;color:var(--ux-ink-3)}
+</style>
+<div class="ux u034">
+  <label class="u034-lab">도착 공항</label>
+  <div class="u034-box">
+    <svg class="u034-pl" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 13.5L4 11l1.5-1.5 7 1 4-4c1-1 2.6-1.4 3.2-.7.7.6.3 2.2-.7 3.2l-4 4 1 7L14.5 21 12 14.5l-3 3V20l-1.5 1L6 18l-3-1.5 1-1.5h2.5z"/></svg>
+    <div class="u034-wrap">
+      <span class="u034-ghost" aria-hidden="true"></span>
+      <input class="u034-in" type="text" role="combobox" aria-autocomplete="both" aria-expanded="true" autocomplete="off" value="도" placeholder="도시나 공항 코드">
+    </div>
+    <span class="u034-code" aria-hidden="true"></span>
+  </div>
+  <ul class="u034-list" role="listbox" aria-label="공항"><li class="u034-hl" role="presentation"></li></ul>
+</div>
+<script>
+(function () {
+  var root = document.currentScript.previousElementSibling;
+  var input = root.querySelector('.u034-in');
+  var ghost = root.querySelector('.u034-ghost');
+  var list = root.querySelector('.u034-list');
+  var hl = root.querySelector('.u034-hl');
+  var code = root.querySelector('.u034-code');
+  var lab = root.querySelector('.u034-lab');
+  var uid = 'u034-' + Math.random().toString(36).slice(2, 7);
+  input.id = uid + '-in'; lab.htmlFor = input.id;
+  list.id = uid; input.setAttribute('aria-controls', uid);
+  var DATA = [
+    ['도쿄', '나리타 국제공항', 'NRT', '2시간 25분', 'linear-gradient(140deg,#FF7A93,#F0264D)'],
+    ['도쿄', '하네다 공항', 'HND', '2시간 20분', 'linear-gradient(140deg,#FF8A65,#E5484D)'],
+    ['도하', '하마드 국제공항', 'DOH', '10시간 40분', 'linear-gradient(140deg,#B07CFF,#7B61FF)'],
+    ['오사카', '간사이 국제공항', 'KIX', '1시간 50분', 'linear-gradient(140deg,#FFB547,#FF7A45)'],
+    ['오클랜드', '오클랜드 공항', 'AKL', '11시간 30분', 'linear-gradient(140deg,#22C3A6,#0EA5E9)'],
+    ['방콕', '수완나품 공항', 'BKK', '5시간 50분', 'linear-gradient(140deg,#5B8CFF,#22C3A6)'],
+    ['다낭', '다낭 국제공항', 'DAD', '4시간 30분', 'linear-gradient(140deg,#3D8BFF,#8B6CFF)']
+  ];
+  var shown = [], act = 0;
+  function esc(s) { return s.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+  function hit(d, q) { return d[0].indexOf(q) === 0 || d[2].toLowerCase().indexOf(q.toLowerCase()) === 0; }
+  function render() {
+    var q = input.value.trim();
+    shown = q ? DATA.filter(function (d) { return hit(d, q) || d[1].indexOf(q) >= 0; }).slice(0, 4) : DATA.slice(0, 4);
+    act = 0;
+    Array.prototype.slice.call(list.querySelectorAll('.u034-o,.u034-none')).forEach(function (n) { n.remove(); });
+    hl.style.opacity = shown.length ? 1 : 0;
+    if (!shown.length) { list.insertAdjacentHTML('beforeend', '<li class="u034-none">‘' + esc(q) + '’ 공항을 찾지 못했어요</li>'); }
+    shown.forEach(function (d, i) {
+      var li = document.createElement('li');
+      li.className = 'u034-o';
+      li.id = uid + '-' + i;
+      li.setAttribute('role', 'option');
+      li.style.animationDelay = (i * 35) + 'ms';
+      var name = esc(d[0]);
+      if (q && d[0].indexOf(q) === 0) name = '<mark>' + esc(q) + '</mark>' + esc(d[0].slice(q.length));
+      li.innerHTML = '<i style="--c:' + d[4] + '" aria-hidden="true">' + d[2] + '</i><span><b>' + name + '</b><small>' + esc(d[1]) + '</small></span><em>' + d[3] + '</em>';
+      li.addEventListener('pointermove', function () { if (act !== i) { act = i; mark(); } });
+      li.addEventListener('mousedown', function (e) { e.preventDefault(); choose(i); });
+      list.appendChild(li);
+    });
+    mark();
+  }
+  // 입력한 글자 뒤로, 첫 번째 후보의 남은 글자를 흐리게 겹쳐 보여 줍니다
+  function mark() {
+    hl.style.setProperty('--i', act);
+    Array.prototype.forEach.call(list.querySelectorAll('.u034-o'), function (li, i) { li.setAttribute('aria-selected', String(i === act)); });
+    if (shown[act]) input.setAttribute('aria-activedescendant', uid + '-' + act); else input.removeAttribute('aria-activedescendant');
+    var q = input.value, d = shown[act];
+    ghost.innerHTML = d && q && d[0].indexOf(q) === 0 && d[0] !== q ? '<b>' + esc(q) + '</b>' + esc(d[0].slice(q.length)) + ' (' + d[2] + ')' : '';
+  }
+  function choose(i) {
+    var d = shown[i];
+    if (!d) return;
+    input.value = d[0] + ' · ' + d[1];
+    code.textContent = d[2];
+    root.classList.add('is-set');
+    ghost.innerHTML = '';
+  }
+  input.addEventListener('input', function () { root.classList.remove('is-set'); render(); });
+  input.addEventListener('keydown', function (e) {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'ArrowDown' && shown.length) { e.preventDefault(); act = (act + 1) % shown.length; mark(); }
+    else if (e.key === 'ArrowUp' && shown.length) { e.preventDefault(); act = (act - 1 + shown.length) % shown.length; mark(); }
+    else if (e.key === 'Enter') { e.preventDefault(); choose(act); }
+    else if (e.key === 'Tab' && ghost.textContent && !e.shiftKey) { e.preventDefault(); choose(act); }
+    else if (e.key === 'Escape') { e.preventDefault(); input.value = ''; root.classList.remove('is-set'); render(); }
+  });
+  render();
+})();
+</script>

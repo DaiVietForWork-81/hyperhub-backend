@@ -1,0 +1,106 @@
+<!-- @meta {"title":"기울어지는 값 말풍선 슬라이더","category":"토글·선택","summary":"손잡이를 끄는 속도만큼 위의 값 말풍선이 반대쪽으로 기울어졌다가, 멈추면 탄성 있게 바로 섭니다. 채움 막대와 눈금이 값에 맞춰 함께 반응합니다.","hint":"손잡이를 빠르게 좌우로 끌어 보세요. 방향키와 PageUp·PageDown도 됩니다","shape":"square","hue":"#3D8BFF","hue2":"#8B6CFF","tags":["slider","range","bubble","physics","drag"]} -->
+<!-- @demo [["wait",500],["drag",".u017-track",0,[0.45,0.5],[0.9,0.5],650],["wait",700],["drag",".u017-track",0,[0.9,0.5],[0.12,0.5],850],["wait",700],["drag",".u017-track",0,[0.12,0.5],[0.45,0.5],600],["wait",1400]] -->
+<!-- @en {"title":"Tilting value bubble slider","summary":"The value bubble above leans away from the direction you drag, as far as your speed, then springs upright when you stop. The fill bar and the tick labels respond to the value too.","hint":"Drag the handle quickly left and right. Arrow keys and PageUp/PageDown work too","map":[
+  ["한 달 광고 예산", "Monthly ad budget"],
+  ["최대 100만 원", "Up to $1,000"],
+  ["450,000원", "$450"],
+  ["45만 원", "$450"],
+  ["<span>0</span><span>25만</span><span>50만</span><span>75만</span><span>100만</span>", "<span>$0</span><span>$250</span><span>$500</span><span>$750</span><span>$1K</span>"],
+  ["v.toLocaleString('ko-KR') + '원'", "'$' + (v / 1000).toLocaleString('en-US')"],
+  ["(v / 10000) + '만 원'", "'$' + (v / 1000)"]
+]} -->
+<style>
+.u017{position:relative;width:330px;height:210px;display:flex;flex-direction:column;justify-content:center;padding:0 24px}
+.u017-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:58px}
+.u017-head b{font-size:16px;font-weight:720;letter-spacing:-.02em}
+.u017-head span{font-size:13px;color:var(--ux-ink-3)}
+.u017-track{position:relative;height:12px;border-radius:999px;background:var(--ux-surface-3);box-shadow:inset 0 1px 2px rgba(0,0,0,.08);cursor:pointer;touch-action:none}
+.u017-fill{position:absolute;left:0;top:0;bottom:0;width:calc(var(--v) * 100%);border-radius:inherit;background:linear-gradient(90deg,#8B6CFF,#4F8DFF)}
+.u017-fill::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg,rgba(255,255,255,.35),transparent 60%)}
+.u017-thumb{position:absolute;left:calc(var(--v) * 100%);top:50%;width:32px;height:32px;margin:-16px 0 0 -16px;border-radius:50%;background:#fff;cursor:grab;
+  box-shadow:0 0 0 3px #4F8DFF,0 8px 18px -6px rgba(40,60,160,.5);transition:transform .35s var(--ux-spring),box-shadow .3s var(--ux-ease)}
+.u017-thumb:hover{transform:scale(1.08)}
+.u017.is-drag .u017-thumb{cursor:grabbing;transform:scale(1.15);box-shadow:0 0 0 3px #4F8DFF,0 0 0 10px color-mix(in srgb,#4F8DFF 18%,transparent),0 8px 18px -6px rgba(40,60,160,.5)}
+.u017-thumb:focus-visible{outline:none;box-shadow:0 0 0 3px #4F8DFF,0 0 0 8px color-mix(in srgb,var(--ux-accent) 35%,transparent)}
+/* 말풍선: 아래 꼭지를 축으로 기울어집니다 */
+.u017-bub{position:absolute;left:calc(var(--v) * 100%);bottom:28px;transform-origin:50% 100%;transform:translateX(-50%) rotate(var(--tilt,0deg)) scale(var(--bs,1));transition:transform .55s var(--ux-spring);pointer-events:none}
+.u017.is-drag .u017-bub{--bs:1.1;transition:transform .12s linear}
+.u017-bub span{display:block;padding:9px 14px;border-radius:14px;background:var(--ux-ink);color:var(--ux-page);font-size:16px;font-weight:760;letter-spacing:-.02em;white-space:nowrap;font-variant-numeric:tabular-nums;box-shadow:0 12px 24px -12px var(--ux-shadow-strong)}
+.u017-bub::after{content:"";position:absolute;left:50%;bottom:-5px;width:12px;height:12px;margin-left:-6px;border-radius:2px;background:var(--ux-ink);transform:rotate(45deg)}
+.u017-ticks{display:flex;justify-content:space-between;margin-top:18px;font-size:12px;font-weight:600;color:var(--ux-ink-3);font-variant-numeric:tabular-nums}
+.u017-ticks span{position:relative;transition:color .3s var(--ux-ease)}
+.u017-ticks span.on{color:var(--ux-ink)}
+.u017-ticks span::before{content:"";position:absolute;left:50%;top:-10px;width:2px;height:5px;margin-left:-1px;border-radius:1px;background:currentColor;opacity:.6}
+</style>
+<div class="ux u017" style="--v:.45">
+  <div class="u017-head"><b>한 달 광고 예산</b><span>최대 100만 원</span></div>
+  <div class="u017-track">
+    <span class="u017-fill" aria-hidden="true"></span>
+    <span class="u017-bub" aria-hidden="true"><span class="u017-val">450,000원</span></span>
+    <span class="u017-thumb" role="slider" tabindex="0" aria-label="한 달 광고 예산" aria-valuemin="0" aria-valuemax="1000000" aria-valuenow="450000" aria-valuetext="45만 원"></span>
+  </div>
+  <div class="u017-ticks" aria-hidden="true"><span>0</span><span>25만</span><span>50만</span><span>75만</span><span>100만</span></div>
+</div>
+<script>
+(function () {
+  var root = document.currentScript.previousElementSibling;
+  var track = root.querySelector('.u017-track');
+  var thumb = root.querySelector('.u017-thumb');
+  var bub = root.querySelector('.u017-bub');
+  var out = root.querySelector('.u017-val');
+  var ticks = Array.prototype.slice.call(root.querySelectorAll('.u017-ticks span'));
+  var rm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var MAX = 1000000, STEP = 10000;
+  var v = 450000, lastX = 0, lastT = 0, still = 0;
+  function render() {
+    var p = v / MAX;
+    root.style.setProperty('--v', p.toFixed(4));
+    out.textContent = v.toLocaleString('ko-KR') + '원';
+    thumb.setAttribute('aria-valuenow', String(v));
+    thumb.setAttribute('aria-valuetext', (v / 10000) + '만 원');
+    ticks.forEach(function (t, i) { t.classList.toggle('on', i / 4 <= p + 0.001); });
+  }
+  // 움직이는 속도에 비례해 말풍선이 반대쪽으로 기울고, 멈추면 0도로 돌아옵니다
+  function tilt(deg) {
+    if (rm) return;
+    bub.style.setProperty('--tilt', Math.max(-22, Math.min(22, deg)).toFixed(1) + 'deg');
+    clearTimeout(still);
+    still = setTimeout(function () { bub.style.setProperty('--tilt', '0deg'); }, 90);
+  }
+  function fromX(x) {
+    var r = track.getBoundingClientRect();
+    var p = Math.max(0, Math.min(1, (x - r.left) / r.width));
+    v = Math.round(p * MAX / STEP) * STEP;
+    render();
+  }
+  track.addEventListener('pointerdown', function (e) {
+    if (e.button !== 0) return;
+    track.setPointerCapture(e.pointerId);
+    root.classList.add('is-drag');
+    lastX = e.clientX; lastT = performance.now();
+    fromX(e.clientX);
+    thumb.focus({ preventScroll: true });
+  });
+  track.addEventListener('pointermove', function (e) {
+    if (!track.hasPointerCapture(e.pointerId)) return;
+    var now = performance.now();
+    var vel = (e.clientX - lastX) / Math.max(8, now - lastT);
+    lastX = e.clientX; lastT = now;
+    tilt(-vel * 14);
+    fromX(e.clientX);
+  });
+  function end() { root.classList.remove('is-drag'); bub.style.setProperty('--tilt', '0deg'); }
+  track.addEventListener('pointerup', end);
+  track.addEventListener('pointercancel', end);
+  thumb.addEventListener('keydown', function (e) {
+    var d = { ArrowRight: STEP, ArrowUp: STEP, ArrowLeft: -STEP, ArrowDown: -STEP, PageUp: 100000, PageDown: -100000 }[e.key];
+    if (e.key === 'Home') d = -MAX; if (e.key === 'End') d = MAX;
+    if (!d) return;
+    e.preventDefault();
+    v = Math.max(0, Math.min(MAX, v + d));
+    tilt(d > 0 ? -9 : 9);
+    render();
+  });
+  render();
+})();
+</script>

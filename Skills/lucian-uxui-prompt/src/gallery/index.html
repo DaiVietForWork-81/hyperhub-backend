@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lucian UX/UI Prompt</title>
+<meta name="description" content="바로 눌러 볼 수 있는 UX/UI 요소 200개. 다크·라이트 테마와 실제 코드, 적용 프롬프트를 함께 제공합니다.">
+<link rel="icon" href="data:,">
+<script>
+/* 첫 화면을 그리기 전에 테마와 언어를 정합니다.
+   언어: 저장한 값 → 한국 시간대(Asia/Seoul)이거나 브라우저 첫 언어가 한국어면 한국어 → 그 밖에는 영어 */
+(function(){var r=document.documentElement;r.classList.add('js');
+try{var s=localStorage.getItem('ux-gallery-theme');if(s==='dark'||s==='light')r.setAttribute('data-theme',s)}catch(e){}
+var l=null;try{l=localStorage.getItem('ux-gallery-lang')}catch(e){}
+if(l!=='ko'&&l!=='en'){var tz='';try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||''}catch(e){}
+var first=(navigator.languages&&navigator.languages[0])||navigator.language||'';
+l=(tz==='Asia/Seoul'||/^ko\b/i.test(first))?'ko':'en'}
+r.setAttribute('lang',l);if(l==='en')r.classList.add('i18n-wait')})();
+</script>
+<style>
+/*@TOKENS@*/
+</style>
+<style>
+/*@GALLERY_CSS@*/
+</style>
+</head>
+<body data-view="grid">
+<a class="g-skip" href="#grid" data-i18n="skip">요소 목록으로 건너뛰기</a>
+
+<header class="g-head" id="top">
+  <div class="g-head-line">
+    <a class="g-brand" href="#top" aria-label="Lucian UX/UI Prompt, 맨 위로" data-i18n-attr="aria-label:brand">
+      <span class="g-orb" aria-hidden="true"></span>
+      <span class="g-brand-t">lucianLabs</span>
+      <span class="g-brand-s">UX/UI Prompt</span>
+    </a>
+    <div class="g-head-r">
+      <button class="g-link g-link--skill" type="button" id="to-skill" data-i18n="skillBtn">에이전트 스킬</button>
+      <button class="g-link" type="button" id="to-guide" data-i18n="guideBtn">적용 방법</button>
+      <div class="g-lang" role="group" aria-label="언어" data-i18n-attr="aria-label:langGroup">
+        <span class="g-lang-pill" aria-hidden="true"></span>
+        <svg class="g-lang-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5S9.6 5.8 12 3.5z"/></svg>
+        <button class="g-lang-b" type="button" data-lang="ko" lang="ko" aria-pressed="true" aria-label="한국어">KO</button>
+        <button class="g-lang-b" type="button" data-lang="en" lang="en" aria-pressed="false" aria-label="English">EN</button>
+      </div>
+    </div>
+  </div>
+  <div class="g-intro">
+    <h1 class="g-intro-t" aria-label="Lucian UX/UI Prompt" data-i18n-attr="aria-label:h1">
+      <span class="g-w" aria-hidden="true" data-i18n="w1">Lucian</span>
+      <span class="g-w" aria-hidden="true" data-i18n="w2">UX/UI</span>
+      <b class="g-w" aria-hidden="true" data-i18n="w3">Prompt</b>
+    </h1>
+    <div class="g-intro-r">
+      <p class="g-intro-s" data-i18n="intro">버튼과 차트부터 디자인 도구, 문서 편집, 데이터 분석, 업무 화면까지 지금 바로 눌러 볼 수 있는 인터페이스 200개. 화면에 보이면 스스로 움직이고, 직접 누르면 바로 써 볼 수 있어요. 마음에 들면 프롬프트나 코드로 그대로 가져가세요.</p>
+      <p class="g-intro-meta"><span id="count-wrap"><b id="count">200</b>개</span><span class="g-dot" aria-hidden="true"></span><span data-i18n="metaTheme">다크 · 라이트</span><span class="g-dot" aria-hidden="true"></span><span data-i18n="metaCode">코드 포함</span></p>
+      <div class="g-install"><p class="g-install-cmd"><code>npx skills add Seokwoooo/lucian-uxui</code><button class="g-cmd-c" type="button" data-copy aria-label="명령 복사" data-i18n-attr="aria-label:copyCmd"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/></svg></button></p><a class="g-gh" href="https://github.com/Seokwoooo/lucian-uxui-prompt" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a></div>
+      <p class="g-intro-links"><button class="g-intro-link" type="button" data-open-skill data-i18n="skillBtnLong">에이전트 스킬로 쓰기 →</button></p>
+    </div>
+  </div>
+</header>
+
+<div class="g-bar" id="bar">
+  <div class="g-bar-in">
+    <nav class="g-cats" id="cats" aria-label="분류" data-i18n-attr="aria-label:cats">
+      <span class="g-cats-pill" aria-hidden="true"></span>
+    </nav>
+    <div class="g-tools">
+      <div class="g-search" id="search">
+        <button class="g-tool g-search-btn" type="button" id="search-btn" aria-label="검색 열기" data-i18n-attr="aria-label:searchOpen" aria-expanded="false" aria-controls="q">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.2 4.2"/></svg>
+        </button>
+        <input id="q" type="search" placeholder="버튼, 차트, 로그인…" autocomplete="off" aria-label="요소 검색" data-i18n-attr="placeholder:searchPh;aria-label:searchLabel" tabindex="-1">
+      </div>
+      <button class="g-tool g-auto" type="button" data-auto aria-pressed="true" aria-label="자동 재생">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path class="g-auto-play" d="M8.5 6.2v11.6l9.2-5.8z"/><path class="g-auto-pause" d="M8.5 6.5v11M15.5 6.5v11"/></svg>
+      </button>
+      <button class="g-tool g-tool--label" type="button" id="to-reel" aria-label="릴스로 크게 넘겨 보기" data-i18n-attr="aria-label:reelBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3.5" width="12" height="17" rx="3"/><path d="M10.5 9.6v4.8l4-2.4z" fill="currentColor" stroke="none"/></svg>
+        <span data-i18n="reelLabel">릴스</span>
+      </button>
+      <button class="g-tool g-theme" type="button" id="theme" aria-label="다크 테마로 전환">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <mask id="g-moon-mask"><rect width="24" height="24" fill="#fff"/><circle class="g-moon-cut" cx="24" cy="4" r="7" fill="#000"/></mask>
+          <circle class="g-sun-core" cx="12" cy="12" r="5" mask="url(#g-moon-mask)" fill="currentColor" stroke="none"/>
+          <g class="g-sun-rays"><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></g>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<main class="g-grid" id="grid" aria-label="UI 요소" data-i18n-attr="aria-label:grid"><!--@GRID_TILES@--></main>
+<div class="g-more" id="more" aria-hidden="true"></div>
+<div class="g-empty" id="empty" hidden>
+  <p class="g-empty-t" data-i18n="emptyT">맞는 요소가 없어요</p>
+  <p class="g-empty-s" data-i18n="emptyS">다른 단어로 찾거나 분류를 ‘전체’로 바꿔 보세요.</p>
+  <button class="g-btn" type="button" id="empty-reset" data-i18n="emptyB">검색 지우기</button>
+</div>
+
+<!-- 릴스: 한 화면에 요소 하나. 위아래로 넘깁니다 -->
+<div class="g-reel" id="reel" role="region" aria-label="UI 요소 릴스" data-i18n-attr="aria-label:reel" aria-hidden="true"></div>
+<nav class="g-hud" id="hud" aria-label="릴스 도구" data-i18n-attr="aria-label:hud">
+  <button class="g-hud-b" type="button" data-act="back" aria-label="그리드로 돌아가기" data-i18n-attr="aria-label:back">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg>
+    <span data-i18n="backText">그리드</span>
+  </button>
+  <div class="g-prog" aria-live="polite"><span id="prog-n">001</span><i><b id="prog-bar"></b></i><span id="prog-t">200</span></div>
+  <div class="g-hud-r">
+    <button class="g-hud-b g-hud-ic g-auto" type="button" data-auto aria-pressed="true" aria-label="자동 재생">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path class="g-auto-play" d="M8.5 6.2v11.6l9.2-5.8z"/><path class="g-auto-pause" d="M8.5 6.5v11M15.5 6.5v11"/></svg>
+    </button>
+    <button class="g-hud-b g-hud-ic g-hud-theme" type="button" data-act="theme" aria-label="테마 전환">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" fill="currentColor"/></svg>
+    </button>
+  </div>
+</nav>
+
+<dialog class="g-dlg g-dlg--prompt" id="dlg-prompt" aria-labelledby="pr-title">
+  <div class="g-dlg-head">
+    <div>
+      <p class="g-dlg-kicker"><span id="pr-num"></span> · <span id="pr-cat"></span></p>
+      <h2 class="g-dlg-title" id="pr-title"></h2>
+    </div>
+    <button class="g-x" type="button" data-close aria-label="닫기" data-i18n-attr="aria-label:close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="g-seg" role="tablist" aria-label="보기 전환" data-i18n-attr="aria-label:seg">
+    <button class="g-seg-b" type="button" role="tab" id="tab-prompt" aria-selected="true" aria-controls="pr-text" data-i18n="tabPrompt">적용 프롬프트</button>
+    <button class="g-seg-b" type="button" role="tab" id="tab-code" aria-selected="false" aria-controls="pr-text" data-i18n="tabCode">코드</button>
+    <span class="g-seg-pill" aria-hidden="true"></span>
+  </div>
+  <textarea class="g-code" id="pr-text" readonly spellcheck="false" aria-label="적용 프롬프트" role="tabpanel"></textarea>
+  <p class="g-dlg-skill"><span data-i18n="skillLine">에이전트 스킬로 부르기</span><code id="pr-skill"></code><button class="g-cmd-c" type="button" data-copy aria-label="명령 복사" data-i18n-attr="aria-label:copyCmd"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/></svg></button><button class="g-link-s" type="button" data-open-skill data-i18n="skillHow">설치 방법</button></p>
+  <div class="g-dlg-foot">
+    <span class="g-dlg-hint" id="pr-hint"></span>
+    <div class="g-dlg-acts">
+      <button class="g-btn" type="button" id="pr-dl">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14"/></svg><span data-i18n="dl">코드 파일 받기</span>
+      </button>
+      <button class="g-btn g-btn--pri" type="button" id="pr-copy">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/></svg><span>프롬프트 복사</span>
+      </button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="g-dlg g-dlg--guide" id="dlg-guide" aria-labelledby="guide-title">
+  <div class="g-dlg-head">
+    <div>
+      <p class="g-dlg-kicker" data-i18n="guideKick">적용 방법</p>
+      <h2 class="g-dlg-title" id="guide-title" data-i18n="guideTitle">이렇게 가져가세요</h2>
+    </div>
+    <button class="g-x" type="button" data-close aria-label="닫기" data-i18n-attr="aria-label:close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <ol class="g-steps" id="guide-steps">
+    <li><b>보고, 직접 눌러 보세요.</b> 요소는 화면에 보이면 스스로 조작 시연을 반복합니다. 요소를 직접 누르거나 키보드로 들어가면 시연이 멈추고, 손을 떼고 잠시 지나면 처음부터 다시 시작합니다.</li>
+    <li><b>프롬프트 복사</b>에는 요소의 실행 코드 전체와 적용 지침이 들어 있습니다. 프로젝트의 AI 도구에 붙여넣고 삽입 위치만 채우면 됩니다.</li>
+    <li><b>코드 파일 받기</b>는 같은 요소를 단독 HTML로 저장합니다. 라이트·다크 토큰이 함께 들어 있어 바로 열어 볼 수 있습니다.</li>
+    <li>언어·테마·자동 재생은 위쪽 버튼에서 바꿀 수 있고, 고른 값은 다음 방문에도 유지됩니다.</li>
+  </ol>
+  <section class="g-skill" id="guide-skill" aria-labelledby="skill-title" tabindex="-1">
+    <h3 class="g-skill-t" id="skill-title" data-i18n="skillTitle">AI 에이전트에게 맡기기</h3>
+    <p class="g-skill-p" data-i18n="skillLead">lucian-uxui 스킬을 설치하면 Claude Code, Codex 같은 코딩 에이전트가 이 갤러리에서 맞는 요소를 찾아 프로젝트에 옮겨 넣습니다.</p>
+    <ul class="g-cmds">
+      <li><span class="g-cmd-l" data-i18n="skillAny">모든 에이전트</span><code>npx skills add Seokwoooo/lucian-uxui</code><button class="g-cmd-c" type="button" data-copy aria-label="명령 복사" data-i18n-attr="aria-label:copyCmd"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/></svg></button></li>
+      <li><span class="g-cmd-l" data-i18n="skillPlugin">Claude Code 플러그인</span><code>/plugin marketplace add Seokwoooo/lucian-uxui</code><button class="g-cmd-c" type="button" data-copy aria-label="명령 복사" data-i18n-attr="aria-label:copyCmd"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/></svg></button></li>
+      <li><span class="g-cmd-l" aria-hidden="true"></span><code>/plugin install lucian-uxui@lucian-uxui</code><button class="g-cmd-c" type="button" data-copy aria-label="명령 복사" data-i18n-attr="aria-label:copyCmd"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/></svg></button></li>
+    </ul>
+    <dl class="g-skill-use">
+      <dt data-i18n="useAsk">말로 부탁하기</dt><dd data-i18n="useAskEx">“lucian-uxui 스킬로 요금제 토글이랑 FAQ 넣어줘”</dd>
+      <dt data-i18n="usePick">번호로 고르기</dt><dd data-i18n="usePickEx">“lucian-uxui 스킬로 056번 요소 넣어줘”</dd>
+      <dt data-i18n="useCall">바로 부르기</dt><dd data-i18n-html="useCallEx">Claude Code <code>/lucian-uxui</code> (플러그인은 <code>/lucian-uxui:lucian-uxui</code>) · Codex <code>$lucian-uxui</code></dd>
+    </dl>
+    <p class="g-skill-links"><a href="https://github.com/Seokwoooo/lucian-uxui" target="_blank" rel="noopener">GitHub</a><a href="https://lucianlabs.dev/uxui-prompt/introducing/#ch-skill" data-i18n="skillMore">자세히 보기</a></p>
+  </section>
+  <p class="g-note" data-i18n-html="guideNote">개발 메모 · 요소마다 <code>.ux</code>와 <code>.uNNN</code> 접두사 안에서만 스타일과 스크립트가 동작합니다. 색은 <code>--ux-*</code> 토큰을 쓰므로 프로젝트 테마 변수에 연결하면 됩니다.</p>
+</dialog>
+
+<div class="g-toast" id="toast" role="status" aria-live="polite"></div>
+
+<script id="ux-data" type="application/json">__UX_DATA__</script>
+<script>
+/*@GALLERY_JS@*/
+</script>
+</body>
+</html>

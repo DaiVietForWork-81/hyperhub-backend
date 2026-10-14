@@ -1,0 +1,107 @@
+<!-- Lucian UX/UI Prompt #068 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#068 -->
+<!--
+Element: 끝까지 읽고 동의하는 약관
+ID: 068 · Category: 로그인·가입 · Tags: terms, consent, scroll, checkbox, select-all
+What it does: 약관 본문을 내리는 만큼 테두리 막대가 차오르고, 끝에 닿으면 잠겨 있던 필수 동의가 풀리며 체크가 튀어 나옵니다. ‘모두 동의’는 아래 항목들을 차례로 체크하고, 필수를 모두 고르면 시작 버튼이 켜집니다.
+How to use it: 약관 상자를 끝까지 스크롤한 뒤 ‘모두 동의’나 각 항목을 눌러 보세요. 다 읽기 전에는 필수 항목이 잠겨 있습니다
+Footprint: fixed size, tall
+Needs: tokens.css (the --ux-* theme tokens and the .ux base). Map the tokens to the project's theme variables.
+Live demo: https://lucianlabs.dev/uxui-prompt/#068
+-->
+<style>
+.u068{position:relative;width:340px;height:500px;display:flex;flex-direction:column;padding:24px 22px 22px;border-radius:30px;background:var(--ux-surface);box-shadow:0 0 0 1px var(--ux-line),0 30px 60px -36px var(--ux-shadow-strong);overflow:hidden}
+.u068 h3{margin:0;font-size:21px;font-weight:850;letter-spacing:-.045em}
+.u068-doc{position:relative;height:150px;margin-top:14px;border-radius:18px;background:var(--ux-surface-2);overflow:hidden}
+.u068-doc::after{content:"";position:absolute;left:0;bottom:0;width:100%;height:3px;background:var(--ux-grad);transform-origin:0 50%;transform:scaleX(var(--p,0))}
+.u068-txt{height:100%;overflow-y:auto;padding:14px 16px;font-size:12.5px;line-height:1.65;color:var(--ux-ink-2);overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--ux-line-2) transparent}
+.u068-txt:focus-visible{outline:2px solid var(--ux-accent);outline-offset:-3px;border-radius:18px}
+.u068-txt b{display:block;margin:10px 0 2px;font-size:13px;color:var(--ux-ink)}
+.u068-txt b:first-child{margin-top:0}
+.u068-txt p{margin:0}
+.u068-read{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;font-weight:700;color:var(--ux-ink-3);transition:color .3s}
+.u068-read i{width:8px;height:8px;border-radius:50%;background:var(--ux-line-2);transition:background-color .3s,transform .4s var(--ux-spring)}
+.u068.is-read .u068-read{color:var(--ux-mint)}
+.u068.is-read .u068-read i{background:var(--ux-mint);transform:scale(1.3)}
+.u068-list{margin:12px 0 0;padding:0;list-style:none}
+.u068-c{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 4px;border-radius:12px;cursor:pointer;font-size:14px;font-weight:650;color:var(--ux-ink-2);transition:opacity .3s}
+.u068-c.all{min-height:54px;padding:0 14px;margin-bottom:6px;border-radius:16px;background:var(--ux-surface-2);font-size:15px;font-weight:780;color:var(--ux-ink)}
+.u068-c input{position:absolute;opacity:0;pointer-events:none}
+.u068-c:has(input:disabled){opacity:.45;cursor:not-allowed}
+.u068-c:has(input:focus-visible) .u068-box{outline:2px solid var(--ux-accent);outline-offset:2px}
+.u068-box{position:relative;width:24px;height:24px;flex:none;border-radius:8px;box-shadow:inset 0 0 0 2px var(--ux-line-2);transition:background-color .25s,box-shadow .25s,transform .35s var(--ux-spring)}
+.u068-box svg{position:absolute;inset:3px;width:18px;height:18px;fill:none;stroke:var(--ux-accent-ink);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.u068-box path{stroke-dasharray:18;stroke-dashoffset:18;transition:stroke-dashoffset .3s var(--ux-ease) .05s}
+.u068-c:has(input:checked) .u068-box{background:var(--ux-accent);box-shadow:none;animation:u068-pop .4s var(--ux-spring)}
+.u068-c:has(input:checked) .u068-box path{stroke-dashoffset:0}
+@keyframes u068-pop{40%{transform:scale(1.18)}}
+.u068-c em{margin-left:auto;font-style:normal;font-size:11.5px;font-weight:800;color:var(--ux-ink-3)}
+.u068-c em.req{color:var(--ux-accent)}
+.u068-lock{width:14px;height:14px;margin-left:-6px;fill:none;stroke:currentColor;stroke-width:2;transition:opacity .3s,transform .4s var(--ux-spring)}
+.u068.is-read .u068-lock{opacity:0;transform:scale(0)}
+.u068-go{height:54px;margin-top:auto;border:0;border-radius:17px;font-size:15.5px;font-weight:760;background:var(--ux-surface-2);color:var(--ux-ink-3);transition:background-color .35s,color .35s,transform .3s var(--ux-spring)}
+.u068-go[aria-disabled="false"]{background:var(--ux-ink);color:var(--ux-page)}
+.u068-go[aria-disabled="false"]:active{transform:scale(.97)}
+.u068-go:focus-visible{outline:2px solid var(--ux-accent);outline-offset:3px}
+</style>
+<div class="ux u068">
+  <h3>약관을 확인해 주세요</h3>
+  <div class="u068-doc"><div class="u068-txt" tabindex="0" role="document" aria-label="서비스 이용약관 본문">
+    <b>제1조 목적</b><p>이 약관은 Lumen이 제공하는 서비스를 이용하는 데 필요한 권리와 의무를 정합니다.</p>
+    <b>제2조 계정</b><p>회원은 하나의 이메일로 하나의 계정을 만들 수 있으며, 계정 정보를 안전하게 지킬 책임이 있습니다.</p>
+    <b>제3조 콘텐츠</b><p>회원이 올린 파일의 권리는 회원에게 있습니다. 회사는 서비스를 제공하는 데 필요한 범위에서만 이를 사용합니다.</p>
+    <b>제4조 개인정보</b><p>회사는 가입과 결제에 필요한 최소한의 정보만 모으며, 목적을 다하면 지체 없이 파기합니다.</p>
+    <b>제5조 해지</b><p>회원은 언제든 설정에서 탈퇴할 수 있고, 남은 데이터는 30일 뒤 완전히 지워집니다.</p>
+  </div></div>
+  <div class="u068-read" aria-live="polite"><i aria-hidden="true"></i><span>끝까지 읽으면 필수 동의가 열려요</span></div>
+  <ul class="u068-list">
+    <li><label class="u068-c all"><input type="checkbox" class="u068-all"><span class="u068-box" aria-hidden="true"><svg viewBox="0 0 18 18"><path d="M3.5 9.4l3.4 3.4L14.5 5"/></svg></span>모두 동의하기</label></li>
+    <li><label class="u068-c"><input type="checkbox" data-req="1" disabled><span class="u068-box" aria-hidden="true"><svg viewBox="0 0 18 18"><path d="M3.5 9.4l3.4 3.4L14.5 5"/></svg></span>서비스 이용약관<svg class="u068-lock" viewBox="0 0 14 14" aria-hidden="true"><rect x="2.5" y="6" width="9" height="6.5" rx="1.5"/><path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6"/></svg><em class="req">필수</em></label></li>
+    <li><label class="u068-c"><input type="checkbox" data-req="1" disabled><span class="u068-box" aria-hidden="true"><svg viewBox="0 0 18 18"><path d="M3.5 9.4l3.4 3.4L14.5 5"/></svg></span>개인정보 수집·이용<svg class="u068-lock" viewBox="0 0 14 14" aria-hidden="true"><rect x="2.5" y="6" width="9" height="6.5" rx="1.5"/><path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6"/></svg><em class="req">필수</em></label></li>
+    <li><label class="u068-c"><input type="checkbox"><span class="u068-box" aria-hidden="true"><svg viewBox="0 0 18 18"><path d="M3.5 9.4l3.4 3.4L14.5 5"/></svg></span>새 소식 메일 받기<em>선택</em></label></li>
+  </ul>
+  <button class="u068-go" type="button" aria-disabled="true">동의하고 시작하기</button>
+</div>
+<script>
+(function () {
+  var root = document.currentScript.previousElementSibling;
+  var txt = root.querySelector('.u068-txt'), doc = root.querySelector('.u068-doc'), readMsg = root.querySelector('.u068-read span');
+  var all = root.querySelector('.u068-all'), subs = Array.prototype.slice.call(root.querySelectorAll('.u068-list input:not(.u068-all)'));
+  var go = root.querySelector('.u068-go');
+  var read = false, ts = [];
+  // 읽은 만큼 아래 막대를 채우고, 끝에 닿으면 필수 항목을 풉니다
+  txt.addEventListener('scroll', function () {
+    var max = txt.scrollHeight - txt.clientHeight, p = max > 0 ? txt.scrollTop / max : 1;
+    doc.style.setProperty('--p', Math.min(1, p).toFixed(3));
+    if (!read && p > 0.97) {
+      read = true;
+      root.classList.add('is-read');
+      readMsg.textContent = '끝까지 읽었어요 · 이제 동의할 수 있어요';
+      subs.forEach(function (s) { s.disabled = false; });
+      all.disabled = false;
+    }
+  }, { passive: true });
+  function sync() {
+    var on = subs.filter(function (s) { return s.checked; }).length;
+    all.checked = on === subs.length;
+    all.indeterminate = on > 0 && on < subs.length;
+    var ok = subs.every(function (s) { return !s.getAttribute('data-req') || s.checked; });
+    go.setAttribute('aria-disabled', String(!ok));
+  }
+  // ‘모두 동의’는 항목을 위에서부터 하나씩 차례로 체크합니다
+  all.addEventListener('change', function () {
+    var v = all.checked;
+    if (!read) { all.checked = false; txt.animate([{ transform: 'translateX(-5px)' }, { transform: 'translateX(4px)' }, { transform: 'none' }], { duration: 300 }); readMsg.textContent = '먼저 약관을 끝까지 내려 주세요'; return; }
+    ts.forEach(clearTimeout); ts = [];
+    subs.forEach(function (s, i) { ts.push(setTimeout(function () { if (!root.isConnected) return; s.checked = v; sync(); }, i * 90)); });
+  });
+  subs.forEach(function (s) { s.addEventListener('change', sync); });
+  go.addEventListener('click', function () {
+    if (go.getAttribute('aria-disabled') === 'true') {
+      if (!read) txt.focus();
+      go.animate([{ transform: 'translateX(-5px)' }, { transform: 'translateX(4px)' }, { transform: 'none' }], { duration: 300 });
+      return;
+    }
+    go.textContent = '환영해요!';
+  });
+})();
+</script>

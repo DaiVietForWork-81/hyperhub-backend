@@ -1,0 +1,136 @@
+<!-- @meta {"title":"송금 금액 입력","category":"입력·검색","summary":"숫자를 칠 때마다 바뀐 자리만 아래에서 튀어 오르고 천 단위 쉼표가 자연스럽게 끼어듭니다. 빠른 금액 칩으로 더할 수 있고, 잔액을 넘으면 금액이 붉게 흔들리며 보내기가 막힙니다.","hint":"큰 숫자를 눌러 금액을 입력하거나 아래 칩을 눌러 보세요. 잔액보다 크게 넣어 보세요","shape":"square","hue":"#22C3A6","hue2":"#3D8BFF","tags":["currency","amount","input","transfer","validation"]} -->
+<!-- @demo [["wait",600],["tap",".u035-chip",0],["wait",700],["tap",".u035-chip",2],["wait",800],["tap",".u035-amt"],["type",".u035-real",0,"0",100],["wait",1600],["erase",".u035-real",0,1,60],["wait",900],["tap",".u035-cur"],["wait",1300],["tap",".u035-cur"],["wait",600],["tap",".u035-send"],["wait",1900],["reset"]] -->
+<!-- @en {"title":"Money transfer amount","summary":"Only the digits that change pop up from below as you type, and thousands separators slip in naturally. Quick-amount chips add to it, and going over your balance turns the amount red with a shake and blocks Send.","hint":"Type an amount or press the chips below. Try going over the balance","map":[
+  ["<b>김서연</b>님에게 보내기", "Send to <b>Seoyeon Kim</b>"],
+  ["보낼 금액", "Amount to send"],
+  ["통화 바꾸기: 원화", "Switch currency: won"],
+  ["<span>원</span><span>$</span>", "<span>₩</span><span>$</span>"],
+  ["+1만", "+10K"],
+  ["+5만", "+50K"],
+  ["+10만", "+100K"],
+  ["전액", "All"],
+  ["'잔액보다 ' + (won - BAL).toLocaleString('ko-KR') + '원 많아요'", "'₩' + (won - BAL).toLocaleString('en-US') + ' over your balance'"],
+  ["'보낸 뒤 잔액 ' + (BAL - won).toLocaleString('ko-KR') + '원'", "'Balance after: ₩' + (BAL - won).toLocaleString('en-US')"],
+  ["'통화 바꾸기: ' + (usd ? '달러' : '원화')", "'Switch currency: ' + (usd ? 'dollars' : 'won')"],
+  ["send.textContent = (usd ? '$' + (won / RATE).toFixed(2) : won.toLocaleString('ko-KR') + '원') + ' 보냈어요';", "send.textContent = 'Sent ' + (usd ? '$' + (won / RATE).toFixed(2) : '₩' + won.toLocaleString('en-US'));"],
+  ["v.toLocaleString('ko-KR')", "v.toLocaleString('en-US')"],
+  ["보내기", "Send"]
+]} -->
+<style>
+.u035{position:relative;width:340px;height:340px;display:flex;flex-direction:column;align-items:center}
+.u035-to{display:flex;align-items:center;gap:10px;padding:6px 14px 6px 6px;border-radius:999px;background:var(--ux-surface);box-shadow:0 0 0 1px var(--ux-line);font-size:14px;font-weight:650;color:var(--ux-ink-2)}
+.u035-to i{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFD3A8,#FF7A93 60%,#8B6CFF)}
+.u035-to b{color:var(--ux-ink)}
+.u035-amt{position:relative;display:flex;align-items:baseline;justify-content:center;gap:6px;width:100%;height:84px;margin-top:22px;cursor:text;border-radius:18px}
+.u035-num{display:flex;align-items:baseline;height:64px;overflow:hidden;font-size:52px;font-weight:820;letter-spacing:-.05em;line-height:64px;font-variant-numeric:tabular-nums;color:var(--ux-ink);transition:color .3s var(--ux-ease)}
+.u035-num span{display:inline-block}
+.u035-num span.new{animation:u035-up .4s var(--ux-spring)}
+@keyframes u035-up{from{transform:translateY(60%);opacity:0}}
+.u035-num span.c{color:var(--ux-ink-3);font-weight:700}
+.u035-num .ph{color:var(--ux-ink-3)}
+.u035-caret{width:3px;height:46px;margin-left:3px;align-self:center;border-radius:2px;background:var(--ux-accent);opacity:0}
+.u035.is-focus .u035-caret{opacity:1;animation:u035-blink 1s steps(1) infinite}
+@keyframes u035-blink{50%{opacity:0}}
+.u035-cur{position:relative;width:46px;height:36px;border:0;padding:0;border-radius:12px;background:var(--ux-surface-2);font-size:17px;font-weight:760;color:var(--ux-ink-2);perspective:200px;transition:background-color .2s}
+.u035-cur:hover{background:var(--ux-surface-3)}
+.u035-cur:focus-visible{outline:2px solid var(--ux-accent);outline-offset:2px}
+.u035-cur span{position:absolute;inset:0;display:grid;place-items:center;backface-visibility:hidden;transition:transform .55s var(--ux-spring)}
+.u035-cur span+span{transform:rotateX(-180deg)}
+.u035.is-usd .u035-cur span:first-child{transform:rotateX(180deg)}
+.u035.is-usd .u035-cur span+span{transform:none}
+.u035-real{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;font-size:16px;cursor:text}
+.u035-sub{margin:6px 0 0;height:20px;font-size:13.5px;font-weight:600;color:var(--ux-ink-3);font-variant-numeric:tabular-nums;transition:color .3s}
+.u035.is-over .u035-num{color:var(--ux-danger)}
+.u035.is-over .u035-sub{color:var(--ux-danger)}
+.u035.is-shake .u035-amt{animation:u035-shake .42s var(--ux-ease)}
+@keyframes u035-shake{20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(2px)}}
+.u035-chips{display:flex;gap:6px;margin-top:22px}
+.u035-chip{height:38px;padding:0 14px;border:0;border-radius:12px;background:var(--ux-surface);box-shadow:inset 0 0 0 1px var(--ux-line-2);font-size:13.5px;font-weight:700;color:var(--ux-ink-2);transition:transform .35s var(--ux-spring),box-shadow .2s,color .2s}
+.u035-chip:hover{color:var(--ux-ink);box-shadow:inset 0 0 0 1px var(--ux-ink-3)}
+.u035-chip:active{transform:scale(.92)}
+.u035-chip:focus-visible{outline:2px solid var(--ux-accent);outline-offset:2px}
+.u035-send{width:100%;height:56px;margin-top:auto;border:0;border-radius:18px;background:var(--ux-mint);color:var(--ux-accent-ink);font-size:16px;font-weight:760;transition:opacity .3s,transform .35s var(--ux-spring),background-color .3s}
+.u035-send:active{transform:scale(.97)}
+.u035-send:focus-visible{outline:2px solid var(--ux-accent);outline-offset:3px}
+.u035-send[aria-disabled="true"]{opacity:.35}
+.u035-real:focus-visible{outline:none}
+.u035.is-focus .u035-amt{box-shadow:0 0 0 2px var(--ux-accent-soft)}
+</style>
+<div class="ux u035">
+  <span class="u035-to"><i aria-hidden="true"></i><b>김서연</b>님에게 보내기</span>
+  <div class="u035-amt">
+    <span class="u035-num" aria-hidden="true"></span><span class="u035-caret" aria-hidden="true"></span>
+    <input class="u035-real" type="text" inputmode="numeric" aria-label="보낼 금액" autocomplete="off">
+    <button class="u035-cur" type="button" aria-label="통화 바꾸기: 원화"><span>원</span><span>$</span></button>
+  </div>
+  <p class="u035-sub" aria-live="polite"></p>
+  <div class="u035-chips"><button class="u035-chip" type="button" data-add="10000">+1만</button><button class="u035-chip" type="button" data-add="50000">+5만</button><button class="u035-chip" type="button" data-add="100000">+10만</button><button class="u035-chip" type="button" data-all>전액</button></div>
+  <button class="u035-send" type="button">보내기</button>
+</div>
+<script>
+(function () {
+  var root = document.currentScript.previousElementSibling;
+  var num = root.querySelector('.u035-num');
+  var real = root.querySelector('.u035-real');
+  var sub = root.querySelector('.u035-sub');
+  var cur = root.querySelector('.u035-cur');
+  var send = root.querySelector('.u035-send');
+  var BAL = 1284000, RATE = 1380;
+  var won = 250000, usd = false, prev = '';
+  // 금액 문자열을 글자 단위로 그리고, 이전과 달라진 자리에만 튀어 오르는 효과를 줍니다
+  function draw() {
+    var v = usd ? (won / RATE) : won;
+    var s = usd ? v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v.toLocaleString('ko-KR');
+    if (!won) s = '0';
+    var p = prev;
+    num.innerHTML = '';
+    var off = s.length - p.length;
+    Array.from(s).forEach(function (ch, i) {
+      var sp = document.createElement('span');
+      sp.textContent = ch;
+      if (ch === ',' || ch === '.') sp.className = 'c';
+      if (!won) sp.classList.add('ph');
+      if (ch !== ',' && p[i - off] !== ch) sp.classList.add('new');
+      num.appendChild(sp);
+    });
+    prev = s;
+    var over = won > BAL;
+    root.classList.toggle('is-over', over);
+    sub.textContent = over ? '잔액보다 ' + (won - BAL).toLocaleString('ko-KR') + '원 많아요' : '보낸 뒤 잔액 ' + (BAL - won).toLocaleString('ko-KR') + '원';
+    send.setAttribute('aria-disabled', String(over || !won));
+    real.value = String(usd ? Math.round(won / RATE) : won);
+  }
+  function shake() { root.classList.remove('is-shake'); void root.offsetWidth; root.classList.add('is-shake'); }
+  real.addEventListener('focus', function () { root.classList.add('is-focus'); });
+  real.addEventListener('blur', function () { root.classList.remove('is-focus'); });
+  real.addEventListener('input', function () {
+    var digits = real.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 10);
+    var was = won > BAL;
+    won = digits ? parseInt(digits, 10) : 0;
+    if (usd) won = Math.round(won * RATE);
+    draw();
+    if (!was && won > BAL) shake();
+  });
+  Array.prototype.forEach.call(root.querySelectorAll('.u035-chip'), function (b) {
+    b.addEventListener('click', function () {
+      var was = won > BAL;
+      won = b.hasAttribute('data-all') ? BAL : Math.min(9999999999, won + (+b.dataset.add));
+      draw();
+      if (!was && won > BAL) shake();
+    });
+  });
+  cur.addEventListener('click', function () {
+    usd = !usd;
+    root.classList.toggle('is-usd', usd);
+    cur.setAttribute('aria-label', '통화 바꾸기: ' + (usd ? '달러' : '원화'));
+    prev = '';
+    draw();
+  });
+  send.addEventListener('click', function () {
+    if (send.getAttribute('aria-disabled') === 'true') { shake(); return; }
+    send.textContent = (usd ? '$' + (won / RATE).toFixed(2) : won.toLocaleString('ko-KR') + '원') + ' 보냈어요';
+    setTimeout(function () { if (root.isConnected) send.textContent = '보내기'; }, 1600);
+  });
+  draw();
+})();
+</script>

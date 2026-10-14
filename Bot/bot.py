@@ -112,7 +112,7 @@ COMMAND_ALLOWLIST = {
     "reload", "status",
     "kick", "ban", "unban", "mute", "unmute", "reset",
     "warn", "deletewarn", "warntest",
-    "timde", "layde", "timtailieu", "dongbokhode", "gothailieu",
+    "timde", "layde", "timtailieu", "dongbokhode", "gothailieu", "skills",
 }
 
 

@@ -1,0 +1,16 @@
+{
+  "name": "addy-web-quality-skills",
+  "owner": {
+    "name": "Addy Osmani"
+  },
+  "metadata": {
+    "description": "Measurement-first Agent Skills for Lighthouse, Chrome DevTools, Core Web Vitals, WCAG 2.2, SEO, and agentic browsing."
+  },
+  "plugins": [
+    {
+      "name": "web-quality-skills",
+      "source": "./",
+      "description": "Measured performance, Core Web Vitals, accessibility, SEO, best-practices, and agentic browsing skills for any web stack."
+    }
+  ]
+}

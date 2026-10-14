@@ -1,0 +1,116 @@
+<!-- @meta {"title":"별점 평가","category":"토글·선택","summary":"커서를 올린 만큼 별이 미리 차오르고, 누르면 왼쪽부터 차례로 튀어 오르며 반짝입니다. 점수에 맞는 한마디와 색이 함께 바뀝니다.","hint":"별 위로 커서를 움직여 보고 눌러서 점수를 매겨 보세요. 방향키로도 바꿀 수 있습니다","shape":"square","hue":"#FFB547","hue2":"#FF6B8B","tags":["rating","stars","hover","feedback","radio"]} -->
+<!-- @demo [["wait",400],["hover",".u016-s",0,{"after":160}],["hover",".u016-s",1,{"glide":160,"after":160}],["hover",".u016-s",2,{"glide":160,"after":160}],["hover",".u016-s",3,{"glide":160,"after":300}],["tap",".u016-s",3,{"glide":120}],["wait",1700],["tap",".u016-s",1],["wait",1500],["tap",".u016-s",4],["wait",1800],["leave",300],["key",".u016-stars",0,"Home"],["wait",900]] -->
+<!-- @en {"title":"Star rating","summary":"Stars fill in ahead of time as far as the cursor goes, and when you press they pop up one after another from the left with a sparkle. A matching word and color change with the score.","hint":"Move over the stars and press to rate. Arrow keys work too","map":[
+  ["이번 주문은 어떠셨나요?", "How was your order?"],
+  ["별을 눌러 주세요", "Tap a star to rate"],
+  ["평가 안 함", "Not rated"],
+  ["'점, '", "' stars, '"],
+  ["\"별점\"", "\"Rating\""],
+  ["'별로예요'", "'Poor'"],
+  ["'아쉬워요'", "'Fair'"],
+  ["'괜찮아요'", "'Good'"],
+  ["'좋아요'", "'Great'"],
+  ["'최고예요'", "'Excellent'"]
+]} -->
+<style>
+.u016{--gold:linear-gradient(160deg,#FFD66B,#FFAA2C 60%,#FF7A45);position:relative;width:330px;height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.u016-q{margin:0;font-size:15px;font-weight:650;color:var(--ux-ink-2)}
+.u016-stars{display:flex;gap:6px;border-radius:16px}
+.u016-stars:focus-visible{outline:2px solid var(--ux-accent);outline-offset:6px}
+.u016-s{position:relative;width:52px;height:52px;padding:0;border:0;background:none;transition:transform .35s var(--ux-spring)}
+.u016-s svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.u016-s .bg{fill:var(--ux-surface-3);stroke:var(--ux-line-2);stroke-width:1}
+.u016-s .fg{fill:url(#u016-g);transform-origin:50% 55%;transform:scale(0);transition:transform .4s var(--ux-spring)}
+.u016-s.is-pre .fg{transform:scale(.72);opacity:.55}
+.u016-s.is-on .fg{transform:scale(1);opacity:1}
+.u016-s:hover{transform:scale(1.12) rotate(-6deg)}
+.u016-s.is-pop{animation:u016-pop .55s var(--ux-spring)}
+@keyframes u016-pop{0%{transform:scale(1)}35%{transform:scale(1.32) rotate(12deg)}100%{transform:scale(1)}}
+.u016-s i{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#FFB547;opacity:0;pointer-events:none}
+.u016-s.is-pop i{animation:u016-spark .6s var(--ux-ease) forwards}
+@keyframes u016-spark{0%{opacity:1;transform:rotate(var(--a)) translateY(-14px) scale(1)}100%{opacity:0;transform:rotate(var(--a)) translateY(-40px) scale(.3)}}
+.u016-out{display:flex;align-items:baseline;gap:10px;height:40px}
+.u016-score{font-size:34px;font-weight:800;letter-spacing:-.04em;font-variant-numeric:tabular-nums;transition:color .4s var(--ux-ease)}
+.u016-word{position:relative;height:24px;width:132px;overflow:hidden;font-size:16px;font-weight:700}
+.u016-word span{position:absolute;left:0;top:0;line-height:24px;white-space:nowrap;transition:transform .5s var(--ux-spring),opacity .3s var(--ux-ease)}
+</style>
+<div class="ux u016">
+  <p class="u016-q">이번 주문은 어떠셨나요?</p>
+  <div class="u016-stars" role="slider" tabindex="0" aria-label="별점" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0" aria-valuetext="평가 안 함">
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="u016-g" x1="0" y1="0" x2=".6" y2="1"><stop offset="0" stop-color="#FFD66B"/><stop offset=".6" stop-color="#FFAA2C"/><stop offset="1" stop-color="#FF7A45"/></linearGradient></defs></svg>
+  </div>
+  <div class="u016-out" aria-hidden="true"><span class="u016-score">0.0</span><span class="u016-word"><span>별을 눌러 주세요</span></span></div>
+</div>
+<script>
+(function () {
+  var root = document.currentScript.previousElementSibling;
+  var wrap = root.querySelector('.u016-stars');
+  var score = root.querySelector('.u016-score');
+  var word = root.querySelector('.u016-word');
+  var rm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var gid = 'u016-g-' + Math.random().toString(36).slice(2, 7);
+  root.querySelector('linearGradient').id = gid;
+  var WORDS = ['별을 눌러 주세요', '별로예요', '아쉬워요', '괜찮아요', '좋아요', '최고예요'];
+  var COLORS = ['var(--ux-ink-3)', '#E5484D', '#F07A3E', '#E8A317', '#2FB37A', '#7B61FF'];
+  var STAR = 'M26 4.5l6.4 13.2 14.4 2-10.5 10.1 2.6 14.3L26 37.3l-12.9 6.8 2.6-14.3L5.2 19.7l14.4-2z';
+  var stars = [];
+  for (var i = 0; i < 5; i++) {
+    var b = document.createElement('span');
+    b.className = 'u016-s';
+    var sparks = '';
+    for (var k = 0; k < 5; k++) sparks += '<i style="--a:' + (k * 72) + 'deg"></i>';
+    b.innerHTML = '<svg viewBox="0 0 52 52"><path class="bg" d="' + STAR + '" stroke-linejoin="round"/><path class="fg" d="' + STAR + '" style="fill:url(#' + gid + ')"/></svg>' + sparks;
+    b.dataset.v = i + 1;
+    wrap.appendChild(b);
+    stars.push(b);
+  }
+  var val = 0;
+  function preview(n) { stars.forEach(function (s, i) { s.classList.toggle('is-pre', i < n && i >= val); }); }
+  function setWord(n) {
+    var old = word.lastElementChild;
+    var s = document.createElement('span');
+    s.textContent = WORDS[n];
+    s.style.color = COLORS[n];
+    s.style.transform = 'translateY(100%)'; s.style.opacity = '0';
+    word.appendChild(s);
+    void s.offsetWidth;
+    s.style.transform = 'none'; s.style.opacity = '1';
+    old.style.transform = 'translateY(-100%)'; old.style.opacity = '0';
+    setTimeout(function () { old.remove(); }, 500);
+  }
+  // 점수를 정하면 왼쪽부터 차례로 별이 튀어 오릅니다
+  function set(n) {
+    if (n === val) return;
+    var prev = val;
+    val = n;
+    stars.forEach(function (s, i) {
+      var on = i < n;
+      s.classList.remove('is-pre');
+      if (on && i >= prev) {
+        setTimeout(function () {
+          if (!root.isConnected) return;
+          s.classList.add('is-on');
+          if (!rm) { s.classList.remove('is-pop'); void s.offsetWidth; s.classList.add('is-pop'); }
+        }, rm ? 0 : (i - prev) * 70);
+      } else if (!on) s.classList.remove('is-on', 'is-pop');
+    });
+    score.textContent = n.toFixed(1);
+    score.style.color = n ? COLORS[n] : '';
+    setWord(n);
+    wrap.setAttribute('aria-valuenow', String(n));
+    wrap.setAttribute('aria-valuetext', n ? n + '점, ' + WORDS[n] : '평가 안 함');
+  }
+  stars.forEach(function (s) {
+    s.addEventListener('pointerenter', function () { preview(+s.dataset.v); });
+    s.addEventListener('click', function () { set(+s.dataset.v); });
+  });
+  wrap.addEventListener('pointerleave', function () { preview(0); });
+  wrap.addEventListener('keydown', function (e) {
+    var d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
+    if (e.key === 'Home') { e.preventDefault(); set(0); }
+    if (e.key === 'End') { e.preventDefault(); set(5); }
+    if (d) { e.preventDefault(); set(Math.max(0, Math.min(5, val + d))); }
+    if (/^[0-5]$/.test(e.key)) set(+e.key);
+  });
+})();
+</script>

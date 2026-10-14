@@ -230,6 +230,50 @@ class HelpCog(commands.Cog, name="Help"):
         except Exception as e:
             logger.warning(f"Lỗi đăng panel admin guide: {e}")
 
+    @app_commands.command(
+        name="skills",
+        description="Khám phá hệ sinh thái Skills, Lucian UX/UI 200 elements và công cụ giao diện HyperHub",
+    )
+    async def skills_slash(self, interaction: discord.Interaction) -> None:
+        """Slash command giới thiệu hệ sinh thái Agent Skills & Lucian UX/UI."""
+        embed = create_embed(
+            title="✨ HỆ SINH THÁI SKILLS & LUCIAN UX/UI HYPERHUB",
+            description=(
+                "HyperHub vừa tích hợp toàn diện hệ sinh thái **Agent Skills** & **Lucian UX/UI 200 Elements**!\n\n"
+                "### 🎨 BỘ KỸ NĂNG ĐÃ TÍCH HỢP TẠI `D:\\Project\\Skills`:\n"
+                "• **Lucian UX/UI (`#001` → `#200`):** 200 thành phần micro-interactions thuần HTML/CSS/JS không phụ thuộc framework, vật lý lò xo (spring physics) và liquid glass.\n"
+                "• **GreenSock GSAP Skills:** Kỹ thuật diễn hoạt cao cấp, ScrollTrigger & MorphSVG cho React/Next.js.\n"
+                "• **Addy Osmani Agent Skills:** Chuẩn kỹ nghệ Frontend UI Engineering, bảo mật và hiệu năng tải trang.\n"
+                "• **Web Quality & Accessibility:** Đảm bảo chuẩn tiếp cận WCAG (a11y) và Core Web Vitals.\n\n"
+                "### 🌐 TRẢI NGHIỆM TRỰC TIẾP TRÊN WEB:\n"
+                "Phòng thí nghiệm tương tác **200 Elements Live Playground** đã sẵn sàng trên Web Portal!"
+            ),
+            embed_type=EmbedType.INFO,
+            color=0x9B59B6,
+            footer_text="HyperHub Skills System • D:\\Project\\Skills",
+        )
+        embed.add_field(
+            name="💻 Lệnh Trích Xuất CLI",
+            value="`node D:\\Project\\Skills\\lucian-uxui\\scripts\\lucian-uxui.mjs search <từ khóa>`",
+            inline=False,
+        )
+        embed.add_field(
+            name="📊 Thống Kê Hệ Sinh Thái",
+            value="`9,893 skills` toàn cầu • `200 elements` cài đặt offline",
+            inline=True,
+        )
+
+        view = discord.ui.View(timeout=180.0)
+        view.add_item(
+            discord.ui.Button(
+                label="Mở UX/UI Lab (Web)",
+                url="https://hyperhub-one.vercel.app/ux-lab/index.html",
+                style=discord.ButtonStyle.link,
+                emoji="✨",
+            )
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
     async def send_owner_help_dm(self) -> bool:
         """Gửi cẩm nang hướng dẫn qua tin nhắn riêng (DM) cho Owner ID."""
         owner_id = settings.OWNER_ID

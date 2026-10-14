@@ -1,0 +1,17 @@
+<!-- Lucian UX/UI Prompt #102 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#102 -->
+<!--
+Element: 중첩 파일 트리
+ID: 102 · Category: 공간·일정·디자인 도구 · Tags: nested-tree, native, spatial
+What it does: 폴더를 펼치고 접으며 파일을 고르는 트리입니다. 펼친 폴더의 하위 항목이 들여쓰기로 나타나고, 고른 파일은 강조됩니다.
+How to use it: 폴더 이름을 눌러 펼치고 접은 뒤 파일을 골라 보세요
+Footprint: fluid width (follows its container)
+Needs: tokens.css (the --ux-* theme tokens and the .ux base). Map the tokens to the project's theme variables.
+Live demo: https://lucianlabs.dev/uxui-prompt/#102
+-->
+<style>
+.u102{width:100%;max-width:400px;min-width:0;font-size:13px}.u102 button{font:inherit;color:inherit;cursor:pointer}.u102 input[type=range]{min-width:0;width:100%;accent-color:var(--ux-accent)}.u102 .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.u102{max-width:350px;padding:10px 4px}.u102 button{border:0;background:transparent;min-height:44px;padding:8px 12px;text-align:left;width:100%;border-radius:6px}.u102 .folder{display:flex;gap:10px;align-items:center;font-weight:650}.u102 .arrow{width:12px;transition:transform .2s}.u102 [aria-expanded=true] .arrow{transform:rotate(90deg)}.u102 .branch{margin-left:21px;padding-left:10px;border-left:1px solid var(--ux-line-2)}.u102 .file[aria-pressed=true]{background:var(--ux-accent-soft);color:var(--ux-accent);box-shadow:inset 2px 0 var(--ux-accent)}
+</style>
+<div class="ux u102"><button class="folder" aria-expanded="true" aria-controls="u102-design"><span class="arrow">›</span>▱ 디자인</button><div class="branch" id="u102-design"><button class="folder" aria-expanded="false" aria-controls="u102-brand"><span class="arrow">›</span>▱ 브랜드</button><div class="branch" id="u102-brand" hidden><button class="file" aria-pressed="false">◇ logo.svg</button><button class="file" aria-pressed="false">⌘ palette.json</button></div><button class="file" aria-pressed="true">▧ cover.fig</button></div><button class="folder" aria-expanded="false" aria-controls="u102-notes"><span class="arrow">›</span>▱ 기록</button><div class="branch" id="u102-notes" hidden><button class="file" aria-pressed="false">≡ journal.md</button></div></div>
+<script>
+(()=>{const root=document.currentScript.previousElementSibling,q=s=>root.querySelector(s),qa=s=>[...root.querySelectorAll(s)];qa(".folder").forEach(b=>b.onclick=()=>{const open=b.getAttribute("aria-expanded")!=="true";b.setAttribute("aria-expanded",open);q("#"+b.getAttribute("aria-controls")).hidden=!open});qa(".file").forEach(b=>b.onclick=()=>qa(".file").forEach(x=>x.setAttribute("aria-pressed",x===b)));})();
+</script>

@@ -1,0 +1,68 @@
+<!-- @meta {"title":"글자 굴림 버튼","category":"버튼","summary":"커서를 올리면 글자가 한 자씩 차례로 굴러 올라가고 화살표가 빠져나갔다 다시 들어옵니다. 누르면 아래에서 색이 차오르며 선택 상태가 됩니다.","hint":"버튼에 커서를 올렸다 내려 보고, 눌러서 상태를 바꿔 보세요","shape":"square","hue":"#F59E0B","hue2":"#7B61FF","tags":["button","hover","stagger","typography","toggle"]} -->
+<!-- @demo [["wait",400],["hover",".u009-btn",0,{"after":1100}],["leave",500],["hover",".u009-btn",0,{"after":800}],["tap",".u009-btn"],["wait",1500],["leave",700],["hover",".u009-btn",0,{"after":600}],["tap",".u009-btn"],["wait",900],["leave",700]] -->
+<!-- @en {"title":"Rolling label button","summary":"Hover and the letters roll up one by one while the arrow slips out and comes back in. Press it and color rises from the bottom into a selected state.","hint":"Hover over the button and away again, then press it to toggle","map":[
+  ["작업물 둘러보기", "See our work"],
+  ["둘러보는 중", "Browsing"]
+]} -->
+<style>
+.u009{position:relative;width:320px;height:160px;display:grid;place-items:center}
+.u009-btn{position:relative;display:flex;align-items:center;gap:16px;height:68px;padding:0 10px 0 30px;border:0;border-radius:999px;background:transparent;color:var(--ux-ink);overflow:hidden;isolation:isolate;
+  box-shadow:inset 0 0 0 1.5px var(--ux-ink);transition:transform .5s var(--ux-spring),color .45s var(--ux-ease)}
+.u009-btn:active{transform:scale(.96)}
+.u009-btn:focus-visible{outline:2px solid var(--ux-accent);outline-offset:5px}
+.u009-fill{position:absolute;inset:0;z-index:-1;background:var(--ux-ink);border-radius:50% 50% 0 0/40% 40% 0 0;transform:translateY(102%);transition:transform .7s var(--ux-ease),border-radius .7s var(--ux-ease)}
+.u009.is-on .u009-fill{transform:none;border-radius:0}
+.u009.is-on .u009-btn{color:var(--ux-page)}
+.u009-word{position:relative;display:flex;height:26px;overflow:hidden;font-size:20px;font-weight:740;letter-spacing:-.03em;line-height:26px}
+.u009-face>span{display:flex;flex-direction:column;transition:transform .55s var(--ux-ease);transition-delay:calc(var(--i) * 22ms)}
+.u009-face>span::after{content:attr(data-c);display:block}
+.u009-btn:hover .u009-face>span,.u009-btn:focus-visible .u009-face>span{transform:translateY(-26px)}
+.u009-face{display:flex;transition:transform .6s var(--ux-spring),opacity .3s var(--ux-ease)}
+.u009-face+.u009-face{position:absolute;left:0;top:0;transform:translateY(110%);opacity:0}
+.u009.is-on .u009-face:first-child{transform:translateY(-110%);opacity:0}
+.u009.is-on .u009-face+.u009-face{transform:none;opacity:1}
+.u009-orb{position:relative;width:48px;height:48px;flex:none;border-radius:50%;background:var(--ux-grad);color:#fff;box-shadow:0 8px 18px -8px rgba(91,72,255,.6);overflow:hidden;transition:background-color .45s var(--ux-ease),color .45s var(--ux-ease),transform .6s var(--ux-spring)}
+.u009.is-on .u009-orb{transform:rotate(90deg)}
+.u009-orb svg{position:absolute;left:13px;top:13px;width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round;transition:transform .55s var(--ux-ease)}
+.u009-orb svg+svg{transform:translate(-36px,36px)}
+.u009-btn:hover .u009-orb svg:first-child{transform:translate(36px,-36px)}
+.u009-btn:hover .u009-orb svg+svg{transform:none;transition-delay:.08s}
+.u009-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+</style>
+<div class="ux u009">
+  <button class="u009-btn" type="button" aria-pressed="false">
+    <span class="u009-fill" aria-hidden="true"></span>
+    <span class="u009-word" aria-hidden="true">
+      <span class="u009-face" data-t="작업물 둘러보기"></span>
+      <span class="u009-face" data-t="둘러보는 중"></span>
+    </span>
+    <span class="u009-sr">작업물 둘러보기</span>
+    <span class="u009-orb" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg>
+    </span>
+  </button>
+</div>
+<script>
+(function () {
+  var root = document.currentScript.previousElementSibling;
+  var btn = root.querySelector('.u009-btn');
+  var sr = root.querySelector('.u009-sr');
+  // 문구를 글자 단위로 쪼개, 각 글자 아래에 같은 글자를 하나 더 둡니다. 올리면 차례로 굴러 올라갑니다
+  Array.prototype.forEach.call(root.querySelectorAll('.u009-face'), function (face) {
+    Array.from(face.dataset.t).forEach(function (ch, i) {
+      var s = document.createElement('span');
+      s.textContent = ch === ' ' ? ' ' : ch;
+      s.dataset.c = ch === ' ' ? ' ' : ch;
+      s.style.setProperty('--i', i);
+      face.appendChild(s);
+    });
+  });
+  btn.addEventListener('click', function () {
+    var on = !root.classList.contains('is-on');
+    root.classList.toggle('is-on', on);
+    btn.setAttribute('aria-pressed', String(on));
+    sr.textContent = on ? '둘러보는 중' : '작업물 둘러보기';
+  });
+})();
+</script>

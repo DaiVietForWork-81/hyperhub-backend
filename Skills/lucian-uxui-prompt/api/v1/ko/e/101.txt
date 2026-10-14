@@ -1,0 +1,17 @@
+<!-- Lucian UX/UI Prompt #101 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#101 -->
+<!--
+Element: 분할 작업창
+ID: 101 · Category: 공간·일정·디자인 도구 · Tags: split-pane, native, spatial
+What it does: 문서와 표지 미리보기를 나란히 둔 분할 화면입니다. 가운데 경계를 끌면 두 칸의 폭이 바뀌고, 키보드로도 같은 폭을 조절할 수 있습니다.
+How to use it: 가운데 경계를 좌우로 끌어 보세요. 경계에 초점을 두고 ←/→로도 조절하고, Esc로 처음 폭으로 돌아갑니다
+Footprint: fluid width (follows its container)
+Needs: tokens.css (the --ux-* theme tokens and the .ux base). Map the tokens to the project's theme variables.
+Live demo: https://lucianlabs.dev/uxui-prompt/#101
+-->
+<style>
+.u101{width:100%;max-width:400px;min-width:0;font-size:13px}.u101 button{font:inherit;color:inherit;cursor:pointer}.u101 input[type=range]{min-width:0;width:100%;accent-color:var(--ux-accent)}.u101 .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.u101{border:1px solid var(--ux-line-2);border-radius:10px;overflow:hidden;background:var(--ux-surface)}.u101 .panes{display:grid;grid-template-columns:minmax(0,var(--split,42%)) 24px minmax(0,1fr);height:230px}.u101 .doc{padding:27px 15px;background:var(--ux-surface-2);overflow:hidden}.u101 h3{margin:0 0 16px;font:500 21px/1.3 Georgia,serif;letter-spacing:-.05em}.u101 p{font-size:13px;line-height:1.8;margin:0}.u101 .sep{padding:0;border:0;background:var(--ux-surface-3);cursor:col-resize;touch-action:none;color:var(--ux-ink-2);font-size:24px}.u101 .preview{padding:25px 16px}.u101 .poster{height:180px;border-radius:90px 90px 5px 5px;background:linear-gradient(150deg,#edc170,#bf6f58);position:relative;overflow:hidden}.u101 .poster:after{content:"";position:absolute;width:110px;height:110px;background:#384563;border-radius:50%;left:25%;top:70px}
+</style>
+<div class="ux u101"><div class="panes"><section class="doc"><h3>도시와<br>빛 사이</h3><p>해가 낮아지면<br>골목의 색이 달라진다.</p></section><button class="sep" role="separator" aria-label="문서 폭, 방향키로 조절" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="65" aria-valuenow="42">⋮</button><section class="preview"><div class="poster" aria-label="표지 미리보기"></div></section></div></div>
+<script>
+(()=>{const root=document.currentScript.previousElementSibling,q=s=>root.querySelector(s),qa=s=>[...root.querySelectorAll(s)];let v=42;const set=x=>{v=Math.max(25,Math.min(65,Math.round(x)));root.style.setProperty("--split",v+"%");q(".sep").setAttribute("aria-valuenow",v)};q(".sep").onkeydown=e=>{if(["ArrowLeft","ArrowRight","Home","End","Escape"].includes(e.key)){e.preventDefault();set(e.key==="Escape"?42:e.key==="Home"?25:e.key==="End"?65:v+(e.key==="ArrowRight"?3:-3))}};q(".sep").onpointerdown=e=>e.currentTarget.setPointerCapture(e.pointerId);q(".sep").onpointermove=e=>{if(e.currentTarget.hasPointerCapture(e.pointerId)){const b=q(".panes").getBoundingClientRect();set((e.clientX-b.left)/b.width*100)}};})();
+</script>

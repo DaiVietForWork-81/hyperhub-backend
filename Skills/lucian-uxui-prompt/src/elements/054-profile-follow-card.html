@@ -1,0 +1,152 @@
+<!-- @meta {"title":"팔로우 프로필 카드","category":"카드·콘텐츠","summary":"팔로우를 누르면 버튼이 체크와 함께 ‘팔로잉’으로 바뀌고, 팔로워 수는 바뀐 자리만 굴러갑니다. 아래 칸은 최근 게시물에서 ‘비슷한 사람’ 추천으로 밀려 바뀌며, 팔로잉 버튼에 올리면 언팔로우 안내로 바뀝니다.","hint":"팔로우를 눌러 숫자와 아래 추천 칸이 바뀌는 것을 보세요. 팔로잉 상태에서 버튼에 커서를 올리거나 다시 눌러 취소해 보세요","shape":"tall","hue":"#FF6B8B","hue2":"#FFB547","tags":["profile","follow","odometer","suggestions","social"]} -->
+<!-- @demo [["wait",700],["tap",".u054-fb"],["wait",1700],["tap",".u054-p button",0],["wait",1000],["leave",500],["hover",".u054-fb",0,{"after":1100}],["tap",".u054-fb"],["wait",1600],["reset"]] -->
+<!-- @en {"title":"Follow profile card","summary":"Press Follow and the button turns into “Following” with a check, while only the changed digits of the follower count roll. The lower panel slides from recent posts to “similar people” suggestions, and hovering the Following button turns it into an unfollow prompt.","hint":"Press Follow and watch the count and the lower panel change. While following, hover the button or press it again to unfollow","map":[
+  ["메시지 보내기", "Send message"],
+  ["서지안 팔로잉 중, 누르면 언팔로우", "Following Jian Seo, press to unfollow"],
+  ["서지안 팔로우", "Follow Jian Seo"],
+  ["서지안 <svg", "Jian Seo <svg"],
+  ["인증됨", "Verified"],
+  ["모션 디자이너 · 서울", "Motion designer · Seoul"],
+  ["짧은 전환과 반응 속도에 집착하는 편이에요. 주말엔 스프링 곡선을 실험해요.", "Obsessed with short transitions and response times. Weekends are for spring-curve experiments."],
+  ["</span>팔로워</div>", "</span>Followers</div>"],
+  ["</span>게시물</div>", "</span>Posts</div>"],
+  ["최근 게시물", "Recent posts"],
+  ["비슷한 사람", "Similar people"],
+  ["한도윤<small>인터랙션 디자이너</small>", "Doyun Han<small>Interaction designer</small>"],
+  ["윤하린<small>3D 아티스트</small>", "Harin Yoon<small>3D artist</small>"],
+  ["언팔로우", "Unfollow"],
+  ["팔로잉", "Following"],
+  ["팔로우", "Follow"],
+  ["'ko-KR'", "'en-US'"]
+]} -->
+<style>
+.u054{position:relative;width:330px;height:470px;border-radius:30px;background:var(--ux-surface);box-shadow:0 0 0 1px var(--ux-line),0 30px 60px -36px var(--ux-shadow-strong);overflow:hidden}
+.u054-cover{position:relative;height:118px;background:linear-gradient(120deg,#FFB547,#FF6B8B 50%,#7B61FF);overflow:hidden}
+.u054-cover i{position:absolute;border-radius:50%}
+.u054-cover i:nth-child(1){width:160px;height:160px;right:-30px;top:-70px;background:radial-gradient(circle,rgba(255,255,255,.55),transparent 65%)}
+.u054-cover i:nth-child(2){width:240px;height:120px;left:-60px;bottom:-70px;background:rgba(40,20,90,.25);filter:blur(6px)}
+.u054-av{position:absolute;left:20px;top:78px;width:84px;height:84px;border-radius:50%;padding:3px;background:conic-gradient(from 200deg,#FFB547,#FF6B8B,#7B61FF,#FFB547)}
+.u054-av span{display:block;width:100%;height:100%;border-radius:50%;border:3px solid var(--ux-surface);background:radial-gradient(circle at 38% 32%,#FFE2C2,#F2A27A 45%,#B5577A 100%)}
+.u054-av em{position:absolute;right:5px;bottom:5px;width:16px;height:16px;border-radius:50%;background:#22C38E;border:3px solid var(--ux-surface)}
+.u054-act{position:absolute;right:18px;top:132px;display:flex;gap:8px}
+.u054-msg{width:42px;height:42px;border:0;padding:0;border-radius:50%;display:grid;place-items:center;background:var(--ux-surface-2);color:var(--ux-ink);transition:transform .3s var(--ux-spring)}
+.u054-msg:active{transform:scale(.9)}
+.u054-msg svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+.u054-msg:focus-visible,.u054-fb:focus-visible{outline:2px solid var(--ux-accent);outline-offset:2px}
+.u054-fb{position:relative;width:112px;height:42px;border:0;border-radius:999px;background:var(--ux-ink);color:var(--ux-page);font-size:14px;font-weight:750;overflow:hidden;transition:background-color .4s,color .4s,box-shadow .4s,transform .35s var(--ux-spring)}
+.u054-fb:active{transform:scale(.94)}
+.u054-fb>span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:5px;transition:transform .45s var(--ux-spring),opacity .25s}
+.u054-fb svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.u054-fb svg path{stroke-dasharray:18;stroke-dashoffset:18;transition:stroke-dashoffset .4s var(--ux-ease) .15s}
+.u054-fb .b,.u054-fb .c{transform:translateY(110%);opacity:0}
+.u054.is-on .u054-fb{background:var(--ux-surface-2);color:var(--ux-ink);box-shadow:inset 0 0 0 1px var(--ux-line-2)}
+.u054.is-on .u054-fb .a{transform:translateY(-110%);opacity:0}
+.u054.is-on .u054-fb .b{transform:none;opacity:1}
+.u054.is-on .u054-fb .b path{stroke-dashoffset:0}
+@media (hover:hover){
+  .u054.is-on:not(.just) .u054-fb:hover{background:color-mix(in srgb,var(--ux-danger) 12%,var(--ux-surface));color:var(--ux-danger);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ux-danger) 40%,transparent)}
+  .u054.is-on:not(.just) .u054-fb:hover .b{transform:translateY(-110%);opacity:0}
+  .u054.is-on:not(.just) .u054-fb:hover .c{transform:none;opacity:1}
+}
+.u054-body{padding:52px 20px 0}
+.u054-name{display:flex;align-items:center;gap:6px;margin:0;font-size:19px;font-weight:800;letter-spacing:-.035em}
+.u054-name svg{width:18px;height:18px}
+.u054-role{margin:3px 0 0;font-size:13px;font-weight:600;color:var(--ux-ink-3)}
+.u054-bio{margin:10px 0 0;font-size:13.5px;line-height:1.55;color:var(--ux-ink-2)}
+.u054-stats{display:flex;gap:22px;margin-top:14px}
+.u054-stats div{font-size:12px;font-weight:600;color:var(--ux-ink-3)}
+.u054-od{display:flex;height:22px;overflow:hidden;font-size:17px;font-weight:800;line-height:22px;color:var(--ux-ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.u054-col{display:flex;flex-direction:column;transform:translateY(calc(var(--d) * -22px));transition:transform .6s var(--ux-spring)}
+.u054-low{position:absolute;left:0;right:0;bottom:0;height:126px;overflow:hidden}
+.u054-pane{position:absolute;inset:0;padding:0 20px 18px;display:flex;flex-direction:column;transition:transform .55s var(--ux-ease),opacity .35s}
+.u054-pane h4{margin:0 0 8px;font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--ux-ink-3)}
+.u054-posts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;flex:1}
+.u054-posts i{border-radius:12px;background:var(--g)}
+.u054-sug{display:flex;flex-direction:column;gap:6px}
+.u054-p{display:flex;align-items:center;gap:10px;height:40px}
+.u054-p i{width:34px;height:34px;flex:none;border-radius:50%;background:var(--g)}
+.u054-p b{flex:1;font-size:13.5px;font-weight:700;letter-spacing:-.02em}
+.u054-p small{display:block;font-size:11.5px;font-weight:600;color:var(--ux-ink-3)}
+.u054-p button{height:30px;padding:0 12px;border:0;border-radius:999px;background:var(--ux-accent-soft);color:var(--ux-accent);font-size:12.5px;font-weight:750;transition:background-color .3s,color .3s,transform .3s var(--ux-spring)}
+.u054-p button:active{transform:scale(.92)}
+.u054-p button[aria-pressed="true"]{background:var(--ux-surface-2);color:var(--ux-ink-3)}
+.u054-p button:focus-visible{outline:2px solid var(--ux-accent);outline-offset:2px}
+.u054-pane.s{transform:translateY(100%);opacity:0}
+.u054.is-on .u054-pane.r{transform:translateY(-40%);opacity:0}
+.u054.is-on .u054-pane.s{transform:none;opacity:1;transition-delay:.12s}
+</style>
+<div class="ux u054">
+  <div class="u054-cover" aria-hidden="true"><i></i><i></i></div>
+  <span class="u054-av" aria-hidden="true"><span></span><em></em></span>
+  <div class="u054-act">
+    <button class="u054-msg" type="button" aria-label="메시지 보내기"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 1 3.4 6.5L4 19.5l1-3.3A8 8 0 0 1 4 12z"/></svg></button>
+    <button class="u054-fb" type="button" aria-pressed="false" aria-label="서지안 팔로우"><span class="a">팔로우</span><span class="b"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.4l3 3 6-6.4"/></svg>팔로잉</span><span class="c">언팔로우</span></button>
+  </div>
+  <div class="u054-body">
+    <h3 class="u054-name">서지안 <svg viewBox="0 0 24 24" role="img" aria-label="인증됨"><path d="M12 2.5l2.4 1.8 3-.2.9 2.8 2.5 1.7-1 2.9 1 2.9-2.5 1.7-.9 2.8-3-.2L12 21.5l-2.4-1.8-3 .2-.9-2.8-2.5-1.7 1-2.9-1-2.9 2.5-1.7.9-2.8 3 .2z" fill="#3D8BFF"/><path d="M8.3 12.2l2.4 2.4 5-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></h3>
+    <p class="u054-role">모션 디자이너 · 서울</p>
+    <p class="u054-bio">짧은 전환과 반응 속도에 집착하는 편이에요. 주말엔 스프링 곡선을 실험해요.</p>
+    <div class="u054-stats">
+      <div><span class="u054-od" data-v="4812" aria-live="polite"></span>팔로워</div>
+      <div><span class="u054-od" data-v="318"></span>팔로잉</div>
+      <div><span class="u054-od" data-v="162"></span>게시물</div>
+    </div>
+  </div>
+  <div class="u054-low">
+    <section class="u054-pane r"><h4>최근 게시물</h4><div class="u054-posts" aria-hidden="true"><i style="--g:linear-gradient(140deg,#FFB547,#FF6B8B)"></i><i style="--g:linear-gradient(140deg,#7B61FF,#3D8BFF)"></i><i style="--g:linear-gradient(140deg,#22C3A6,#0EA5E9)"></i></div></section>
+    <section class="u054-pane s" aria-hidden="true"><h4>비슷한 사람</h4><div class="u054-sug">
+      <div class="u054-p"><i style="--g:linear-gradient(140deg,#8B6CFF,#FF7A93)"></i><b>한도윤<small>인터랙션 디자이너</small></b><button type="button" aria-pressed="false" tabindex="-1">팔로우</button></div>
+      <div class="u054-p"><i style="--g:linear-gradient(140deg,#22C3A6,#3D8BFF)"></i><b>윤하린<small>3D 아티스트</small></b><button type="button" aria-pressed="false" tabindex="-1">팔로우</button></div>
+    </div></section>
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.currentScript.previousElementSibling;
+  var fb = root.querySelector('.u054-fb');
+  var od = root.querySelector('.u054-od');
+  var panes = root.querySelectorAll('.u054-pane');
+  var subs = root.querySelectorAll('.u054-p button');
+  var rm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // 숫자마다 0–9 칸을 세로로 쌓고, 바뀐 자리만 그 숫자 칸으로 굴립니다
+  function build(el) {
+    var s = Number(el.getAttribute('data-v')).toLocaleString('ko-KR');
+    el.setAttribute('aria-label', s);
+    el.innerHTML = s.split('').map(function (ch) {
+      if (ch < '0' || ch > '9') return '<span aria-hidden="true">' + ch + '</span>';
+      var col = '';
+      for (var i = 0; i < 10; i++) col += '<span>' + i + '</span>';
+      return '<span class="u054-col" aria-hidden="true" style="--d:' + ch + '">' + col + '</span>';
+    }).join('');
+  }
+  function set(el, v) {
+    var s = v.toLocaleString('ko-KR'), cols = el.querySelectorAll('.u054-col'), digits = s.replace(/\D/g, '');
+    if (cols.length !== digits.length) { el.setAttribute('data-v', v); build(el); return; }
+    cols.forEach(function (c, i) { c.style.setProperty('--d', digits[i]); });
+    el.setAttribute('aria-label', s);
+  }
+  root.querySelectorAll('.u054-od').forEach(build);
+  var base = 4812, on = false;
+  fb.addEventListener('click', function () {
+    on = !on;
+    root.classList.toggle('is-on', on);
+    // 방금 누른 커서가 버튼 위에 있어도 바로 ‘언팔로우’로 바뀌지 않게, 한 번 벗어날 때까지 기다립니다
+    root.classList.toggle('just', on);
+    fb.setAttribute('aria-pressed', String(on));
+    fb.setAttribute('aria-label', on ? '서지안 팔로잉 중, 누르면 언팔로우' : '서지안 팔로우');
+    set(od, base + (on ? 1 : 0));
+    panes[0].setAttribute('aria-hidden', String(on));
+    panes[1].setAttribute('aria-hidden', String(!on));
+    subs.forEach(function (b) { b.tabIndex = on ? 0 : -1; });
+    if (!rm && on) root.querySelector('.u054-av').animate([{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 450, easing: 'cubic-bezier(.34,1.5,.64,1)' });
+  });
+  fb.addEventListener('pointerleave', function () { root.classList.remove('just'); });
+  subs.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var p = b.getAttribute('aria-pressed') !== 'true';
+      b.setAttribute('aria-pressed', String(p));
+      b.textContent = p ? '팔로잉' : '팔로우';
+    });
+  });
+})();
+</script>

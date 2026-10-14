@@ -331,6 +331,7 @@ class BotAPIBridge:
         self.app.router.add_post("/api/notify", self.handle_notify)
         self.app.router.add_post("/api/account/link", self.handle_account_link)
         self.app.router.add_get("/api/account/me", self.handle_account_me)
+        self.app.router.add_get("/api/skills", self.handle_get_skills)
         # Endpoints Kho Tài Liệu & Đề Thi
         self.app.router.add_get("/api/documents", self.handle_get_documents)
         self.app.router.add_get("/api/documents/stats", self.handle_document_stats)
@@ -377,6 +378,48 @@ class BotAPIBridge:
             "ping_ms": ping,
             "guilds_count": len(self.bot.guilds),
             "uptime_seconds": uptime,
+            "timestamp": int(time.time()),
+        })
+
+    async def handle_get_skills(self, request: web.Request) -> web.Response:
+        """GET /api/skills: Trả về thông tin hệ sinh thái Agent Skills & Lucian UX/UI 200 elements."""
+        skills_dir = os.path.join(os.path.dirname(BOT_BASE_DIR), "Skills")
+        lucian_prompt_dir = os.path.join(skills_dir, "lucian-uxui-prompt")
+        has_lucian = os.path.isdir(lucian_prompt_dir)
+
+        return web.json_response({
+            "status": "ok",
+            "skills_root": skills_dir,
+            "installed_packages": [
+                {
+                    "name": "lucian-uxui",
+                    "title": "Lucian UX/UI Prompt & CLI",
+                    "elements_count": 200,
+                    "categories_count": 14,
+                    "installed": has_lucian,
+                    "web_lab_url": "/ux-lab/index.html",
+                    "repo": "https://github.com/Seokwoooo/lucian-uxui-prompt",
+                },
+                {
+                    "name": "gsap-skills",
+                    "title": "GreenSock GSAP Skills",
+                    "installed": os.path.isdir(os.path.join(skills_dir, "gsap-skills")),
+                    "repo": "https://github.com/greensock/gsap-skills",
+                },
+                {
+                    "name": "agent-skills",
+                    "title": "Addy Osmani Agent Skills (UI Engineering & Security)",
+                    "installed": os.path.isdir(os.path.join(skills_dir, "agent-skills")),
+                    "repo": "https://github.com/addyosmani/agent-skills",
+                },
+                {
+                    "name": "web-quality-skills",
+                    "title": "Web Quality & Accessibility (a11y)",
+                    "installed": os.path.isdir(os.path.join(skills_dir, "web-quality-skills")),
+                    "repo": "https://github.com/addyosmani/web-quality-skills",
+                },
+            ],
+            "total_ecosystem_skills": 9893,
             "timestamp": int(time.time()),
         })
 

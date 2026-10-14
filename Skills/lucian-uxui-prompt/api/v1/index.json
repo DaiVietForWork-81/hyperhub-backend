@@ -1,0 +1,109 @@
+{
+  "name": "Lucian UX/UI Prompt",
+  "api": 1,
+  "version": "b999af8337",
+  "updated": "2026-10-12T09:48:11.488Z",
+  "count": 200,
+  "languages": [
+    "en",
+    "ko"
+  ],
+  "license": "MIT (c) 2026 Seokwoooo",
+  "gallery": "https://lucianlabs.dev/uxui-prompt/",
+  "skill": "https://github.com/Seokwoooo/lucian-uxui",
+  "paths": {
+    "catalog": "{lang}/catalog.tsv",
+    "element": "{lang}/e/{id}.txt",
+    "tokens": "{lang}/tokens.css"
+  },
+  "catalogs": {
+    "en": "8226b7f05b",
+    "ko": "8d9fff8598"
+  },
+  "categories": [
+    {
+      "slug": "buttons",
+      "en": "Buttons",
+      "ko": "버튼",
+      "count": 12
+    },
+    {
+      "slug": "toggles-pickers",
+      "en": "Toggles & Pickers",
+      "ko": "토글·선택",
+      "count": 12
+    },
+    {
+      "slug": "inputs-search",
+      "en": "Inputs & Search",
+      "ko": "입력·검색",
+      "count": 12
+    },
+    {
+      "slug": "menus-tabs",
+      "en": "Menus & Tabs",
+      "ko": "메뉴·탭",
+      "count": 12
+    },
+    {
+      "slug": "cards-content",
+      "en": "Cards & Content",
+      "ko": "카드·콘텐츠",
+      "count": 13
+    },
+    {
+      "slug": "sign-in-sign-up",
+      "en": "Sign-in & Sign-up",
+      "ko": "로그인·가입",
+      "count": 8
+    },
+    {
+      "slug": "alerts-feedback",
+      "en": "Alerts & Feedback",
+      "ko": "알림·피드백",
+      "count": 9
+    },
+    {
+      "slug": "loading-progress",
+      "en": "Loading & Progress",
+      "ko": "로딩·진행",
+      "count": 9
+    },
+    {
+      "slug": "empty-error-states",
+      "en": "Empty & Error States",
+      "ko": "빈·오류 상태",
+      "count": 6
+    },
+    {
+      "slug": "widgets-charts",
+      "en": "Widgets & Charts",
+      "ko": "위젯·차트",
+      "count": 7
+    },
+    {
+      "slug": "layout-schedule-design",
+      "en": "Layout, Schedule & Design",
+      "ko": "공간·일정·디자인 도구",
+      "count": 25
+    },
+    {
+      "slug": "document-data-editing",
+      "en": "Document & Data Editing",
+      "ko": "문서·데이터 편집",
+      "count": 25
+    },
+    {
+      "slug": "analytics-data",
+      "en": "Analytics & Data",
+      "ko": "분석·데이터",
+      "count": 25
+    },
+    {
+      "slug": "workflow-systems",
+      "en": "Workflow & Systems",
+      "ko": "작업·시스템",
+      "count": 25
+    }
+  ]
+}

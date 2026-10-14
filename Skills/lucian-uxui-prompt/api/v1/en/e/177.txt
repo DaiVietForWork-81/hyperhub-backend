@@ -1,0 +1,28 @@
+<!-- Lucian UX/UI Prompt #177 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#177 -->
+<!--
+Element: Undo and redo history
+ID: 177 · Category: Workflow & Systems · Tags: history-undo-redo, new-century
+What it does: A history that stacks each edit made to a shape. Every transform adds a step, and undo and redo move back and forth between states.
+How to use it: Press “Transform shape” a few times, then use the arrows on either side
+Footprint: fluid width (follows its container)
+Needs: tokens.css (the --ux-* theme tokens and the .ux base). Map the tokens to the project's theme variables.
+Live demo: https://lucianlabs.dev/uxui-prompt/#177
+-->
+<style>
+.u177 {width:100%;max-width:370px;font-size:14px;line-height:1.45;position:relative;--a:#cd5339;--soft:color-mix(in srgb,var(--a) 12%,var(--ux-surface));font-variant-numeric:tabular-nums}
+.u177 button{border:1px solid var(--ux-line-2);background:var(--ux-surface);border-radius:9px;padding:9px 12px;min-height:38px;transition:background .2s,transform .3s,color .2s;color:var(--ux-ink)}
+.u177 button:active{transform:translateY(1px)}.u177 button:disabled{opacity:.4;cursor:default}.u177 button.primary{background:var(--ux-ink);color:var(--ux-page);border-color:transparent}
+.u177 .muted{color:var(--ux-ink-2);font-size:12px}.u177 .eyebrow{font:600 10px/1.2 ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--ux-ink-2)}
+.u177 .row{display:flex;align-items:center;justify-content:space-between;gap:8px}.u177 .actions{display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap}
+.u177 input,.u177 select{max-width:100%;min-width:0;background:var(--ux-surface);color:var(--ux-ink);border:1px solid var(--ux-line-2);border-radius:7px;padding:8px;font:inherit}
+.u177 output{font-variant-numeric:tabular-nums}.u177 :focus-visible{outline:2px solid var(--ux-accent);outline-offset:3px}
+@media(prefers-reduced-motion:reduce){.u177 *,.u177 *::before,.u177 *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+.u177 .work{height:172px;display:grid;place-items:center;border:1px solid var(--ux-line);border-radius:18px;background:repeating-linear-gradient(0deg,transparent 0 23px,var(--ux-line) 24px),repeating-linear-gradient(90deg,transparent 0 23px,var(--ux-line) 24px);margin:16px 0}
+.u177 .shape{height:92px;width:92px;background:#4d78c9;border-radius:12px;box-shadow:12px 14px 0 color-mix(in srgb,#4d78c9 18%,transparent);transition:all .45s cubic-bezier(.25,1.3,.5,1)}.u177 .tools{display:flex;gap:6px}.u177 .tools button{flex:1;font-size:12px;padding:8px 4px}.u177 .history{display:flex;gap:5px;margin-top:18px;height:9px}.u177 .history i{width:24px;background:var(--ux-line-2);border-radius:2px;transition:background .25s}.u177 .history i.on{background:#4d78c9}.u177 .nav button{font-size:18px;padding:5px 12px}
+
+/* Focused composition */
+.u177{max-width:320px}.u177 .work{height:206px;background:none;border:0;margin:0 0 10px}.u177 .history-tools{display:flex;justify-content:center;align-items:center;gap:20px}.u177 .history-tools button{border:0;background:none;font-size:13px}.u177 .history-tools .undo,.u177 .history-tools .redo{font-size:24px;width:40px;padding:0}</style>
+<div class="ux u177" data-state="initial"><div class="work"><div class="shape" aria-label="Shape being edited"></div></div><div class="history-tools"><button class="undo" aria-label="Undo" disabled>↶</button><button class="edit">Transform shape</button><button class="redo" aria-label="Redo" disabled>↷</button></div></div>
+<script>
+(()=>{const root=document.currentScript.previousElementSibling;const q=s=>root.querySelector(s),qa=s=>[...root.querySelectorAll(s)];const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;const state=s=>root.dataset.state=s;const pulse=(el,frames,duration=450)=>{if(!reduced)el.animate(frames,{duration,easing:'cubic-bezier(.2,.8,.2,1)'});};let stack=[{r:12,a:0,c:0}],at=0,step=0;const colors=['#4d78c9','#d17b36','#56806d'];function render(){const s=stack[at];Object.assign(q('.shape').style,{borderRadius:s.r+'px',transform:'rotate('+s.a+'deg)',background:colors[s.c]});q('.undo').disabled=at===0;q('.redo').disabled=at===stack.length-1;state('history-'+at+'-'+JSON.stringify(s))}q('.edit').onclick=()=>{const s={...stack[at]},k=step++%3;if(k===0)s.r=s.r===46?12:46;if(k===1)s.a=(s.a+30)%90;if(k===2)s.c=(s.c+1)%3;stack=stack.slice(0,at+1);stack.push(s);if(stack.length>12)stack.shift();at=stack.length-1;render()};q('.undo').onclick=()=>{at--;render()};q('.redo').onclick=()=>{at++;render()};})();
+</script>

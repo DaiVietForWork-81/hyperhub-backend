@@ -1,75 +1,70 @@
 ---
-name: ui-motion-web
+name: hyperhub-skills-ecosystem
 description: >-
-  Bộ sưu tập các thành phần UI Micro-Interactions và Animation cao cấp (Lucian UX/UI series)
-  được lưu tại D:\Project\Skills. Sử dụng khi thiết kế, lập trình hoặc nâng cấp giao diện Web,
-  bao gồm: Liquid Glass button, File Drag-and-Drop Upload, Sliding Pill Tabs, Play-Pause Morph,
-  Rolling Label button, Floating Label input, OTP Code input, Password Strength meter, Fill Progress.
+  Hệ thống kỹ năng toàn diện tại D:\Project\Skills phục vụ thiết kế Web UI chuyển động,
+  micro-interactions (Lucian UX/UI 200 elements, GSAP Skills), công nghệ frontend chất lượng cao
+  (Addy Osmani agent-skills & web-quality-skills), cùng bot backend và DocInspector.
 ---
 
-# UI Motion & Micro-Interactions Web Skills
+# HyperHub Skills Ecosystem (`D:\Project\Skills`)
 
-Thư mục `D:\Project\Skills` lưu trữ các thành phần chuyển động UI/UX tương tác hiện đại, tinh tế dành riêng cho ứng dụng web HyperHub.
+Thư mục `D:\Project\Skills` là trung tâm tài nguyên và kỹ năng chuyên sâu được chuẩn hóa cho toàn bộ dự án HyperHub (Web, Bot, và DocInspector).
 
 ---
 
-## 1. Hệ thống Motion Tokens & Animation Physics
+## 1. Danh Mục Các Bộ Kỹ Năng (Installed Skills)
 
-Tất cả các thành phần sử dụng chung hệ số cong chuẩn xác để đảm bảo cảm giác tự nhiên, mượt mà và nảy:
+| Tên Bộ Kỹ Năng | Thư Mục | Mô Tả & Điểm Mạnh |
+| :--- | :--- | :--- |
+| **Lucian UX/UI (Official)** | `lucian-uxui/` | Bộ CLI (`scripts/lucian-uxui.mjs`) tìm kiếm, lấy mã và chuyển đổi (porting) các thành phần giao diện không phụ thuộc framework |
+| **Lucian UX/UI Prompt (Full 200)** | `lucian-uxui-prompt/` | Toàn bộ 200 elements HTML/CSS/JS tương tác, thư viện mẫu `tokens.css`, và phòng thí nghiệm tương tác `prompt-uxui-lab/` |
+| **GreenSock GSAP Skills** | `gsap-skills/` | Hướng dẫn và mẫu chuyển động phức tạp với GSAP: React, ScrollTrigger, Flip, MorphSVG |
+| **Addy Osmani Agent Skills** | `agent-skills/` | Chuẩn mực kỹ thuật Frontend UI Engineering, bảo mật (security-and-hardening) và tối ưu hóa hệ thống |
+| **Web Quality & Accessibility** | `web-quality-skills/` | Kiểm thử tiếp cận WCAG (a11y), Core Web Vitals, và tối ưu hóa hiệu năng tải trang |
+| **Lucian Curated Prototypes** | `ux-001` → `ux-039` | 9 bản mẫu HTML đơn lẻ do người dùng lưu trữ (Liquid glass button, Drag-and-drop upload, Sliding tabs, Play-pause morph, ...) |
+
+---
+
+## 2. Hệ Thống Design Tokens Chuẩn (Lucian `--ux-*`)
+
+Toàn bộ thành phần UI tuân thủ hệ thống token trong `lucian-uxui-prompt/src/tokens.css`:
 
 ```css
 :root {
-  /* Motion timing curves */
-  --ux-ease: cubic-bezier(.2, .8, .2, 1);       /* Chuyển động lướt êm dịu, không giật */
-  --ux-spring: cubic-bezier(.34, 1.45, .64, 1); /* Chuyển động nảy đàn hồi (spring physics) */
+  --ux-ease: cubic-bezier(.2, .8, .2, 1);
+  --ux-spring: cubic-bezier(.34, 1.45, .64, 1);
+  --ux-page: #F4F2EE;
+  --ux-surface: #FFFFFF;
+  --ux-ink: #16151B;
+  --ux-accent: #6A57F2;
+  --ux-accent-soft: rgba(106, 87, 242, .12);
+  --ux-grad: linear-gradient(120deg, #7B61FF, #3D8BFF 55%, #1FB89A);
+}
 
-  /* Glassmorphism & Depth */
-  --ux-glass: rgba(255, 255, 255, .08);
-  --ux-glass-line: rgba(255, 255, 255, .18);
-  --ux-shadow: rgba(0, 0, 0, .45);
-  --ux-shadow-strong: rgba(0, 0, 0, .72);
-  --ux-grad: linear-gradient(120deg, #8B6CFF, #3D8BFF 55%, #1FB89A);
+:root[data-theme="dark"], :root.dark {
+  --ux-page: #07080D;
+  --ux-surface: #13141C;
+  --ux-ink: #F4F0E8;
+  --ux-accent: #B7A4FF;
+  --ux-accent-soft: rgba(183, 164, 255, .15);
+  --ux-grad: linear-gradient(120deg, #B7A4FF, #7DB4FF 55%, #A5F2D3);
 }
 ```
 
 ---
 
-## 2. Danh mục các thành phần (Catalog) trong `D:\Project\Skills`
+## 3. Cách Sử Dụng Lucian CLI trong Terminal / Agent
 
-| Mã UX | Tên thành phần | Tệp nguồn | Ứng dụng trong HyperHub |
-| :--- | :--- | :--- | :--- |
-| **UX-001** | **Liquid Glass Button** | `ux-001-liquid-glass-button-en.html` | Nút hành động chính (Nộp tài liệu, Tải thêm, Bộ lọc) với hiệu ứng lượn sóng và phản xạ ánh sáng |
-| **UX-004** | **Fill Progress Download** | `ux-004-fill-progress-download-en.html` | Nút tải đề thi / đáp án với thanh tiến trình lấp đầy và biến đổi trạng thái hoàn tất |
-| **UX-007** | **Play–Pause Morph** | `ux-007-play-pause-morph-en.html` | Trình phát nhạc Lo-fi học tập với nút Play/Pause biến hình SVG mượt mà và dải sóng Equalizer sống động |
-| **UX-009** | **Rolling Label Button** | `ux-009-rolling-label-button-en.html` | Nút bấm có hiệu ứng lật chữ từng ký tự 3D khi hover và quả cầu icon xoay chuyển |
-| **UX-025** | **Floating Label Field** | `ux-025-floating-label-field-en.html` | Ô nhập liệu tìm kiếm, tiêu đề tài liệu, tên trường với nhãn bay mượt mà |
-| **UX-026** | **OTP Code Input** | `ux-026-otp-code-input-en.html` | Ô nhập mã bảo mật 6 số xác thực Discord / Admin với con trỏ nhấp nháy và tự động nhảy ô |
-| **UX-032** | **Drag-and-Drop Upload** | `ux-032-file-drop-upload-en.html` | Khung kéo thả nộp đề thi (DocUploadZone) với viền sáng chạy quanh, hiệu ứng thả file và thanh tiến trình |
-| **UX-036** | **Password Strength** | `ux-036-password-strength-en.html` | Thanh đo độ mạnh mật khẩu với 4 vạch chuyển màu động và danh sách tiêu chí kiểm tra |
-| **UX-039** | **Sliding Pill Tabs** | `ux-039-sliding-tabs-pill-en.html` | Thanh chuyển Tab môn học / khối lớp (Dashboard) với con trượt dạng viên thuốc (pill) bám theo tab đang chọn |
+Để tìm kiếm và trích xuất nhanh bất kỳ element nào:
 
----
+```bash
+# Liệt kê tất cả danh mục
+node D:\Project\Skills\lucian-uxui\scripts\lucian-uxui.mjs list
 
-## 3. Hướng dẫn Tích hợp vào React / Tailwind
+# Tìm kiếm thành phần theo từ khóa
+node D:\Project\Skills\lucian-uxui\scripts\lucian-uxui.mjs search "button liquid"
+node D:\Project\Skills\lucian-uxui\scripts\lucian-uxui.mjs search "upload drop"
 
-### A. Sliding Pill Tabs (UX-039)
-Dùng cho danh mục Khối Lớp & Môn Học:
-- Đặt `relative` cho container và `relative z-10` cho các nút bấm tab.
-- Thêm một `span` nền tuyệt đối (`absolute`) có `transition: all 0.35s cubic-bezier(0.34, 1.45, 0.64, 1)` bám theo vị trí `offsetLeft` và `offsetWidth` của tab được chọn.
-
-### B. Liquid Glass Button (UX-001)
-Dùng cho các nút kêu gọi hành động (CTA):
-```jsx
-<button className="relative overflow-hidden rounded-full backdrop-blur-md bg-white/10 dark:bg-white/5 border border-white/20 shadow-lg transition-transform duration-300 active:scale-95 hover:border-purple-400/50 hover:shadow-purple-500/20">
-  <span className="relative z-10 font-semibold">{label}</span>
-</button>
+# Lấy mã nguồn đầy đủ của 1 hoặc nhiều element
+node D:\Project\Skills\lucian-uxui\scripts\lucian-uxui.mjs get 001 032
 ```
-
-### C. Drag-and-Drop Upload Pulse (UX-032)
-Dùng cho `DocUploadZone.tsx`:
-- Hiệu ứng viền phát sáng gradient xoay quanh khi có file kéo qua (`isDragging`).
-- Icon tài liệu nảy nhẹ (`transform: translateY(-4px) scale(1.05)`) khi hover hoặc kéo file vào.
-
-### D. Play-Pause Morph (UX-007)
-Dùng cho `LofiPlayer.tsx`:
-- Morph 2 thẻ `<polygon>` trong SVG từ toạ độ tam giác Play sang toạ độ 2 vạch chữ nhật Pause bằng thuật toán nội suy điểm hoặc CSS transition.

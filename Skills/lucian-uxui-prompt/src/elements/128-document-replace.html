@@ -1,0 +1,21 @@
+<!-- @meta {"title": "문서 찾기·바꾸기", "category": "문서·데이터 편집", "summary": "본문에서 찾을 단어를 강조하고 한 번에 바꾸는 찾기·바꾸기 창입니다. 단어를 입력하면 일치한 곳이 바로 표시되고, 모두 바꾸기로 한꺼번에 고칩니다.", "hint": "찾을 단어와 바꿀 단어를 입력한 뒤 ‘모두 바꾸기’를 눌러 보세요", "shape": "square", "fluid": true, "hue": "#3A6AAB", "hue2": "#22C3A6", "tags": ["document-replace", "editing", "interactive"]} -->
+<!-- @demo [["wait", 800], ["tap", ".u128 [data-apply]", 0], ["wait", 1800], ["reset"]] -->
+<!-- @en {"title": "Find and replace", "summary": "A find-and-replace panel that highlights matches in the text and changes them all at once. Type a word and its matches light up; Replace all fixes every one.", "hint": "Type what to find and what to replace it with, then press “Replace all”","map":[
+  ["작은 정원에 햇빛이 들었다.\\n우리는 정원에서 새 잎을 찾았다.\\n내일도 정원을 돌볼 것이다.", "Sunlight reached the small garden.\\nWe found new leaves in the garden.\\nWe will tend the garden again tomorrow."],
+  ["정원", "garden"],
+  ["숲", "forest"],
+  ["찾을 단어", "Find"],
+  ["바꿀 단어", "Replace with"],
+  ["모두 바꾸기", "Replace all"],
+  ["편집 문서", "Document being edited"],
+  ["count+'개 일치'", "count+(count===1?' match':' matches')"],
+  ["count+'개 바꿈'", "count+' replaced'"]
+]} -->
+<style>
+.u128{width:min(100%,370px);font-size:14px;line-height:1.6;color:var(--ux-ink)}.u128 button,.u128 input,.u128 textarea,.u128 select{font:inherit;color:inherit;max-width:100%;min-width:0}.u128 button{cursor:pointer;min-height:44px;border:1px solid var(--ux-line-2);border-radius:8px;background:var(--ux-surface);padding:8px 12px}.u128 input,.u128 textarea,.u128 select{border:1px solid var(--ux-line-2);border-radius:6px;background:var(--ux-surface);padding:8px 10px}.u128 .quiet{color:var(--ux-ink-2)}.u128 .primary{background:var(--ux-accent);color:var(--ux-accent-ink);border-color:transparent}.u128 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.u128 [hidden]{display:none!important}.u128 :focus-visible{outline:2px solid var(--ux-accent);outline-offset:3px}@media(prefers-reduced-motion:reduce){.u128 *{animation:none!important;transition:none!important}}
+.u128{background:var(--ux-surface);border-radius:2px;padding:21px 23px 25px;border-top:2px solid var(--ux-accent);box-shadow:0 8px 18px var(--ux-shadow)}.u128 .search{display:grid;grid-template-columns:1fr 15px 1fr 44px;gap:6px;align-items:center}.u128 .search input{width:100%;font-size:14px;border:0;border-bottom:1px solid var(--ux-line-2);border-radius:0;padding:8px 2px;background:transparent}.u128 [data-apply]{padding:6px;min-width:44px}.u128 .paper{font:17px/2.1 Georgia,'Apple SD Gothic Neo',serif;padding-top:26px;white-space:pre-wrap}.u128 mark{background:color-mix(in srgb,var(--ux-warn) 24%,transparent);color:inherit;border-radius:2px}.u128 [data-apply]:disabled{opacity:.5}
+</style>
+<div class="ux u128"><div class="search"><input data-find value="정원" aria-label="찾을 단어"><span class="quiet" aria-hidden="true">→</span><input data-replace value="숲" aria-label="바꿀 단어"><button class="primary" data-apply aria-label="모두 바꾸기">↵</button></div><div class="paper" aria-label="편집 문서"></div><span class="sr" data-state aria-live="polite"></span></div>
+<script>
+(()=>{const root=document.currentScript.previousElementSibling,$=s=>root.querySelector(s),$$=s=>[...root.querySelectorAll(s)],esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const motion=(node,frames,opts={})=>{if(node?.animate&&!matchMedia('(prefers-reduced-motion:reduce)').matches)node.animate(frames,{duration:220,easing:'cubic-bezier(.2,.8,.2,1)',...opts})};let text='작은 정원에 햇빛이 들었다.\n우리는 정원에서 새 잎을 찾았다.\n내일도 정원을 돌볼 것이다.';function render(){const q=$('[data-find]').value,count=q?text.split(q).length-1:0;$('.paper').innerHTML=q?text.split(q).map(esc).join('<mark>'+esc(q)+'</mark>'):esc(text);$('[data-apply]').disabled=!count;$('[data-state]').textContent=count+'개 일치'}$$('input').forEach(i=>i.oninput=render);$('[data-apply]').onclick=()=>{const q=$('[data-find]').value,count=text.split(q).length-1;text=text.split(q).join($('[data-replace]').value);render();$('[data-state]').textContent=count+'개 바꿈';motion($('.paper'),[{opacity:.65},{opacity:1}])};render();})();
+</script>

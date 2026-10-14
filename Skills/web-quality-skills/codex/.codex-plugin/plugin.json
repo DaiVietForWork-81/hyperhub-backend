@@ -1,0 +1,18 @@
+{
+  "name": "web-quality-skills",
+  "version": "2.0.0",
+  "description": "Measurement-first Agent Skills for Lighthouse, Chrome DevTools, Core Web Vitals, WCAG 2.2, SEO, and agentic browsing.",
+  "author": {
+    "name": "Addy Osmani",
+    "url": "https://github.com/addyosmani"
+  },
+  "homepage": "https://github.com/addyosmani/web-quality-skills",
+  "repository": "https://github.com/addyosmani/web-quality-skills",
+  "license": "MIT",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Web Quality Skills",
+    "shortDescription": "Measured Lighthouse, Core Web Vitals, accessibility, SEO, and agentic web quality.",
+    "category": "Productivity"
+  }
+}

@@ -1,0 +1,27 @@
+<!-- @meta {"title": "작업 기간 편집", "category": "공간·일정·디자인 도구", "summary": "주간 일정표에서 작업 막대의 시작일과 기간을 바꾸는 간트 편집기입니다. 막대를 끌면 시작일이, 끝 손잡이를 끌면 기간이 바뀌고 요약이 함께 갱신됩니다.", "hint": "보라색 막대나 끝 손잡이를 끌어 보세요. 방향키로도 움직입니다", "shape": "square", "fluid": true, "hue": "#C16235", "hue2": "#3D8BFF", "tags": ["gantt", "native", "spatial"]} -->
+<!-- @demo [["wait", 500], ["key", ".duration", 0, "ArrowRight", 1, 650], ["wait", 900], ["key", ".duration", 0, "Escape", 1, 650], ["wait", 500]] -->
+<!-- @en {"title": "Task duration editor", "summary": "A Gantt editor for changing a task’s start day and length on a weekly chart. Drag the bar to move its start or the end handle to change its length, and the summary follows.", "hint": "Drag the purple bar or its end handle. The arrow keys work too","map":[
+  ["'디자인 '+days[s-1]+'요일 시작, 방향키로 이동'", "'Design starts '+days[s-1]+', move with arrow keys'"],
+  ["디자인 시작일, 방향키로 이동", "Design start day, move with arrow keys"],
+  ["디자인 작업 기간", "Design duration"],
+  ["['월','화','수','목','금','토','일']", "['Mon','Tue','Wed','Thu','Fri','Sat','Sun']"],
+  ["월", "Mon"],
+  ["화", "Tue"],
+  ["수", "Wed"],
+  ["목", "Thu"],
+  ["금", "Fri"],
+  ["토", "Sat"],
+  ["일", "Sun"],
+  ["자료 수집", "Research"],
+  ["2일", "2 days"],
+  ["3일", "3 days"],
+  ["d+'일'", "d+(d>1?' days':' day')"],
+  ["디자인", "Design"]
+]} -->
+<style>
+.u111{width:100%;max-width:400px;min-width:0;font-size:13px}.u111 button{font:inherit;color:inherit;cursor:pointer}.u111 input[type=range]{min-width:0;width:100%;accent-color:var(--ux-accent)}.u111 .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.u111{padding:24px 4px}.u111 .schedule{display:grid;grid-template-columns:64px minmax(0,1fr);gap:17px 10px}.u111 .days{display:flex;justify-content:space-around;font-size:12px;color:var(--ux-ink-2);padding-bottom:4px}.u111 .lane{height:58px;position:relative;background:repeating-linear-gradient(90deg,var(--ux-surface-2) 0 calc(14.285% - 1px),var(--ux-line) calc(14.285% - 1px) 14.285%);border-radius:4px}.u111 .task{position:absolute;left:var(--start,14.285%);width:var(--duration,42.855%);height:38px;top:10px;border-radius:5px;background:var(--ux-accent);color:var(--ux-accent-ink);font-size:13px;padding:0 12px;border:0;text-align:left;white-space:nowrap;touch-action:none;cursor:grab}.u111 .other{left:0;width:28.57%;background:var(--ux-surface-3);color:var(--ux-ink-2);padding:10px}.u111 .rowname{align-self:center;font-size:13px}.u111 .duration{position:absolute;top:8px;left:calc(var(--start,14.285%) + var(--duration,42.855%) - 11px);height:42px;width:22px;background:transparent;border:0;padding:0;color:var(--ux-accent-ink);cursor:ew-resize;touch-action:none}.u111 .duration:after{content:"";display:block;height:17px;width:3px;margin:auto;background:currentColor;border-radius:2px}
+</style>
+<div class="ux u111"><div class="schedule"><span></span><div class="days"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span><span>일</span></div><span class="rowname">자료 수집</span><div class="lane"><span class="task other">2일</span></div><span class="rowname">디자인</span><div class="lane editable"><button class="task selected" aria-label="디자인 시작일, 방향키로 이동">3일</button><button class="duration" aria-label="디자인 작업 기간" role="slider" aria-valuemin="1" aria-valuemax="6" aria-valuenow="3"></button></div></div><output class="sr" aria-live="polite"></output></div>
+<script>
+(()=>{const root=document.currentScript.previousElementSibling,q=s=>root.querySelector(s),qa=s=>[...root.querySelectorAll(s)];let s=2,d=3;const days=['월','화','수','목','금','토','일'];function paint(){s=Math.max(1,Math.min(7,s));d=Math.max(1,Math.min(8-s,d));root.style.setProperty('--start',(s-1)/7*100+'%');root.style.setProperty('--duration',d/7*100+'%');q('.selected').textContent=d+'일';q('.duration').setAttribute('aria-valuenow',d);q('.duration').setAttribute('aria-valuemax',8-s);q('.selected').setAttribute('aria-label','디자인 '+days[s-1]+'요일 시작, 방향키로 이동');q('output').textContent=days[s-1]+'–'+days[s+d-2]+' · '+d+'일'}function reset(){s=2;d=3;paint()}qa('.selected,.duration').forEach(b=>{b.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End','Escape'].includes(e.key)){e.preventDefault();if(e.key==='Escape'){reset();return}let delta=e.key==='ArrowRight'?1:-1;if(b.matches('.duration'))d=e.key==='Home'?1:e.key==='End'?8-s:d+delta;else s=e.key==='Home'?1:e.key==='End'?7:s+delta;paint()}};b.onpointerdown=e=>b.setPointerCapture(e.pointerId);b.onpointermove=e=>{if(b.hasPointerCapture(e.pointerId)){const r=q('.editable').getBoundingClientRect(),day=Math.round((e.clientX-r.left)/r.width*7);if(b.matches('.duration'))d=day-s+1;else s=day+1;paint()}}});paint();})();
+</script>
