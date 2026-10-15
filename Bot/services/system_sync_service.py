@@ -161,7 +161,7 @@ class SystemSyncService:
         guilds_count = len(bot.guilds)
 
         embed = discord.Embed(
-            title="🚀 HYPERHUB SYSTEM ONLINE & ĐỒNG BỘ DISCORD",
+            title="🚀 ORBIT SYSTEM ONLINE & ĐỒNG BỘ DISCORD",
             description=(
                 "**Hệ thống Discord Bot & Web Portal đã khởi động thành công và đồng bộ hai chiều!**\n"
                 "Toàn bộ tài liệu, kiểm định AI/C++ và bảng điều khiển quản trị đã sẵn sàng phục vụ."
@@ -212,7 +212,7 @@ class SystemSyncService:
 
         if git_info.get("commit_msg"):
             embed.set_footer(
-                text=f"Git commit: {git_info['commit_msg']} • HyperHub Ecosystem",
+                text=f"Git commit: {git_info['commit_msg']} • Orbit Ecosystem",
                 icon_url=bot.user.display_avatar.url if bot.user else None,
             )
 

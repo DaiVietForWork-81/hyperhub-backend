@@ -184,7 +184,7 @@ class AdminCog(commands.Cog, name="Admin"):
             embed_type=EmbedType.SUCCESS,
             fields=fields,
             color=0x00B894,
-            footer_text="HyperHub System Engine • Optimized Hot-Reload (Admin/Owner Only)",
+            footer_text="Orbit System Engine • Optimized Hot-Reload (Admin/Owner Only)",
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
 
@@ -413,7 +413,7 @@ class AdminCog(commands.Cog, name="Admin"):
                 embed_type=EmbedType.INFO,
                 fields=fields,
                 color=0x2ECC71,
-                footer_text="HyperHub System Status • Admin Only",
+                footer_text="Orbit System Status • Admin Only",
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
         except Exception as e:

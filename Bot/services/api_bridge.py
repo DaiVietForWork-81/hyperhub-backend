@@ -1106,7 +1106,7 @@ class BotAPIBridge:
                 return web.json_response({
                     "success": False,
                     "error": "Chưa tham gia server",
-                    "message": "Bạn phải tham gia Discord Server HyperHub mới được lấy đề thi.",
+                    "message": "Bạn phải tham gia Discord Server Orbit mới được lấy đề thi.",
                     "reason": "not_member",
                     "guild_id": str(DISCORD_GUILD_ID),
                 }, status=403)
@@ -2017,7 +2017,7 @@ class BotAPIBridge:
             hints = {
                 "no_token": "Bạn chưa liên kết tài khoản Discord. Hãy đăng nhập bằng Discord trên Web.",
                 "unverified": "Tài khoản Discord của bạn chưa xác minh email. Hãy xác minh email rồi thử lại.",
-                "not_member": "Bạn chưa tham gia Discord Server HyperHub. Hãy vào server rồi thử lại.",
+                "not_member": "Bạn chưa tham gia Discord Server Orbit. Hãy vào server rồi thử lại.",
                 "not_admin": "Tài khoản của bạn không có role Quản trị (Owner / Co-Owner / Administrator / Moderator).",
             }
             logger.info(f"Admin check DENIED (reason={reason}) từ IP {request.remote}")

@@ -1297,7 +1297,7 @@ class DocumentIntakeCog(commands.Cog):
                 inline=False,
             )
 
-        embed.set_footer(text="Hệ Thống Tự Động Phân Loại Đề Thi • HyperHub")
+        embed.set_footer(text="Hệ Thống Tự Động Phân Loại Đề Thi • Orbit")
         return embed
 
     async def clean_intake_channel(self, channel: discord.TextChannel) -> None:
@@ -2007,7 +2007,7 @@ class DocumentIntakeCog(commands.Cog):
         if res.original_url:
             archive_embed.add_field(name="🔗 Liên Kết Gốc", value=f"[Nhấn vào đây để xem]({res.original_url})", inline=True)
 
-        archive_embed.set_footer(text="Hệ Thống Phân Loại Đề Thi Tự Động • HyperHub CP Arena")
+        archive_embed.set_footer(text="Hệ Thống Phân Loại Đề Thi Tự Động • Orbit")
 
         discord_file = None
         if res.file_path and os.path.exists(res.file_path):

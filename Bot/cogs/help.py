@@ -99,7 +99,7 @@ class HelpCog(commands.Cog, name="Help"):
     def build_owner_help_embeds(cls, bot: commands.Bot | None = None) -> list[discord.Embed]:
         """Tạo bộ 3 Rich Embeds cẩm nang toàn diện dành riêng cho Bot Owner."""
         embed1 = create_embed(
-            title="👑 [1] SỔ TAY QUẢN TRỊ VIÊN & HỆ THỐNG HYPERHUB",
+            title="👑 [1] SỔ TAY QUẢN TRỊ VIÊN & HỆ THỐNG ORBIT",
             description=(
                 "### 🎯 KIẾN TRÚC & NGUYÊN TẮC VẬN HÀNH\n\n"
                 "• **Kiến trúc Monorepo:** Bot Discord & Web API Bridge hoạt động song song tại cổng `8080`.\n"
@@ -109,7 +109,7 @@ class HelpCog(commands.Cog, name="Help"):
             ),
             embed_type=EmbedType.INFO,
             color=0xF1C40F,
-            footer_text="Cẩm nang quản trị viên HyperHub • Trang 1/3",
+            footer_text="Cẩm nang quản trị viên Orbit • Trang 1/3",
         )
 
         # Trang 2: liệt kê ĐỘNG toàn bộ lệnh trên server nếu có bot, fallback tĩnh nếu không
@@ -156,7 +156,7 @@ class HelpCog(commands.Cog, name="Help"):
             ),
             embed_type=EmbedType.INFO,
             color=0x2ECC71,
-            footer_text="Cấu trúc giao diện HyperHub • Trang 3/3",
+            footer_text="Cấu trúc giao diện Orbit • Trang 3/3",
         )
 
         return [embed1, embed2, embed3]
@@ -185,7 +185,7 @@ class HelpCog(commands.Cog, name="Help"):
             ),
             embed_type=EmbedType.INFO,
             color=0xF1C40F,
-            footer_text="HyperHub Admin • Tự động cập nhật khi bot khởi động",
+            footer_text="Orbit Admin • Tự động cập nhật khi bot khởi động",
         )
         return [embed]
 

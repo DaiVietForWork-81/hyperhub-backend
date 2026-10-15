@@ -403,8 +403,8 @@ class CompetitiveProgrammingBot(commands.Bot):
 
         # Thiết lập trạng thái hoạt động trực quan
         activity = discord.Activity(
-            type=discord.ActivityType.competing,
-            name="Đấu trường Codeforces | /help",
+            type=discord.ActivityType.watching,
+            name="Orbit • Different paths. One orbit.",
         )
         await self.change_presence(status=discord.Status.online, activity=activity)
 

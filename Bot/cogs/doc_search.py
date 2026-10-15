@@ -194,7 +194,7 @@ class SearchResultPaginationView(discord.ui.View):
             embed.add_field(name=f"#{idx}. {title}", value=val, inline=False)
 
         embed.set_footer(
-            text="Hệ Thống Tra Cứu Kho Đề Thi Tự Động • HyperHub CP Arena",
+            text="Hệ Thống Tra Cứu Kho Đề Thi Tự Động • Orbit",
             icon_url="https://assets.codeforces.com/favicon-96x96.png",
         )
         return embed
@@ -374,7 +374,7 @@ class DetailedSearchFilterView(discord.ui.View):
             ),
             color=0x2ECC71,
         )
-        embed.set_footer(text="HyperHub CP Arena • Bộ Lọc Siêu Tốc")
+        embed.set_footer(text="Orbit • Bộ Lọc Siêu Tốc")
         return embed
 
     async def _on_subject_select(self, interaction: discord.Interaction) -> None:
@@ -520,7 +520,7 @@ class DocumentSearchControlView(discord.ui.View):
                     inline=True,
                 )
 
-            embed.set_footer(text="Kho Học Liệu Mở • HyperHub CP Arena")
+            embed.set_footer(text="Kho Học Liệu Mở • Orbit")
             await interaction.followup.send(embed=embed, ephemeral=True)
         except Exception as e:
             log.error("Lỗi xem thống kê: %s", e, exc_info=True)
@@ -1094,7 +1094,7 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
             color=0x3498DB,
         )
         embed.set_footer(
-            text="HyperHub Web Portal • Tra cứu & Tải đề trên Web",
+            text="Orbit Web Portal • Tra cứu & Tải đề trên Web",
         )
         return embed
 
@@ -1425,7 +1425,7 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
         size_bytes = row[5] or 0
         pages = row[6] or 1
         jump_url = row[7] or ""
-        author = row[8] or "HyperHub"
+        author = row[8] or "Orbit"
         ac_year = row[9] if len(row) > 9 else None
         school = row[10] if len(row) > 10 else None
 
@@ -1433,7 +1433,7 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
 
         embed = discord.Embed(
             title=f"🎲 ĐỀ THI ĐƯỢC BỐC NGẪU NHIÊN: {title[:80]}",
-            description="Hệ thống đã chọn ngẫu nhiên 1 đề từ kho **175+ đề thi** của HyperHub:",
+            description="Hệ thống đã chọn ngẫu nhiên 1 đề từ kho **175+ đề thi** của Orbit:",
             color=0x9B59B6,
         )
         embed.add_field(name="📚 Môn Học", value=f"`{sub}`", inline=True)
@@ -1444,7 +1444,7 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
         if school:
             embed.add_field(name="🏫 Nguồn Ra Đề", value=f"`{school}`", inline=True)
         embed.add_field(name="👤 Người Nộp", value=f"`{author}`", inline=True)
-        embed.set_footer(text=f"Mã đề: #{doc_id} • HyperHub Document Vault")
+        embed.set_footer(text=f"Mã đề: #{doc_id} • Orbit Document Vault")
 
         view = discord.ui.View(timeout=180.0)
         if jump_url:
