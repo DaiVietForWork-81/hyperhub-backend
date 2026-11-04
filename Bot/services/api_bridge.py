@@ -318,9 +318,11 @@ class BotAPIBridge:
     async def _auth_middleware(self, request: web.Request, handler: Any) -> web.Response:
         """Kiểm tra token cho các endpoint POST, DELETE, PATCH, PUT / yêu cầu bảo mật."""
         if request.method in ("POST", "DELETE", "PATCH", "PUT"):
-            # Endpoint upload, import_gdrive, notify, account/link, admin và system endpoints sẽ tự kiểm tra xác thực bên trong handler
+            # Endpoint upload, import_gdrive, notify, account/link, study, forum, admin và system endpoints sẽ tự kiểm tra xác thực bên trong handler
             if (
-                request.path in ("/api/documents/upload", "/api/documents/import_gdrive", "/api/notify", "/api/account/link")
+                request.path in ("/api/documents/upload", "/api/documents/import_gdrive", "/api/notify", "/api/account/link", "/api/account/verify-member", "/api/study/checkin")
+                or request.path.startswith("/api/study/")
+                or request.path.startswith("/api/forum/")
                 or request.path.startswith("/api/admin/")
                 or request.path.startswith("/api/system/")
             ):
@@ -349,14 +351,29 @@ class BotAPIBridge:
         self.app.router.add_get("/api/user/{discord_id}", self.handle_user_profile)
         self.app.router.add_post("/api/notify", self.handle_notify)
         self.app.router.add_post("/api/account/link", self.handle_account_link)
+        self.app.router.add_post("/api/account/verify-member", self.handle_verify_member)
         self.app.router.add_get("/api/account/me", self.handle_account_me)
         self.app.router.add_get("/api/skills", self.handle_get_skills)
+        # Endpoints Diễn Đàn Orbit (Đồng bộ 2 chiều Web <-> Discord #💡・diễn-đàn)
+        self.app.router.add_get("/api/forum/threads", self.handle_forum_get_threads)
+        self.app.router.add_post("/api/forum/threads", self.handle_forum_create_thread)
+        self.app.router.add_get("/api/forum/threads/{thread_id}", self.handle_forum_get_thread_detail)
+        self.app.router.add_post("/api/forum/threads/{thread_id}/messages", self.handle_forum_post_message)
+        # Endpoints Đồng Bộ Hồ Sơ Học Tập, Chuỗi Ngày Học (Streak) & Bảng Xếp Hạng Học Thuật (Discord <-> Web)
+        self.app.router.add_get("/api/study/profile", self.handle_study_profile)
+        self.app.router.add_get("/api/study/profile/{discord_id}", self.handle_study_profile)
+        self.app.router.add_post("/api/study/checkin", self.handle_study_checkin)
+        self.app.router.add_get("/api/study/leaderboard", self.handle_study_leaderboard)
         # Endpoints Kho Tài Liệu & Đề Thi
         self.app.router.add_get("/api/documents", self.handle_get_documents)
         self.app.router.add_get("/api/documents/stats", self.handle_document_stats)
         self.app.router.add_get("/api/documents/request_exam", self.handle_request_exam)
         self.app.router.add_get("/api/documents/random", self.handle_request_exam)
         self.app.router.add_get("/api/documents/{id}/download", self.handle_download_document)
+        self.app.router.add_get("/api/documents/{id}/view", self.handle_view_document_inline)
+        self.app.router.add_get("/api/documents/{id}/pdf", self.handle_view_document_inline)
+        self.app.router.add_get("/api/documents/{id}/file_url", self.handle_get_document_file_url)
+        self.app.router.add_get("/api/documents/{id}/content", self.handle_get_document_content)
         self.app.router.add_get("/api/documents/check_hash", self.handle_check_hash)
         self.app.router.add_post("/api/documents/upload", self.handle_upload_document)
         self.app.router.add_post("/api/documents/import_gdrive", self.handle_import_gdrive)
@@ -1414,6 +1431,13 @@ class BotAPIBridge:
 
         direct_url = None
 
+        # Nếu channel_id hoặc message_id thiếu nhưng jump_url có dạng https://discord.com/channels/{guild}/{channel}/{message}
+        if (not channel_id or not message_id) and jump_url and "discord.com/channels/" in jump_url:
+            m_jump = re.search(r"discord\.com/channels/\d+/(\d+)/(\d+)", jump_url)
+            if m_jump:
+                channel_id = int(m_jump.group(1))
+                message_id = int(m_jump.group(2))
+
         if channel_id and message_id:
             try:
                 channel = self.bot.get_channel(int(channel_id))
@@ -1430,6 +1454,22 @@ class BotAPIBridge:
             except Exception as e:
                 logger.warning(f"Không thể lấy attachment từ Discord: {e}")
 
+        # Lưu direct_url (signed Discord CDN URL) lên Turso bot_kv_store để Vercel Serverless tự stream không tốn băng thông máy nhà
+        if direct_url and direct_url.startswith("http"):
+            try:
+                import json as _json
+                from database.turso_client import turso_db
+                if turso_db.is_configured:
+                    await turso_db.execute(
+                        """INSERT INTO bot_kv_store (key, value, updated_at) VALUES (?, ?, ?)
+                           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+                        f"doc_cdn_{doc_id}",
+                        _json.dumps({"direct_url": direct_url, "file_name": file_name, "file_type": file_type}, ensure_ascii=False),
+                        int(time.time()),
+                    )
+            except Exception:
+                pass
+
         # Thử lấy file từ local nếu nộp từ web
         upload_dir = os.path.join(BOT_BASE_DIR, "storage", "uploads")
         safe_file_name = os.path.basename(file_name).replace("..", "").strip()
@@ -1437,6 +1477,22 @@ class BotAPIBridge:
         real_upload_dir = os.path.realpath(upload_dir)
         if not direct_url and local_file.startswith(real_upload_dir + os.sep) and os.path.exists(local_file):
             direct_url = f"/api/documents/{doc_id}/download"
+            # Nếu file local <= 3.5MB, đồng bộ base64 lên Turso để Vercel tự phục vụ
+            try:
+                fsize = os.path.getsize(local_file)
+                if 0 < fsize <= int(3.5 * 1024 * 1024):
+                    import base64 as _b64
+                    from database.turso_client import turso_db
+                    if turso_db.is_configured:
+                        with open(local_file, "rb") as lf:
+                            b64_str = _b64.b64encode(lf.read()).decode("ascii")
+                        await turso_db.execute(
+                            "UPDATE documents_archive SET file_content_base64 = ? WHERE id = ? AND (file_content_base64 IS NULL OR file_content_base64 = '')",
+                            b64_str,
+                            doc_id,
+                        )
+            except Exception:
+                pass
 
         if not direct_url and jump_url:
             direct_url = jump_url
@@ -1452,7 +1508,791 @@ class BotAPIBridge:
             "estimated_level": grade,
             "direct_url": direct_url,
             "download_url": f"/api/documents/{doc_id}/download",
+            "view_url": f"/api/documents/{doc_id}/view",
             "jump_url": jump_url,
+        })
+
+    async def _fetch_document_raw_bytes(self, doc_id: int) -> tuple[bytes | None, str, str]:
+        """Lấy dữ liệu nhị phân (bytes) của tài liệu từ RAM cache, ổ đĩa, chunk archive hoặc Discord attachment."""
+        if not hasattr(self, "_inline_doc_cache"):
+            self._inline_doc_cache: dict[int, tuple[bytes, str, str, float]] = {}
+
+        now = time.time()
+        cached = self._inline_doc_cache.get(doc_id)
+        if cached and (now - cached[3] < 1800.0):
+            return cached[0], cached[1], cached[2]
+
+        if not hasattr(self.bot, "db") or not self.bot.db:
+            return None, "de_thi.pdf", "PDF"
+
+        row = await self.bot.db.fetchone(
+            "SELECT file_name, channel_id, message_id, file_type, is_chunked FROM documents_archive WHERE id = ?",
+            doc_id,
+        )
+        if not row:
+            return None, "de_thi.pdf", "PDF"
+
+        file_name = row[0] or f"de_thi_{doc_id}.pdf"
+        channel_id = row[1]
+        message_id = row[2]
+        file_type = (row[3] or "PDF").upper()
+        is_chunked = bool(row[4]) if len(row) > 4 else False
+
+        raw_bytes: bytes | None = None
+
+        # 1. Kiểm tra file local trong storage/uploads
+        upload_dir = os.path.join(BOT_BASE_DIR, "storage", "uploads")
+        safe_file_name = os.path.basename(file_name).replace("..", "").strip()
+        local_file = os.path.realpath(os.path.join(upload_dir, f"{doc_id}_{safe_file_name}"))
+        real_upload_dir = os.path.realpath(upload_dir)
+        if local_file.startswith(real_upload_dir + os.sep) and os.path.exists(local_file):
+            try:
+                with open(local_file, "rb") as f:
+                    raw_bytes = f.read()
+            except Exception as e:
+                logger.warning(f"Lỗi đọc file local {local_file}: {e}")
+
+        # 2. Nếu là file chunked
+        if raw_bytes is None and is_chunked:
+            try:
+                from services.chunk_archive import fetch_merged_bytes
+                merged, _ = await fetch_merged_bytes(self.bot, self.bot.db, doc_id)
+                if merged:
+                    raw_bytes = merged
+            except Exception as e:
+                logger.warning(f"Lỗi ghép chunk đề #{doc_id}: {e}")
+
+        # 3. Tải trực tiếp từ Discord attachment (tự động làm mới signed CDN URL)
+        if raw_bytes is None and channel_id and message_id:
+            try:
+                channel = self.bot.get_channel(int(channel_id))
+                if not channel:
+                    channel = await self.bot.fetch_channel(int(channel_id))
+                if channel:
+                    msg = await channel.fetch_message(int(message_id))
+                    target_att = None
+                    for att in msg.attachments:
+                        if att.filename == file_name or att.filename.lower() == file_name.lower():
+                            target_att = att
+                            break
+                    if not target_att and msg.attachments:
+                        target_att = msg.attachments[0]
+                    if target_att:
+                        raw_bytes = await target_att.read()
+            except Exception as e:
+                logger.warning(f"Không thể đọc attachment Discord cho đề #{doc_id}: {e}")
+
+        # Lưu vào LRU RAM cache nếu kích thước <= 12MB (giữ tối đa 6 file trong RAM)
+        if raw_bytes is not None and len(raw_bytes) <= 12 * 1024 * 1024:
+            if len(self._inline_doc_cache) >= 6:
+                oldest_key = min(self._inline_doc_cache.keys(), key=lambda k: self._inline_doc_cache[k][3])
+                self._inline_doc_cache.pop(oldest_key, None)
+            self._inline_doc_cache[doc_id] = (raw_bytes, file_name, file_type, now)
+
+        return raw_bytes, file_name, file_type
+
+    async def handle_view_document_inline(self, request: web.Request) -> web.StreamResponse:
+        """GET /api/documents/{id}/view (hoặc /pdf): Proxy stream trực tiếp PDF/tài liệu ở chế độ inline (hiển thị ngay trong iframe/canvas trên Web)."""
+        if not hasattr(self.bot, "db"):
+            return web.json_response({"error": "Cơ sở dữ liệu bot chưa sẵn sàng"}, status=503)
+
+        try:
+            doc_id = int(request.match_info.get("id", 0))
+        except (ValueError, TypeError):
+            return web.json_response({"error": "ID đề thi không hợp lệ"}, status=400)
+
+        raw_bytes, file_name, file_type = await self._fetch_document_raw_bytes(doc_id)
+        if not raw_bytes:
+            # Fallback redirect sang download nếu không lấy được bytes
+            return await self.handle_download_document(request)
+
+        ext = os.path.splitext(file_name.lower())[1]
+        if raw_bytes[:5] == b"%PDF-" or ext == ".pdf" or file_type == "PDF":
+            content_type = "application/pdf"
+        elif ext == ".png":
+            content_type = "image/png"
+        elif ext in (".jpg", ".jpeg"):
+            content_type = "image/jpeg"
+        elif ext == ".txt":
+            content_type = "text/plain; charset=utf-8"
+        else:
+            content_type = "application/octet-stream"
+
+        safe_ascii = re.sub(r'[^a-zA-Z0-9._-]', '_', file_name) or f"exam_{doc_id}.pdf"
+        return web.Response(
+            body=raw_bytes,
+            content_type=content_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{safe_ascii}"',
+                "Cache-Control": "public, max-age=3600",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+    @staticmethod
+    def _parse_questions_and_keys(raw_text: str) -> dict[str, Any]:
+        """Bóc tách danh sách câu hỏi trắc nghiệm / đúng sai / trả lời ngắn và bảng đáp án từ văn bản đề thi."""
+        if not raw_text or not raw_text.strip():
+            return {"questions": [], "answer_keys": {}, "sections": []}
+
+        text = raw_text.replace("\r\n", "\n").replace("\r", "\n")
+
+        # 1. Dò tìm bảng đáp án ở cuối đề (VD: 1.A 2.B 3.C hoặc 1-A, 2-D)
+        answer_keys: dict[str, str] = {}
+        tail_text = text[int(len(text) * 0.55):] if len(text) > 600 else text
+        for m in re.finditer(r'\b(\d{1,3})\s*[.:\-–)\s]\s*([A-D])\b', tail_text):
+            q_num = m.group(1)
+            ans = m.group(2).upper()
+            if 1 <= int(q_num) <= 120:
+                answer_keys[q_num] = ans
+
+        # 2. Tách các câu hỏi theo mẫu "Câu 1:", "Câu 1.", "Question 1:"
+        q_pattern = re.compile(
+            r'(?m)^\s*(?:Câu|Cau|Question|Bài|Bai)\s+(\d{1,3})\s*[.:)\-–]?\s*(.*?)(?=^\s*(?:Câu|Cau|Question|Bài|Bai)\s+\d{1,3}\s*[.:)\-–]?|\Z)',
+            re.DOTALL | re.IGNORECASE,
+        )
+        questions = []
+        seen_nums = set()
+        for match in q_pattern.finditer(text):
+            q_num_str = match.group(1)
+            body = match.group(2).strip()
+            if not body or len(body) < 4:
+                continue
+            # Tránh nhận nhầm bảng đáp án ở cuối làm câu hỏi trùng số
+            if q_num_str in seen_nums and len(body) < 35:
+                continue
+            seen_nums.add(q_num_str)
+
+            # Bóc tách 4 phương án A, B, C, D nếu có
+            options: list[dict[str, str]] = []
+            opt_matches = list(re.finditer(r'(?:^|\s|\n)([A-D])\s*[.)]\s+([^\n]+)', body))
+            stem = body
+            if len(opt_matches) >= 2:
+                first_pos = opt_matches[0].start()
+                stem = body[:first_pos].strip()
+                for idx, om in enumerate(opt_matches[:4]):
+                    letter = om.group(1).upper()
+                    opt_text = om.group(2).strip()
+                    options.append({"key": letter, "text": opt_text})
+
+            # Kiểm tra câu Đúng/Sai (a), b), c), d))
+            statements: list[dict[str, str]] = []
+            if not options:
+                stmt_matches = list(re.finditer(r'(?:^|\n)\s*([a-d])\)\s+([^\n]+)', body))
+                if len(stmt_matches) >= 2:
+                    first_s = stmt_matches[0].start()
+                    stem = body[:first_s].strip()
+                    for sm in stmt_matches[:4]:
+                        statements.append({"key": sm.group(1).lower(), "text": sm.group(2).strip()})
+
+            q_type = "mcq" if options else ("true_false" if statements else "short_or_essay")
+            questions.append({
+                "number": int(q_num_str),
+                "label": f"Câu {q_num_str}",
+                "type": q_type,
+                "stem": stem[:1500],
+                "options": options,
+                "statements": statements,
+                "answer_key": answer_keys.get(q_num_str),
+            })
+            if len(questions) >= 80:
+                break
+
+        return {
+            "questions": questions,
+            "answer_keys": answer_keys,
+        }
+
+    async def handle_get_document_content(self, request: web.Request) -> web.Response:
+        """GET /api/documents/{id}/content: Trả về nội dung văn bản đề thi, danh sách câu hỏi bóc tách & đáp án để đọc và làm bài trực tiếp trên Web."""
+        if not hasattr(self.bot, "db"):
+            return web.json_response({"error": "Cơ sở dữ liệu bot chưa sẵn sàng"}, status=503)
+
+        try:
+            doc_id = int(request.match_info.get("id", 0))
+        except (ValueError, TypeError):
+            return web.json_response({"error": "ID đề thi không hợp lệ"}, status=400)
+
+        row = await self.bot.db.fetchone(
+            """
+            SELECT id, subject, title, file_name, file_size_bytes, file_type,
+                   estimated_level, question_count, page_count, raw_text, notes,
+                   academic_year, school_or_department
+            FROM documents_archive
+            WHERE id = ?
+            """,
+            doc_id,
+        )
+        if not row:
+            return web.json_response({"error": "Không tìm thấy đề thi này trong kho"}, status=404)
+
+        file_name = row[3] or f"de_thi_{doc_id}.pdf"
+        file_type = (row[5] or "PDF").upper()
+        raw_text = (row[9] or "").strip()
+        notes = row[10] or ""
+        page_count = row[8] or 1
+        question_count = row[7] or 0
+
+        # Nếu raw_text chưa được lưu trong DB, tự động trích xuất từ tệp gốc (PDF/DOCX/TXT) ngay lập tức
+        if len(raw_text) < 60:
+            raw_bytes, _, _ = await self._fetch_document_raw_bytes(doc_id)
+            if raw_bytes:
+                extracted_str = ""
+                ext = os.path.splitext(file_name.lower())[1]
+                try:
+                    if raw_bytes[:5] == b"%PDF-" or ext == ".pdf" or file_type == "PDF":
+                        import fitz
+                        def _extract_pdf(b: bytes) -> tuple[str, int]:
+                            doc_pdf = fitz.open(stream=b, filetype="pdf")
+                            pages_txt = []
+                            for idx, p in enumerate(doc_pdf):
+                                pages_txt.append(f"--- TRANG {idx + 1} ---\n" + p.get_text("text"))
+                            cnt = len(doc_pdf)
+                            doc_pdf.close()
+                            return "\n\n".join(pages_txt).strip(), cnt
+                        extracted_str, p_cnt = await asyncio.to_thread(_extract_pdf, raw_bytes)
+                        if p_cnt > 0:
+                            page_count = p_cnt
+                    elif ext == ".docx" or "DOC" in file_type:
+                        import io
+                        from docx import Document as DocxDocument
+                        def _extract_docx(b: bytes) -> str:
+                            d = DocxDocument(io.BytesIO(b))
+                            paras = [p.text.strip() for p in d.paragraphs if p.text.strip()]
+                            for tbl in d.tables:
+                                for r_tbl in tbl.rows:
+                                    row_txt = " | ".join(c.text.strip() for c in r_tbl.cells if c.text.strip())
+                                    if row_txt:
+                                        paras.append(row_txt)
+                            return "\n".join(paras).strip()
+                        extracted_str = await asyncio.to_thread(_extract_docx, raw_bytes)
+                    elif ext == ".txt" or "TXT" in file_type:
+                        extracted_str = raw_bytes.decode("utf-8", errors="replace").strip()
+                except Exception as ex_err:
+                    logger.warning(f"Lỗi trích xuất văn bản đề #{doc_id}: {ex_err}")
+
+                if extracted_str and len(extracted_str) > len(raw_text):
+                    raw_text = extracted_str[:65000]
+                    try:
+                        await self.bot.db.execute(
+                            "UPDATE documents_archive SET raw_text = ?, page_count = ? WHERE id = ?",
+                            raw_text, page_count, doc_id,
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        from database.turso_client import turso_db
+                        if turso_db.is_configured:
+                            await turso_db.execute(
+                                "UPDATE documents_archive SET raw_text = ?, page_count = ? WHERE id = ?",
+                                raw_text, page_count, doc_id,
+                            )
+                    except Exception:
+                        pass
+
+        parsed = self._parse_questions_and_keys(raw_text)
+        ext = os.path.splitext(file_name.lower())[1]
+        is_pdf = ext == ".pdf" or file_type == "PDF"
+
+        return web.json_response({
+            "success": True,
+            "id": doc_id,
+            "subject": row[1],
+            "title": row[2] or file_name,
+            "file_name": file_name,
+            "file_size_bytes": row[4] or 0,
+            "file_type": file_type,
+            "is_pdf": is_pdf,
+            "estimated_level": row[6],
+            "question_count": max(question_count, len(parsed["questions"])),
+            "page_count": page_count,
+            "academic_year": row[11],
+            "school_or_department": row[12],
+            "raw_text": raw_text,
+            "notes": notes,
+            "questions": parsed["questions"],
+            "answer_keys": parsed["answer_keys"],
+            "view_url": f"/api/documents/{doc_id}/view",
+            "download_url": f"/api/documents/{doc_id}/download",
+        })
+
+    # =========================================================================
+    # PHASE 1: ĐỒNG BỘ HỒ SƠ HỌC TẬP, CHUỖI NGÀY HỌC (STREAK) & BẢNG XẾP HẠNG
+    # =========================================================================
+    @staticmethod
+    def _get_vn_today_str() -> tuple[str, str]:
+        """Trả về (today_str, yesterday_str) theo múi giờ Việt Nam (UTC+7) định dạng YYYY-MM-DD."""
+        vn_tz = datetime.timezone(datetime.timedelta(hours=7))
+        now_vn = datetime.datetime.now(vn_tz)
+        today_str = now_vn.strftime("%Y-%m-%d")
+        yesterday_str = (now_vn - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+        return today_str, yesterday_str
+
+    @staticmethod
+    def _compute_study_rank(xp: int, streak: int) -> dict[str, Any]:
+        """Tính cấp bậc Học thuật (Level & Danh hiệu) dựa trên XP và Streak."""
+        xp = max(0, int(xp or 0))
+        if xp >= 3000:
+            return {"level": 6, "title": "🌌 Huyền Thoại Orbit", "next_xp": 5000, "progress": min(100, int((xp - 3000) / 20))}
+        if xp >= 1500:
+            return {"level": 5, "title": "👑 Thủ Khoa Khối", "next_xp": 3000, "progress": int(((xp - 1500) / 1500) * 100)}
+        if xp >= 700:
+            return {"level": 4, "title": "🏅 Học Giả Tinh Anh", "next_xp": 1500, "progress": int(((xp - 700) / 800) * 100)}
+        if xp >= 300:
+            return {"level": 3, "title": "⚡ Chiến Binh Luyện Đề", "next_xp": 700, "progress": int(((xp - 300) / 400) * 100)}
+        if xp >= 100:
+            return {"level": 2, "title": "📘 Học Viên Chăm Chỉ", "next_xp": 300, "progress": int(((xp - 100) / 200) * 100)}
+        return {"level": 1, "title": "🌱 Tân Binh Orbit", "next_xp": 100, "progress": int((xp / 100) * 100)}
+
+    async def handle_study_profile(self, request: web.Request) -> web.Response:
+        """GET /api/study/profile hoặc /api/study/profile/{discord_id}: Lấy hồ sơ học tập, chuỗi ngày học (Streak) & XP đồng bộ Discord <-> Web."""
+        if not hasattr(self.bot, "db") or not self.bot.db:
+            return web.json_response({"error": "Cơ sở dữ liệu chưa sẵn sàng"}, status=503)
+
+        discord_id = 0
+        raw_id = request.match_info.get("discord_id") or request.query.get("discord_id", "")
+        if raw_id:
+            try:
+                discord_id = int(raw_id)
+            except (ValueError, TypeError):
+                discord_id = 0
+
+        user_meta: dict[str, Any] = {}
+        if not discord_id:
+            auth_header = request.headers.get("Authorization", "")
+            token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
+            if token and not self._is_valid_bot_api_secret(token):
+                verified_user = await self._verify_discord_bearer_token(token)
+                if verified_user:
+                    try:
+                        discord_id = int(verified_user.get("id", 0))
+                        user_meta = verified_user
+                    except (ValueError, TypeError):
+                        discord_id = 0
+
+        if not discord_id:
+            return web.json_response({"error": "Thiếu discord_id hoặc Bearer token"}, status=400)
+
+        today_str, yesterday_str = self._get_vn_today_str()
+
+        # Đếm số đề đã đóng góp thực tế của người dùng trong kho
+        contrib_row = await self.bot.db.fetchone(
+            "SELECT COUNT(*) FROM documents_archive WHERE author_id = ?",
+            discord_id,
+        )
+        real_contributed = contrib_row[0] if contrib_row else 0
+
+        row = await self.bot.db.fetchone(
+            """
+            SELECT discord_id, username, display_name, avatar_url,
+                   current_streak, max_streak, last_study_date, study_xp,
+                   pomodoro_count, study_minutes, exams_completed, docs_contributed,
+                   dream_school, dream_score, updated_at
+            FROM study_profiles
+            WHERE discord_id = ?
+            """,
+            discord_id,
+        )
+
+        if not row:
+            # Kiểm tra thông tin từ linked_accounts hoặc Discord guild member
+            acc_row = await self.bot.db.fetchone(
+                "SELECT username, global_name, avatar_url FROM linked_accounts WHERE discord_id = ?",
+                discord_id,
+            )
+            uname = (acc_row[0] if acc_row else None) or user_meta.get("username") or f"user_{discord_id}"
+            dname = (acc_row[1] if acc_row else None) or user_meta.get("global_name") or uname
+            avatar = (acc_row[2] if acc_row else None) or ""
+            now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            init_xp = real_contributed * 50
+            await self.bot.db.execute(
+                """
+                INSERT OR IGNORE INTO study_profiles
+                (discord_id, username, display_name, avatar_url, current_streak, max_streak,
+                 last_study_date, study_xp, pomodoro_count, study_minutes, exams_completed,
+                 docs_contributed, dream_school, dream_score, updated_at)
+                VALUES (?, ?, ?, ?, 0, 0, '', ?, 0, 0, 0, ?, '', '', ?)
+                """,
+                discord_id, uname, dname, avatar, init_xp, real_contributed, now_iso,
+            )
+            row = await self.bot.db.fetchone(
+                """
+                SELECT discord_id, username, display_name, avatar_url,
+                       current_streak, max_streak, last_study_date, study_xp,
+                       pomodoro_count, study_minutes, exams_completed, docs_contributed,
+                       dream_school, dream_score, updated_at
+                FROM study_profiles
+                WHERE discord_id = ?
+                """,
+                discord_id,
+            )
+
+        current_streak = row[4] or 0
+        max_streak = row[5] or 0
+        last_date = row[6] or ""
+        # Nếu nghỉ quá 1 ngày (last_date < yesterday_str), hiển thị streak thực tế là 0 (nhưng giữ max_streak)
+        active_streak = current_streak if last_date in (today_str, yesterday_str) else 0
+        checked_in_today = (last_date == today_str)
+        docs_contributed = max(row[11] or 0, real_contributed)
+        study_xp = max(row[7] or 0, docs_contributed * 50)
+        rank_info = self._compute_study_rank(study_xp, active_streak)
+
+        return web.json_response({
+            "success": True,
+            "profile": {
+                "discord_id": str(row[0]),
+                "username": row[1] or "",
+                "display_name": row[2] or row[1] or "Học viên Orbit",
+                "avatar_url": row[3] or "",
+                "current_streak": active_streak,
+                "max_streak": max(max_streak, active_streak),
+                "last_study_date": last_date,
+                "checked_in_today": checked_in_today,
+                "study_xp": study_xp,
+                "level": rank_info["level"],
+                "rank_title": rank_info["title"],
+                "next_xp": rank_info["next_xp"],
+                "level_progress": rank_info["progress"],
+                "pomodoro_count": row[8] or 0,
+                "study_minutes": row[9] or 0,
+                "exams_completed": row[10] or 0,
+                "docs_contributed": docs_contributed,
+                "dream_school": row[12] or "",
+                "dream_score": row[13] or "",
+                "updated_at": row[14] or "",
+            },
+        })
+
+    async def handle_study_checkin(self, request: web.Request) -> web.Response:
+        """POST /api/study/checkin: Điểm danh chuỗi ngày học (Daily Streak), ghi nhận hoàn thành Pomodoro (25p) hoặc Làm Đề Thi."""
+        if not hasattr(self.bot, "db") or not self.bot.db:
+            return web.json_response({"error": "Cơ sở dữ liệu chưa sẵn sàng"}, status=503)
+
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+        # Xác thực qua Bearer token hoặc thông tin user từ client
+        auth_header = request.headers.get("Authorization", "")
+        token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
+        verified_user = None
+        if token and not self._is_valid_bot_api_secret(token):
+            verified_user = await self._verify_discord_bearer_token(token)
+
+        discord_id = 0
+        if verified_user:
+            try:
+                discord_id = int(verified_user.get("id", 0))
+            except (ValueError, TypeError):
+                discord_id = 0
+        if not discord_id and body.get("discord_id"):
+            try:
+                discord_id = int(body.get("discord_id"))
+            except (ValueError, TypeError):
+                discord_id = 0
+
+        if not discord_id:
+            return web.json_response({"error": "Vui lòng liên kết tài khoản Discord để đồng bộ Chuỗi Ngày Học."}, status=401)
+
+        action = str(body.get("action", "daily_checkin")).strip().lower()
+        minutes_added = max(0, min(int(body.get("minutes", 0) or 0), 240))
+        username = (verified_user.get("username") if verified_user else None) or str(body.get("username", "")).strip()
+        display_name = (
+            (verified_user.get("global_name") if verified_user else None)
+            or str(body.get("display_name", "")).strip()
+            or username
+            or f"Học viên #{str(discord_id)[-4:]}"
+        )
+        avatar_url = str(body.get("avatar_url", "")).strip()
+        if verified_user and verified_user.get("avatar") and not avatar_url:
+            avatar_url = f"https://cdn.discordapp.com/avatars/{discord_id}/{verified_user['avatar']}.png"
+
+        today_str, yesterday_str = self._get_vn_today_str()
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+        # Lấy hồ sơ hiện tại
+        row = await self.bot.db.fetchone(
+            """
+            SELECT current_streak, max_streak, last_study_date, study_xp,
+                   pomodoro_count, study_minutes, exams_completed, docs_contributed,
+                   dream_school, dream_score, username, display_name, avatar_url
+            FROM study_profiles
+            WHERE discord_id = ?
+            """,
+            discord_id,
+        )
+
+        contrib_row = await self.bot.db.fetchone(
+            "SELECT COUNT(*) FROM documents_archive WHERE author_id = ?",
+            discord_id,
+        )
+        real_contributed = contrib_row[0] if contrib_row else 0
+
+        if row:
+            cur_streak = row[0] or 0
+            max_streak = row[1] or 0
+            last_date = row[2] or ""
+            study_xp = row[3] or 0
+            pomo_count = row[4] or 0
+            study_mins = row[5] or 0
+            exams_done = row[6] or 0
+            docs_contrib = max(row[7] or 0, real_contributed)
+            dream_school = row[8] or ""
+            dream_score = row[9] or ""
+            username = username or row[10] or ""
+            display_name = display_name or row[11] or username
+            avatar_url = avatar_url or row[12] or ""
+        else:
+            cur_streak = 0
+            max_streak = 0
+            last_date = ""
+            study_xp = real_contributed * 50
+            pomo_count = 0
+            study_mins = 0
+            exams_done = 0
+            docs_contrib = real_contributed
+            dream_school = ""
+            dream_score = ""
+
+        xp_gained = 0
+        streak_incremented = False
+
+        # Cập nhật chuỗi ngày học nếu hôm nay chưa check-in (trừ khi chỉ đổi mục tiêu trường)
+        if action in ("daily_checkin", "pomodoro", "exam_complete"):
+            if last_date != today_str:
+                if last_date == yesterday_str:
+                    cur_streak += 1
+                else:
+                    cur_streak = 1
+                max_streak = max(max_streak, cur_streak)
+                last_date = today_str
+                xp_gained += 50 + min(cur_streak * 5, 50)
+                streak_incremented = True
+
+        if action == "pomodoro":
+            pomo_count += 1
+            study_mins += (minutes_added if minutes_added > 0 else 25)
+            xp_gained += 35
+        elif action == "exam_complete":
+            exams_done += 1
+            study_mins += (minutes_added if minutes_added > 0 else 45)
+            xp_gained += 100
+        elif action == "update_dream":
+            if "dream_school" in body:
+                dream_school = str(body.get("dream_school") or "").strip()[:120]
+            if "dream_score" in body:
+                dream_score = str(body.get("dream_score") or "").strip()[:30]
+            if dream_school and study_xp == 0:
+                xp_gained += 20
+
+        study_xp += xp_gained
+
+        await self.bot.db.execute(
+            """
+            INSERT INTO study_profiles
+            (discord_id, username, display_name, avatar_url, current_streak, max_streak,
+             last_study_date, study_xp, pomodoro_count, study_minutes, exams_completed,
+             docs_contributed, dream_school, dream_score, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(discord_id) DO UPDATE SET
+                username = excluded.username,
+                display_name = excluded.display_name,
+                avatar_url = CASE WHEN excluded.avatar_url != '' THEN excluded.avatar_url ELSE study_profiles.avatar_url END,
+                current_streak = excluded.current_streak,
+                max_streak = excluded.max_streak,
+                last_study_date = excluded.last_study_date,
+                study_xp = excluded.study_xp,
+                pomodoro_count = excluded.pomodoro_count,
+                study_minutes = excluded.study_minutes,
+                exams_completed = excluded.exams_completed,
+                docs_contributed = excluded.docs_contributed,
+                dream_school = excluded.dream_school,
+                dream_score = excluded.dream_score,
+                updated_at = excluded.updated_at
+            """,
+            discord_id, username, display_name, avatar_url,
+            cur_streak, max_streak, last_date, study_xp,
+            pomo_count, study_mins, exams_done, docs_contrib,
+            dream_school, dream_score, now_iso,
+        )
+
+        # Đồng bộ luôn sang bảng users (ranked_streak / ranked_max_streak) nếu có trong SQLAlchemy
+        try:
+            await self.bot.db.execute(
+                "UPDATE users SET ranked_streak = ?, ranked_max_streak = MAX(COALESCE(ranked_max_streak, 0), ?) WHERE discord_id = ?",
+                cur_streak, max_streak, discord_id,
+            )
+        except Exception:
+            pass
+
+        # Đồng bộ lên Turso Cloud nền để Web truy cập được ngay cả khi Bot tắt
+        try:
+            from database.turso_client import turso_db
+            if turso_db.is_configured:
+                await turso_db.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS study_profiles (
+                        discord_id INTEGER PRIMARY KEY,
+                        username TEXT,
+                        display_name TEXT,
+                        avatar_url TEXT,
+                        current_streak INTEGER DEFAULT 0,
+                        max_streak INTEGER DEFAULT 0,
+                        last_study_date TEXT DEFAULT '',
+                        study_xp INTEGER DEFAULT 0,
+                        pomodoro_count INTEGER DEFAULT 0,
+                        study_minutes INTEGER DEFAULT 0,
+                        exams_completed INTEGER DEFAULT 0,
+                        docs_contributed INTEGER DEFAULT 0,
+                        dream_school TEXT DEFAULT '',
+                        dream_score TEXT DEFAULT '',
+                        updated_at TEXT NOT NULL
+                    )
+                    """
+                )
+                await turso_db.execute(
+                    """
+                    INSERT INTO study_profiles
+                    (discord_id, username, display_name, avatar_url, current_streak, max_streak,
+                     last_study_date, study_xp, pomodoro_count, study_minutes, exams_completed,
+                     docs_contributed, dream_school, dream_score, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(discord_id) DO UPDATE SET
+                        username = excluded.username,
+                        display_name = excluded.display_name,
+                        avatar_url = CASE WHEN excluded.avatar_url != '' THEN excluded.avatar_url ELSE study_profiles.avatar_url END,
+                        current_streak = excluded.current_streak,
+                        max_streak = excluded.max_streak,
+                        last_study_date = excluded.last_study_date,
+                        study_xp = excluded.study_xp,
+                        pomodoro_count = excluded.pomodoro_count,
+                        study_minutes = excluded.study_minutes,
+                        exams_completed = excluded.exams_completed,
+                        docs_contributed = excluded.docs_contributed,
+                        dream_school = excluded.dream_school,
+                        dream_score = excluded.dream_score,
+                        updated_at = excluded.updated_at
+                    """,
+                    discord_id, username, display_name, avatar_url,
+                    cur_streak, max_streak, last_date, study_xp,
+                    pomo_count, study_mins, exams_done, docs_contrib,
+                    dream_school, dream_score, now_iso,
+                )
+        except Exception as te:
+            logger.debug(f"Turso sync study_profiles skipped: {te}")
+
+        rank_info = self._compute_study_rank(study_xp, cur_streak)
+        return web.json_response({
+            "success": True,
+            "xp_gained": xp_gained,
+            "streak_incremented": streak_incremented,
+            "profile": {
+                "discord_id": str(discord_id),
+                "username": username,
+                "display_name": display_name,
+                "avatar_url": avatar_url,
+                "current_streak": cur_streak,
+                "max_streak": max_streak,
+                "last_study_date": last_date,
+                "checked_in_today": (last_date == today_str),
+                "study_xp": study_xp,
+                "level": rank_info["level"],
+                "rank_title": rank_info["title"],
+                "next_xp": rank_info["next_xp"],
+                "level_progress": rank_info["progress"],
+                "pomodoro_count": pomo_count,
+                "study_minutes": study_mins,
+                "exams_completed": exams_done,
+                "docs_contributed": docs_contrib,
+                "dream_school": dream_school,
+                "dream_score": dream_score,
+                "updated_at": now_iso,
+            },
+        })
+
+    async def handle_study_leaderboard(self, request: web.Request) -> web.Response:
+        """GET /api/study/leaderboard: Bảng xếp hạng học thuật đồng bộ giữa Discord Bot và Web Hub."""
+        if not hasattr(self.bot, "db") or not self.bot.db:
+            return web.json_response({"error": "Cơ sở dữ liệu chưa sẵn sàng"}, status=503)
+
+        today_str, yesterday_str = self._get_vn_today_str()
+
+        # 1. Tự động đồng bộ những người đóng góp đề thi từ documents_archive & linked_accounts vào study_profiles
+        try:
+            contrib_rows = await self.bot.db.fetchall(
+                """
+                SELECT author_id, MAX(author_name), COUNT(*) as cnt
+                FROM documents_archive
+                WHERE author_id IS NOT NULL AND author_id > 0
+                GROUP BY author_id
+                """
+            )
+            now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            for c_row in contrib_rows:
+                aid, aname, cnt = c_row[0], c_row[1] or "Thành viên Orbit", c_row[2] or 0
+                await self.bot.db.execute(
+                    """
+                    INSERT INTO study_profiles
+                    (discord_id, username, display_name, avatar_url, current_streak, max_streak,
+                     last_study_date, study_xp, pomodoro_count, study_minutes, exams_completed,
+                     docs_contributed, dream_school, dream_score, updated_at)
+                    VALUES (?, ?, ?, '', 1, 1, ?, ?, 0, 0, 0, ?, '', '', ?)
+                    ON CONFLICT(discord_id) DO UPDATE SET
+                        docs_contributed = MAX(study_profiles.docs_contributed, excluded.docs_contributed),
+                        study_xp = MAX(study_profiles.study_xp, excluded.docs_contributed * 50)
+                    """,
+                    aid, aname, aname, today_str, cnt * 50, cnt, now_iso,
+                )
+        except Exception as se:
+            logger.debug(f"Auto-seed study_profiles from documents_archive skipped: {se}")
+
+        rows = await self.bot.db.fetchall(
+            """
+            SELECT sp.discord_id,
+                   COALESCE(NULLIF(sp.display_name, ''), NULLIF(la.global_name, ''), NULLIF(sp.username, ''), 'Học viên Orbit') as dname,
+                   COALESCE(NULLIF(sp.username, ''), la.username, '') as uname,
+                   COALESCE(NULLIF(sp.avatar_url, ''), la.avatar_url, '') as avatar,
+                   sp.current_streak, sp.max_streak, sp.last_study_date,
+                   sp.study_xp, sp.pomodoro_count, sp.study_minutes,
+                   sp.exams_completed, sp.docs_contributed, sp.dream_school, sp.dream_score
+            FROM study_profiles sp
+            LEFT JOIN linked_accounts la ON sp.discord_id = la.discord_id
+            ORDER BY sp.study_xp DESC, sp.current_streak DESC, sp.exams_completed DESC
+            LIMIT 30
+            """
+        )
+
+        scholars = []
+        for idx, r in enumerate(rows):
+            last_d = r[6] or ""
+            active_streak = (r[4] or 0) if last_d in (today_str, yesterday_str) else 0
+            max_s = max(r[5] or 0, active_streak)
+            xp = r[7] or 0
+            r_info = self._compute_study_rank(xp, active_streak)
+            scholars.append({
+                "rank": idx + 1,
+                "discord_id": str(r[0]),
+                "display_name": r[1],
+                "username": r[2],
+                "avatar_url": r[3],
+                "current_streak": active_streak,
+                "max_streak": max_s,
+                "study_xp": xp,
+                "level": r_info["level"],
+                "rank_title": r_info["title"],
+                "pomodoro_count": r[8] or 0,
+                "study_minutes": r[9] or 0,
+                "exams_completed": r[10] or 0,
+                "docs_contributed": r[11] or 0,
+                "dream_school": r[12] or "",
+                "dream_score": r[13] or "",
+            })
+
+        return web.json_response({
+            "success": True,
+            "total": len(scholars),
+            "leaderboard": scholars,
         })
 
     async def handle_check_hash(self, request: web.Request) -> web.Response:
@@ -1764,6 +2604,25 @@ class BotAPIBridge:
                     if hasattr(report, "pass1") and report.pass1:
                         question_count = getattr(report.pass1, "question_count", 0)
                         page_count = getattr(report.pass1, "page_count", 1)
+
+                    # Layer 2: Kiểm tra trùng nội dung đề thi (Content Hash)
+                    content_hash = getattr(report, "content_hash", None)
+                    if content_hash and hasattr(self.bot, "db"):
+                        existing_content = await self.bot.db.fetchone(
+                            "SELECT id, title, author_name, timestamp, jump_url FROM documents_archive WHERE content_hash = ? LIMIT 1",
+                            content_hash,
+                        )
+                        if existing_content:
+                            return web.json_response({
+                                "success": False,
+                                "is_duplicate": True,
+                                "match_type": "CONTENT_EXACT",
+                                "message": f"Nội dung đề thi hoàn toàn trùng khớp với đề '{existing_content[1]}' do '{existing_content[2]}' nộp vào {existing_content[3]}!",
+                                "existing_id": existing_content[0],
+                                "existing_title": existing_content[1],
+                                "file_hash": file_hash,
+                                "content_hash": content_hash,
+                            })
             except Exception as e:
                 logger.warning(f"Lỗi khi chạy DocInspector: {e}")
 
@@ -1773,6 +2632,34 @@ class BotAPIBridge:
 
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
         file_ext = os.path.splitext(file_name)[1].lower().replace(".", "").upper() or "PDF"
+
+        # 4b. Đẩy tệp lên kênh Discord #database (ID: 1548627763467128912) để lấy link CDN phục vụ Web Vercel 24/7
+        db_channel_id = int(getattr(settings, "DATABASE_ARCHIVE_CHANNEL_ID", 1548627763467128912) or 1548627763467128912)
+        saved_channel_id = 0
+        saved_message_id = 0
+        saved_jump_url = "https://orbit-psi-black.vercel.app/#vault"
+        discord_cdn_url = ""
+        try:
+            db_chan = self.bot.get_channel(db_channel_id)
+            if db_chan is None:
+                db_chan = await self.bot.fetch_channel(db_channel_id)
+            if db_chan and hasattr(db_chan, "send"):
+                import io as _io
+                d_file = discord.File(_io.BytesIO(file_bytes), filename=file_name)
+                sent_msg = await db_chan.send(
+                    content=(
+                        f"📦 **[ORBIT DATABASE ARCHIVE]** `{file_name}`\n"
+                        f"• **Môn:** `{detected_subject}` • **Khối:** `{detected_grade}` • **Người nộp:** `{uploader_name}`"
+                    ),
+                    file=d_file,
+                )
+                saved_channel_id = db_channel_id
+                saved_message_id = sent_msg.id
+                saved_jump_url = sent_msg.jump_url
+                if sent_msg.attachments:
+                    discord_cdn_url = sent_msg.attachments[0].url
+        except Exception as d_err:
+            logger.warning(f"Không thể đẩy tệp lên kênh Discord #database ({db_channel_id}): {d_err}")
 
         # 5. Lưu vào database documents_archive (Local SQLite)
         try:
@@ -1797,9 +2684,9 @@ class BotAPIBridge:
                 page_count,
                 uploader_id,
                 uploader_name,
-                0,
-                0,
-                "https://hyperhub-one.vercel.app/#vault",
+                saved_channel_id,
+                saved_message_id,
+                saved_jump_url,
                 now_iso,
                 file_hash,
                 raw_text_summary[:50000] if raw_text_summary else "",
@@ -1831,9 +2718,9 @@ class BotAPIBridge:
                 page_count,
                 uploader_id,
                 uploader_name,
-                0,
-                0,
-                "https://hyperhub-one.vercel.app/#vault",
+                saved_channel_id,
+                saved_message_id,
+                saved_jump_url,
                 now_iso,
                 file_hash,
                 raw_text_summary[:50000] if raw_text_summary else "",
@@ -1855,7 +2742,7 @@ class BotAPIBridge:
         except Exception as fe:
             logger.warning(f"Không thể lưu file upload: {fe}")
 
-        # 6. Đồng bộ sang Turso libSQL Cloud Database (Kho 5GB)
+        # 6. Đồng bộ sang Turso libSQL Cloud Database (Kho 5GB) & Lưu luôn doc_cdn_{doc_id}
         try:
             from database.turso_client import turso_db
             if turso_db.is_configured:
@@ -1884,7 +2771,7 @@ class BotAPIBridge:
                     turso_sql,
                     detected_subject, file_name, file_name, len(file_bytes), file_ext,
                     detected_grade, question_count, page_count, uploader_id,
-                    uploader_name, 0, 0, "https://hyperhub-one.vercel.app/#vault", now_iso,
+                    uploader_name, saved_channel_id, saved_message_id, saved_jump_url, now_iso,
                     file_hash, raw_text_summary[:50000] if raw_text_summary else "",
                     raw_text_summary, academic_year, school_name,
                     "XAC_MINH", exam_type_str, confidence,
@@ -1895,6 +2782,18 @@ class BotAPIBridge:
                     1 if client_pre_parsed else 0,
                     "web"
                 )
+                if discord_cdn_url and doc_id:
+                    import json as _json
+                    await turso_db.execute(
+                        """INSERT INTO bot_kv_store (key, value, updated_at) VALUES (?, ?, ?)
+                           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+                        f"doc_cdn_{doc_id}",
+                        _json.dumps(
+                            {"direct_url": discord_cdn_url, "file_name": file_name, "file_type": file_ext},
+                            ensure_ascii=False,
+                        ),
+                        int(time.time()),
+                    )
         except Exception as te:
             logger.debug("Không thể đồng bộ đề lên Turso: %s", te)
 
@@ -1916,6 +2815,9 @@ class BotAPIBridge:
             "school_or_department": school_name,
             "summary": raw_text_summary,
             "file_hash": file_hash,
+            "content_hash": getattr(report, "content_hash", None) if "report" in locals() and report else None,
+            "quorum": getattr(report, "quorum_arbitration", None) if "report" in locals() and report else None,
+            "draft_dossier_markdown": getattr(report, "draft_dossier_markdown", None) if "report" in locals() and report else None,
             "moet_2025_compliant": bool(moet_2025_compliant),
             "moet_part1_count": moet_part1_count,
             "moet_part2_count": moet_part2_count,
@@ -2020,7 +2922,10 @@ class BotAPIBridge:
                 "not_member": "Bạn chưa tham gia Discord Server Orbit. Hãy vào server rồi thử lại.",
                 "not_admin": "Tài khoản của bạn không có role Quản trị (Owner / Co-Owner / Administrator / Moderator).",
             }
-            logger.info(f"Admin check DENIED (reason={reason}) từ IP {request.remote}")
+            if reason == "no_token":
+                logger.debug(f"Admin check skipped (reason=no_token) từ IP {request.remote}")
+            else:
+                logger.info(f"Admin check DENIED (reason={reason}) từ IP {request.remote}")
             return web.json_response({
                 "is_admin": False,
                 "reason": reason,
@@ -2749,6 +3654,12 @@ class BotAPIBridge:
 
         # 3. Xóa bản ghi trong CSDL (Trigger documents_fts sẽ tự xóa khỏi bảng tìm kiếm FTS5)
         await self.bot.db.execute("DELETE FROM documents_archive WHERE id = ?", doc_id)
+        try:
+            from database.turso_client import turso_db
+            if turso_db.is_configured:
+                await turso_db.execute("DELETE FROM documents_archive WHERE id = ?", doc_id)
+        except Exception as te:
+            logger.debug(f"Không thể đồng bộ xóa đề #{doc_id} trên Turso Cloud: {te}")
         self.invalidate_doc_caches()
         logger.info(f"Admin {admin_info.get('username')} đã xóa hoàn toàn đề thi #{doc_id} ('{doc_title}')")
 
@@ -2816,6 +3727,17 @@ class BotAPIBridge:
                WHERE id = ?""",
             new_title, new_subject, new_level, new_notes, doc_id
         )
+        try:
+            from database.turso_client import turso_db
+            if turso_db.is_configured:
+                await turso_db.execute(
+                    """UPDATE documents_archive
+                       SET title = ?, subject = ?, estimated_level = ?, notes = ?
+                       WHERE id = ?""",
+                    new_title, new_subject, new_level, new_notes, doc_id
+                )
+        except Exception as te:
+            logger.debug(f"Không thể đồng bộ cập nhật đề #{doc_id} trên Turso Cloud: {te}")
         self.invalidate_doc_caches()
         logger.info(f"Admin {admin_info.get('username')} đã cập nhật đề thi #{doc_id}: '{new_title}', notes='{new_notes}'")
 
@@ -2958,9 +3880,753 @@ class BotAPIBridge:
         logger.info(
             f"🚀 Bot API Bridge đang hoạt động tại http://{settings.BOT_API_HOST}:{settings.BOT_API_PORT}"
         )
+        # Khởi chạy cầu nối 2 chiều trực tiếp với Vercel qua Turso Cloud (Zero-ngrok / Zero-Cloudflare)
+        self._turso_relay_task = asyncio.create_task(self._turso_relay_loop())
+
+    async def _init_turso_bridge_tables(self) -> None:
+        """Khởi tạo bảng lưu trạng thái thực thi (bot_kv_store) và hàng đợi RPC 2 chiều (bot_rpc_queue) trên Turso Cloud."""
+        from database.turso_client import turso_db
+        if not turso_db.is_configured:
+            return
+        await turso_db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bot_kv_store (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            """
+        )
+        await turso_db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bot_rpc_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                method TEXT NOT NULL,
+                path TEXT NOT NULL,
+                headers TEXT,
+                body TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                response_status INTEGER DEFAULT 200,
+                response_body TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            """
+        )
+        await turso_db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS linked_accounts (
+                discord_id INTEGER PRIMARY KEY,
+                username TEXT,
+                global_name TEXT,
+                avatar_url TEXT,
+                email TEXT,
+                verified INTEGER DEFAULT 0,
+                first_seen TEXT NOT NULL,
+                last_seen TEXT NOT NULL,
+                login_count INTEGER DEFAULT 1
+            )
+            """
+        )
+
+    async def _push_turso_telemetry_snapshot(self) -> None:
+        """Đồng bộ trạng thái Bot Online, Ping, danh sách Admin/Member và dữ liệu Admin Console lên Turso Cloud cho Vercel."""
+        import json as _json
+        import aiohttp as _aiohttp
+        from database.turso_client import turso_db
+        if not turso_db.is_configured:
+            return
+
+        now_ts = int(time.time())
+        uptime = int(now_ts - START_TIME)
+        ping = round(self.bot.latency * 1000, 2) if hasattr(self.bot, "latency") and self.bot.latency == self.bot.latency else 0.0
+
+        status_payload = {
+            "status": "online",
+            "bot_user": str(self.bot.user) if self.bot.user else "Orbit Bot",
+            "bot_id": self.bot.user.id if self.bot.user else 0,
+            "ping_ms": ping,
+            "guilds_count": len(self.bot.guilds) if hasattr(self.bot, "guilds") else 1,
+            "uptime_seconds": uptime,
+            "timestamp": now_ts,
+            "bridge_mode": "vercel_turso_direct",
+        }
+        await turso_db.execute(
+            """INSERT INTO bot_kv_store (key, value, updated_at) VALUES ('status', ?, ?)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+            _json.dumps(status_payload, ensure_ascii=False),
+            now_ts,
+        )
+
+        # Đồng bộ danh sách Admin & Member IDs để Vercel xác thực /api/admin/check và /api/documents/request_exam tức thì
+        guild = self.bot.get_guild(DISCORD_GUILD_ID) or (self.bot.guilds[0] if getattr(self.bot, "guilds", None) else None)
+        if guild:
+            admins_map: dict[str, dict[str, Any]] = {}
+            member_ids: list[str] = []
+            for m in guild.members:
+                uid_str = str(m.id)
+                member_ids.append(uid_str)
+                role_ids = {r.id for r in getattr(m, "roles", [])}
+                is_owner = (m.id == BOT_OWNER_ID) or (settings.OWNER_ID and m.id == settings.OWNER_ID) or (guild.owner_id == m.id)
+                is_adm = is_owner or getattr(m.guild_permissions, "administrator", False) or bool(role_ids.intersection(ADMIN_ROLE_IDS))
+                if is_adm:
+                    admins_map[uid_str] = {
+                        "is_admin": True,
+                        "user_id": m.id,
+                        "username": m.name,
+                        "display_name": m.display_name,
+                        "role_name": "👑 Owner" if is_owner else (m.top_role.name if getattr(m, "top_role", None) else "⚡ Administrator"),
+                    }
+            access_payload = {
+                "guild_id": str(guild.id),
+                "guild_name": guild.name,
+                "member_count": guild.member_count or len(member_ids),
+                "admins": admins_map,
+                "member_ids": member_ids[:5000],
+                "updated_at": now_ts,
+            }
+            await turso_db.execute(
+                """INSERT INTO bot_kv_store (key, value, updated_at) VALUES ('guild_access', ?, ?)
+                   ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+                _json.dumps(access_payload, ensure_ascii=False),
+                now_ts,
+            )
+
+        # Đồng bộ snapshot các endpoint Admin Console từ local HTTP server lên Turso Cloud
+        secret = (getattr(settings, "BOT_API_SECRET", "") or "").strip()
+        if not secret:
+            return
+        local_base = f"http://127.0.0.1:{settings.BOT_API_PORT}"
+        headers = {"X-Bot-Secret": secret}
+        snapshot_routes = [
+            ("admin_channels", "/api/admin/channels"),
+            ("admin_members", "/api/admin/members?limit=50"),
+            ("admin_bans", "/api/admin/bans"),
+            ("admin_logs", "/api/admin/logs?lines=200&level=ALL"),
+            ("admin_config", "/api/admin/config"),
+            ("admin_audit_logs", "/api/admin/audit-logs"),
+            ("system_update_status", "/api/system/update_status"),
+        ]
+        async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=5.0)) as sess:
+            for kv_key, route in snapshot_routes:
+                try:
+                    async with sess.get(f"{local_base}{route}", headers=headers) as resp:
+                        if resp.status == 200:
+                            text_val = await resp.text()
+                            await turso_db.execute(
+                                """INSERT INTO bot_kv_store (key, value, updated_at) VALUES (?, ?, ?)
+                                   ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+                                kv_key,
+                                text_val,
+                                now_ts,
+                            )
+                except Exception:
+                    pass
+
+            # Làm nóng sẵn (Pre-warm) tối đa 2 đề thi/chu kỳ lên Turso Cloud để Vercel đọc PDF & làm đề 24/7 khi tắt PC
+            try:
+                await self._prewarm_turso_documents_cache(sess, local_base)
+            except Exception as pw_err:
+                logger.debug(f"Pre-warm Turso documents cache skip: {pw_err}")
+
+    async def _prewarm_turso_documents_cache(self, sess: Any, local_base: str) -> None:
+        """Tự động đồng bộ ngầm link Discord CDN (doc_cdn_{id}) và raw_text của kho đề lên Turso Cloud theo từng lô nhỏ."""
+        from database.turso_client import turso_db
+        if not turso_db.is_configured or not hasattr(self.bot, "db") or not self.bot.db:
+            return
+
+        now_ts = time.time()
+        if not hasattr(self, "_prewarmed_doc_ids"):
+            self._prewarmed_doc_ids: set[int] = set()
+            self._last_prewarm_reset_ts: float = now_ts
+
+        # Làm mới lại link CDN mỗi 6 giờ (vì link Discord CDN có chữ ký hết hạn sau ~24h)
+        if now_ts - getattr(self, "_last_prewarm_reset_ts", 0.0) >= 21600:
+            self._prewarmed_doc_ids.clear()
+            self._last_prewarm_reset_ts = now_ts
+
+        rows = await self.bot.db.fetchall(
+            "SELECT id, raw_text, page_count FROM documents_archive ORDER BY id DESC LIMIT 120"
+        )
+        if not rows:
+            return
+
+        batch_count = 0
+        for r in rows:
+            doc_id = int(r[0])
+            if doc_id in self._prewarmed_doc_ids:
+                continue
+            raw_text = r[1] or ""
+            page_count = r[2] or 0
+
+            # 1. Phân giải và cache link CDN (doc_cdn_{id}) hoặc file_content_base64 lên Turso
+            try:
+                async with sess.get(f"{local_base}/api/documents/{doc_id}/file_url") as _:
+                    pass
+            except Exception:
+                pass
+
+            # 2. Nếu chưa có raw_text thì kích hoạt bóc tách 1 lần, nếu đã có thì đồng bộ sang Turso
+            if len(raw_text.strip()) < 60:
+                try:
+                    async with sess.get(f"{local_base}/api/documents/{doc_id}/content") as _:
+                        pass
+                except Exception:
+                    pass
+            else:
+                try:
+                    await turso_db.execute(
+                        "UPDATE documents_archive SET raw_text = ?, page_count = MAX(COALESCE(page_count, 0), ?) WHERE id = ? AND (raw_text IS NULL OR LENGTH(raw_text) < 60)",
+                        raw_text,
+                        page_count,
+                        doc_id,
+                    )
+                except Exception:
+                    pass
+
+            self._prewarmed_doc_ids.add(doc_id)
+            batch_count += 1
+            if batch_count >= 2:
+                break
+
+    async def _process_turso_rpc_queue(self) -> None:
+        """Xử lý các yêu cầu tương tác thời gian thực từ Vercel gửi qua bảng bot_rpc_queue trên Turso Cloud."""
+        import json as _json
+        import aiohttp as _aiohttp
+        from database.turso_client import turso_db
+        if not turso_db.is_configured:
+            return
+
+        rows = await turso_db.fetchall(
+            "SELECT id, method, path, headers, body FROM bot_rpc_queue WHERE status = 'pending' ORDER BY id ASC LIMIT 5"
+        )
+        if not rows:
+            return
+
+        local_base = f"http://127.0.0.1:{settings.BOT_API_PORT}"
+        secret = (getattr(settings, "BOT_API_SECRET", "") or "").strip()
+
+        async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=25.0)) as sess:
+            for r in rows:
+                rpc_id = r.get("id")
+                method = (r.get("method") or "POST").upper()
+                path = r.get("path") or "/api/status"
+                raw_headers = r.get("headers") or "{}"
+                raw_body = r.get("body") or ""
+
+                try:
+                    req_headers = _json.loads(raw_headers) if raw_headers else {}
+                except Exception:
+                    req_headers = {}
+
+                # Nếu Vercel đã xác thực quyền Admin/Secret, gắn X-Bot-Secret để thực thi nội bộ
+                if req_headers.get("X-Vercel-Verified-Admin") == "1" and secret:
+                    req_headers["X-Bot-Secret"] = secret
+                req_headers["Content-Type"] = req_headers.get("Content-Type", "application/json")
+
+                resp_status = 500
+                resp_text = '{"error":"Internal RPC Error"}'
+                try:
+                    async with sess.request(
+                        method,
+                        f"{local_base}{path}",
+                        headers=req_headers,
+                        data=raw_body.encode("utf-8") if raw_body else None,
+                    ) as resp:
+                        resp_status = resp.status
+                        resp_text = await resp.text()
+                except Exception as exc:
+                    resp_status = 502
+                    resp_text = _json.dumps({"error": f"Bot RPC execution error: {exc}"}, ensure_ascii=False)
+
+                await turso_db.execute(
+                    """UPDATE bot_rpc_queue
+                       SET status = 'done', response_status = ?, response_body = ?, updated_at = ?
+                       WHERE id = ?""",
+                    resp_status,
+                    resp_text,
+                    int(time.time()),
+                    rpc_id,
+                )
+
+        # Dọn dẹp các lệnh RPC cũ hơn 10 phút để tiết kiệm dung lượng Turso
+        await turso_db.execute("DELETE FROM bot_rpc_queue WHERE created_at < ?", int(time.time()) - 600)
+
+    async def _turso_relay_loop(self) -> None:
+        """Vòng lặp nền đồng bộ 2 chiều giữa Bot và Vercel thông qua Turso Cloud."""
+        await self.bot.wait_until_ready()
+        try:
+            await self._init_turso_bridge_tables()
+            logger.info("🌐 Đã kích hoạt cầu nối trực tiếp Bot <-> Vercel qua Turso Cloud (Zero-ngrok)!")
+        except Exception as e:
+            logger.warning(f"Lỗi khởi tạo bảng cầu nối Turso: {e}")
+
+        last_snapshot = 0.0
+        while not self.bot.is_closed():
+            try:
+                now = time.monotonic()
+                if now - last_snapshot >= 20.0:
+                    await self._push_turso_telemetry_snapshot()
+                    last_snapshot = now
+                await self._process_turso_rpc_queue()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.debug(f"Lỗi vòng lặp Turso Relay: {e}")
+            await asyncio.sleep(2.5)
+
+    # =========================================================================
+    # XÁC THỰC THÀNH VIÊN SERVER DISCORD & DIỄN ĐÀN 2 CHIỀU (WEB <-> DISCORD)
+    # =========================================================================
+    FORUM_CHANNEL_ID = 1535557885721841744
+    FORUM_CATEGORIES = ("Góc thắc mắc", "Facts", "Hỏi đáp", "Ôn thi")
+
+    async def handle_verify_member(self, request: web.Request) -> web.Response:
+        """POST /api/account/verify-member: Xác thực tài khoản thành viên Server Orbit | Vietnam
+        bằng Discord ID hoặc Username/Display Name để đăng nhập vào Orbit Hub & Diễn Đàn.
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+        identifier = str(body.get("identifier") or "").strip()
+        if not identifier:
+            return web.json_response(
+                {"error": "Missing identifier", "message": "Vui lòng nhập Discord Username hoặc Discord ID của bạn."},
+                status=400,
+            )
+
+        guild = self.bot.get_guild(DISCORD_GUILD_ID) or (self.bot.guilds[0] if self.bot.guilds else None)
+        if not guild:
+            return web.json_response(
+                {"error": "Guild unavailable", "message": "Bot đang kết nối tới máy chủ Discord, vui lòng thử lại sau vài giây."},
+                status=503,
+            )
+
+        member = None
+        clean_id = identifier.lstrip("<@!").rstrip(">").strip()
+        if clean_id.isdigit():
+            uid = int(clean_id)
+            member = guild.get_member(uid)
+            if not member:
+                try:
+                    member = await guild.fetch_member(uid)
+                except Exception:
+                    member = None
+        else:
+            q_lower = identifier.lstrip("@").strip().lower()
+            for m in guild.members:
+                if (
+                    m.name.lower() == q_lower
+                    or (m.global_name and m.global_name.lower() == q_lower)
+                    or m.display_name.lower() == q_lower
+                ):
+                    member = m
+                    break
+            if not member:
+                try:
+                    found = await guild.query_members(query=identifier.lstrip("@").strip(), limit=5)
+                    if found:
+                        member = found[0]
+                except Exception:
+                    member = None
+
+        if not member or member.bot:
+            return web.json_response(
+                {
+                    "error": "Member not found",
+                    "message": (
+                        f"Không tìm thấy thành viên '{identifier}' trong máy chủ Discord Orbit | Vietnam. "
+                        "Hãy chắc chắn bạn đã tham gia server Discord Orbit và nhập đúng Username hoặc ID!"
+                    ),
+                },
+                status=404,
+            )
+
+        avatar_url = (
+            member.display_avatar.url
+            if member.display_avatar
+            else f"https://cdn.discordapp.com/embed/avatars/{int(member.id) % 5}.png"
+        )
+        roles = [r.name for r in member.roles if r.name != "@everyone"]
+
+        return web.json_response(
+            {
+                "success": True,
+                "user": {
+                    "id": str(member.id),
+                    "username": member.name,
+                    "global_name": member.display_name or member.global_name or member.name,
+                    "avatar": avatar_url,
+                    "email": f"{member.name}@discord.orbit.vn",
+                    "verified": True,
+                    "roles": roles,
+                    "connectedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                },
+            }
+        )
+
+    @staticmethod
+    def _parse_forum_message_dict(m: dict) -> dict:
+        """Chuẩn hóa tin nhắn Discord (bao gồm cả tin nhắn do Bot chuyển tiếp từ Web) thành cấu trúc chuẩn cho Web Forum."""
+        raw_content = m.get("content") or ""
+        author = m.get("author") or {}
+        author_id = str(author.get("id") or "")
+        author_name = author.get("global_name") or author.get("username") or "Thành viên Orbit"
+        avatar_hash = author.get("avatar")
+        if avatar_hash and author_id:
+            author_avatar = f"https://cdn.discordapp.com/avatars/{author_id}/{avatar_hash}.png"
+        else:
+            author_avatar = "https://orbit-psi-black.vercel.app/server_icon.png"
+
+        source = "discord"
+        clean_content = raw_content
+
+        # Nếu là bài đăng gốc hoặc phản hồi được gửi từ Orbit Web qua Bot
+        web_reply_match = re.match(
+            r"^💬 \*\*<@!?(\d+)> \(([^)]+)\)\*\* \*\(từ Orbit Web\)\*:\n([\s\S]*)$",
+            raw_content,
+        )
+        web_starter_match = re.match(
+            r"^🪐 \*\*Chuyên mục: ([^\n•]+) • Orbit Forum\*\*\n👤 \*\*Người đăng:\*\* ([^\n]+)\n(?:🖼️ \*\*Avatar:\*\* (https?://[^\s\n]+)\n)?━+\n([\s\S]*)$",
+            raw_content,
+        )
+
+        if web_reply_match:
+            author_id = web_reply_match.group(1)
+            author_name = web_reply_match.group(2).strip()
+            clean_content = web_reply_match.group(3).strip()
+            source = "web"
+        elif web_starter_match:
+            raw_poster = web_starter_match.group(2).strip()
+            custom_av = web_starter_match.group(3)
+            clean_content = web_starter_match.group(4).strip()
+            mention_m = re.search(r"<@!?(\d+)>\s*\(`?([^`)`]+)`?\)", raw_poster)
+            if mention_m:
+                author_id = mention_m.group(1)
+                author_name = mention_m.group(2).strip()
+                source = "web"
+            else:
+                author_name = re.sub(r"\s*\(`[^`]+`\)", "", raw_poster).strip()
+            if custom_av:
+                author_avatar = custom_av
+
+        attachments = [
+            {
+                "id": str(a.get("id", "")),
+                "filename": a.get("filename", "attachment"),
+                "url": a.get("url", ""),
+                "size": a.get("size", 0),
+            }
+            for a in (m.get("attachments") or [])
+        ]
+
+        return {
+            "id": str(m.get("id", "")),
+            "author_id": author_id,
+            "author_name": author_name,
+            "author_avatar": author_avatar,
+            "content": clean_content,
+            "created_at": m.get("timestamp") or datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "source": source,
+            "attachments": attachments,
+        }
+
+    async def _discord_rest(self, method: str, path: str, json_body: dict | None = None) -> tuple[int, Any]:
+        """Gọi trực tiếp Discord REST API v10 bằng token của Bot."""
+        import aiohttp as _aiohttp
+        token = getattr(settings, "DISCORD_TOKEN", "") or os.getenv("DISCORD_TOKEN", "")
+        headers = {
+            "Authorization": f"Bot {token}",
+            "Content-Type": "application/json",
+        }
+        url = f"https://discord.com/api/v10{path}"
+        async with _aiohttp.ClientSession(headers=headers, timeout=_aiohttp.ClientTimeout(total=12.0)) as s:
+            async with s.request(method, url, json=json_body) as r:
+                try:
+                    data = await r.json()
+                except Exception:
+                    data = None
+                return r.status, data
+
+    async def handle_forum_get_threads(self, request: web.Request) -> web.Response:
+        """GET /api/forum/threads: Lấy danh sách các bài thảo luận trong #💡・diễn-đàn đồng bộ với Discord."""
+        st_ch, ch_data = await self._discord_rest("GET", f"/channels/{self.FORUM_CHANNEL_ID}")
+        available_tags = (ch_data or {}).get("available_tags", []) if st_ch == 200 else []
+        tag_id_to_name = {str(t["id"]): t["name"] for t in available_tags}
+
+        st_act, act_data = await self._discord_rest("GET", f"/guilds/{DISCORD_GUILD_ID}/threads/active")
+        active_threads = [
+            t for t in ((act_data or {}).get("threads") or [])
+            if str(t.get("parent_id")) == str(self.FORUM_CHANNEL_ID)
+        ] if st_act == 200 else []
+
+        st_arc, arc_data = await self._discord_rest("GET", f"/channels/{self.FORUM_CHANNEL_ID}/threads/archived/public")
+        archived_threads = ((arc_data or {}).get("threads") or []) if st_arc == 200 else []
+
+        seen_ids = set()
+        raw_threads = []
+        for t in active_threads + archived_threads:
+            tid = str(t.get("id"))
+            if tid and tid not in seen_ids:
+                seen_ids.add(tid)
+                raw_threads.append(t)
+
+        # Lấy tin nhắn mở đầu (starter message) của từng thread song song để hiển thị preview + tác giả
+        async def _enrich_thread(t: dict) -> dict:
+            tid = str(t["id"])
+            applied = [str(x) for x in (t.get("applied_tags") or [])]
+            category = "Góc thắc mắc"
+            for tag_id in applied:
+                if tag_id in tag_id_to_name:
+                    category = tag_id_to_name[tag_id]
+                    break
+            # Chuẩn hóa tên chuyên mục nếu nằm trong tiêu đề [Facts], [Hỏi đáp], [Ôn thi], [Góc thắc mắc]
+            t_name = t.get("name") or "Chủ đề thảo luận"
+            for cat_name in self.FORUM_CATEGORIES:
+                if t_name.lower().startswith(f"[{cat_name.lower()}]"):
+                    category = cat_name
+                    break
+
+            st_m, msgs = await self._discord_rest("GET", f"/channels/{tid}/messages?limit=2")
+            starter_parsed = None
+            if st_m == 200 and isinstance(msgs, list) and msgs:
+                # Tin nhắn đầu tiên của thread có id == tid hoặc phần tử cuối nếu ít tin nhắn
+                starter_raw = next((m for m in msgs if str(m.get("id")) == tid), msgs[-1])
+                starter_parsed = self._parse_forum_message_dict(starter_raw)
+
+            msg_count = int(t.get("message_count") or t.get("total_message_sent") or 1)
+            created_ts = (
+                starter_parsed["created_at"]
+                if starter_parsed
+                else (t.get("thread_metadata") or {}).get("create_timestamp")
+                or datetime.datetime.now(datetime.timezone.utc).isoformat()
+            )
+
+            return {
+                "id": tid,
+                "title": t_name,
+                "category": category,
+                "author_id": starter_parsed["author_id"] if starter_parsed else str(t.get("owner_id", "")),
+                "author_name": starter_parsed["author_name"] if starter_parsed else "Thành viên Orbit",
+                "author_avatar": starter_parsed["author_avatar"] if starter_parsed else "https://orbit-psi-black.vercel.app/server_icon.png",
+                "excerpt": (starter_parsed["content"][:220] if starter_parsed else ""),
+                "message_count": max(1, msg_count),
+                "reply_count": max(0, msg_count - 1),
+                "created_at": created_ts,
+                "jump_url": f"https://discord.com/channels/{DISCORD_GUILD_ID}/{tid}",
+            }
+
+        enriched = await asyncio.gather(*[_enrich_thread(t) for t in raw_threads[:25]])
+        enriched_list = sorted(enriched, key=lambda x: int(x["id"]), reverse=True)
+
+        return web.json_response(
+            {
+                "channel_id": str(self.FORUM_CHANNEL_ID),
+                "channel_name": "💡・diễn-đàn",
+                "categories": list(self.FORUM_CATEGORIES),
+                "threads": enriched_list,
+            }
+        )
+
+    async def handle_forum_get_thread_detail(self, request: web.Request) -> web.Response:
+        """GET /api/forum/threads/{thread_id}: Lấy chi tiết chủ đề và toàn bộ tin nhắn đồng bộ với Discord."""
+        thread_id = request.match_info.get("thread_id", "").strip()
+        if not thread_id.isdigit():
+            return web.json_response({"error": "Invalid thread_id"}, status=400)
+
+        st_t, t_data = await self._discord_rest("GET", f"/channels/{thread_id}")
+        if st_t != 200 or not isinstance(t_data, dict):
+            return web.json_response({"error": "Thread not found"}, status=404)
+
+        st_ch, ch_data = await self._discord_rest("GET", f"/channels/{self.FORUM_CHANNEL_ID}")
+        available_tags = (ch_data or {}).get("available_tags", []) if st_ch == 200 else []
+        tag_id_to_name = {str(t["id"]): t["name"] for t in available_tags}
+
+        applied = [str(x) for x in (t_data.get("applied_tags") or [])]
+        category = "Góc thắc mắc"
+        for tag_id in applied:
+            if tag_id in tag_id_to_name:
+                category = tag_id_to_name[tag_id]
+                break
+
+        st_m, raw_msgs = await self._discord_rest("GET", f"/channels/{thread_id}/messages?limit=100")
+        messages = []
+        if st_m == 200 and isinstance(raw_msgs, list):
+            # Discord trả về tin nhắn từ mới nhất -> cũ nhất, đảo ngược lại theo thứ tự thời gian
+            for rm in reversed(raw_msgs):
+                parsed = self._parse_forum_message_dict(rm)
+                if parsed["content"] or parsed["attachments"]:
+                    messages.append(parsed)
+
+        return web.json_response(
+            {
+                "id": str(t_data.get("id")),
+                "title": t_data.get("name") or "Chủ đề thảo luận",
+                "category": category,
+                "jump_url": f"https://discord.com/channels/{DISCORD_GUILD_ID}/{thread_id}",
+                "messages": messages,
+            }
+        )
+
+    async def handle_forum_create_thread(self, request: web.Request) -> web.Response:
+        """POST /api/forum/threads: Đăng chủ đề mới từ Web -> Bot tự động tạo bài mới trong #💡・diễn-đàn trên Discord."""
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+        title = str(body.get("title") or "").strip()
+        content = str(body.get("content") or "").strip()
+        category = str(body.get("category") or "Góc thắc mắc").strip()
+        author_id = str(body.get("author_id") or "").strip()
+        author_name = str(body.get("author_name") or "Thành viên Orbit").strip()
+        author_avatar = str(body.get("author_avatar") or "").strip()
+
+        if category not in self.FORUM_CATEGORIES:
+            category = "Góc thắc mắc"
+        if len(title) < 4:
+            return web.json_response(
+                {"error": "Invalid title", "message": "Tiêu đề bài viết cần tối thiểu 4 ký tự."},
+                status=400,
+            )
+        if len(content) < 4:
+            return web.json_response(
+                {"error": "Invalid content", "message": "Nội dung bài viết cần tối thiểu 4 ký tự."},
+                status=400,
+            )
+
+        # Lấy tag ID tương ứng trên kênh #💡・diễn-đàn
+        st_ch, ch_data = await self._discord_rest("GET", f"/channels/{self.FORUM_CHANNEL_ID}")
+        available_tags = (ch_data or {}).get("available_tags", []) if st_ch == 200 else []
+        tag_id = None
+        for t in available_tags:
+            if t.get("name", "").lower() == category.lower():
+                tag_id = str(t["id"])
+                break
+
+        full_title = title if title.startswith("[") else f"[{category}] {title}"
+        poster_str = f"<@{author_id}> (`{author_name}`)" if author_id.isdigit() else f"**{author_name}**"
+        discord_content = (
+            f"🪐 **Chuyên mục: {category} • Orbit Forum**\n"
+            f"👤 **Người đăng:** {poster_str}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"{content}"
+        )
+
+        payload: dict[str, Any] = {
+            "name": full_title[:100],
+            "auto_archive_duration": 10080,
+            "message": {
+                "content": discord_content[:1950],
+                "allowed_mentions": {"parse": []},
+            },
+        }
+        if tag_id:
+            payload["applied_tags"] = [tag_id]
+
+        st_create, created = await self._discord_rest("POST", f"/channels/{self.FORUM_CHANNEL_ID}/threads", payload)
+        if st_create not in (200, 201) or not isinstance(created, dict):
+            return web.json_response(
+                {"error": "Discord error", "message": "Không thể tạo bài viết trên kênh Discord #💡・diễn-đàn."},
+                status=502,
+            )
+
+        tid = str(created.get("id"))
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        starter_msg = {
+            "id": tid,
+            "author_id": author_id,
+            "author_name": author_name,
+            "author_avatar": author_avatar or "https://orbit-psi-black.vercel.app/server_icon.png",
+            "content": content,
+            "created_at": now_iso,
+            "source": "web",
+            "attachments": [],
+        }
+
+        return web.json_response(
+            {
+                "success": True,
+                "thread": {
+                    "id": tid,
+                    "title": full_title[:100],
+                    "category": category,
+                    "author_id": author_id,
+                    "author_name": author_name,
+                    "author_avatar": author_avatar or "https://orbit-psi-black.vercel.app/server_icon.png",
+                    "excerpt": content[:220],
+                    "message_count": 1,
+                    "reply_count": 0,
+                    "created_at": now_iso,
+                    "jump_url": f"https://discord.com/channels/{DISCORD_GUILD_ID}/{tid}",
+                    "messages": [starter_msg],
+                },
+            },
+            status=201,
+        )
+
+    async def handle_forum_post_message(self, request: web.Request) -> web.Response:
+        """POST /api/forum/threads/{thread_id}/messages: Gửi tin nhắn phản hồi từ Web -> đồng bộ ngay vào Thread Discord."""
+        thread_id = request.match_info.get("thread_id", "").strip()
+        if not thread_id.isdigit():
+            return web.json_response({"error": "Invalid thread_id"}, status=400)
+
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+        content = str(body.get("content") or "").strip()
+        author_id = str(body.get("author_id") or "").strip()
+        author_name = str(body.get("author_name") or "Thành viên Orbit").strip()
+        author_avatar = str(body.get("author_avatar") or "").strip()
+
+        if not content:
+            return web.json_response(
+                {"error": "Empty message", "message": "Nội dung tin nhắn không được để trống."},
+                status=400,
+            )
+
+        uid_tag = author_id if author_id.isdigit() else "0"
+        discord_msg_text = f"💬 **<@{uid_tag}> ({author_name})** *(từ Orbit Web)*:\n{content[:1850]}"
+
+        st_post, posted = await self._discord_rest(
+            "POST",
+            f"/channels/{thread_id}/messages",
+            {
+                "content": discord_msg_text,
+                "allowed_mentions": {"parse": []},
+            },
+        )
+        if st_post not in (200, 201) or not isinstance(posted, dict):
+            return web.json_response(
+                {"error": "Discord error", "message": "Không thể gửi tin nhắn vào chủ đề Discord."},
+                status=502,
+            )
+
+        return web.json_response(
+            {
+                "success": True,
+                "message": {
+                    "id": str(posted.get("id", int(time.time() * 1000))),
+                    "author_id": author_id,
+                    "author_name": author_name,
+                    "author_avatar": author_avatar or "https://orbit-psi-black.vercel.app/server_icon.png",
+                    "content": content,
+                    "created_at": posted.get("timestamp") or datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "source": "web",
+                    "attachments": [],
+                },
+            },
+            status=201,
+        )
 
     async def stop(self) -> None:
         """Dừng HTTP Server an toàn."""
+        if getattr(self, "_turso_relay_task", None) and not self._turso_relay_task.done():
+            self._turso_relay_task.cancel()
         if self.runner:
             await self.runner.cleanup()
             logger.info("Đã dừng Bot API Bridge.")

@@ -243,7 +243,7 @@ class LinkScannerCog(commands.Cog):
             description=desc,
             color=0x3498DB,
         )
-        embed.set_footer(text="HyperHub Security Shield • Hệ Thống Phòng Chống Mã Độc Đa Tầng")
+        embed.set_footer(text="Orbit Security Shield • Hệ Thống Phòng Chống Mã Độc Đa Tầng")
         return embed
 
     def build_scan_report_embed(
@@ -339,7 +339,7 @@ class LinkScannerCog(commands.Cog):
             )
 
         embed.set_footer(
-            text=f"HyperHub Antivirus Engine • Thời gian quét: {res.scan_time_ms:.1f}ms • Chỉ gửi cho bạn"
+            text=f"Orbit Antivirus Engine • Thời gian quét: {res.scan_time_ms:.1f}ms • Chỉ gửi cho bạn"
         )
         return embed
 

@@ -96,13 +96,13 @@ def pull_single_model(model_name: str, desc: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Tải model AI cho HyperHub Bot")
+    parser = argparse.ArgumentParser(description="Tải model AI cho Orbit | Vietnam Bot")
     parser.add_argument("models", nargs="*", help="Tên model cụ thể cần tải (vd: qwen3.5:4b gemma3:4b)")
     parser.add_argument("--all", action="store_true", help="Tải toàn bộ cả 3 model")
     args = parser.parse_args()
 
     print("=" * 65)
-    print("   TRÌNH QUẢN LÝ & TẢI MÔ HÌNH AI HYPERHUB (PORTABLE OLLAMA)")
+    print("   TRÌNH QUẢN LÝ & TẢI MÔ HÌNH AI ORBIT | VIETNAM (PORTABLE OLLAMA)")
     print(f"   Thư mục lưu trữ: {MODELS_DIR} (Ổ đĩa D:)")
     print(f"   Đường dẫn Ollama: {OLLAMA_EXE or 'Chưa tìm thấy'}")
     print("=" * 65)

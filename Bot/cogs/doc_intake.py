@@ -98,6 +98,151 @@ class JumpButtonView(discord.ui.View):
         )
 
 
+class FeedbackModal(discord.ui.Modal, title="Góp Ý / Huấn Luyện Lại Môn Học"):
+    corrected_subj = discord.ui.TextInput(
+        label="Môn học chính xác",
+        placeholder="Ví dụ: TOÁN HỌC, VẬT LÝ, HÓA HỌC, TIẾNG ANH, TIN HỌC...",
+        max_length=50,
+        required=True,
+    )
+    notes = discord.ui.TextInput(
+        label="Lý do / Căn cứ nhận diện",
+        placeholder="Ví dụ: Đề chứa nhiều công thức đạo hàm, tích phân thuộc chương trình lớp 12...",
+        style=discord.TextStyle.paragraph,
+        max_length=500,
+        required=False,
+    )
+
+    def __init__(self, file_name: str, prev_subject: str):
+        super().__init__()
+        self.file_name = file_name
+        self.prev_subject = prev_subject
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            from DocInspector.active_learning import ActiveLearningEngine
+            res = ActiveLearningEngine.record_feedback(
+                file_name=self.file_name,
+                corrected_subject=self.corrected_subj.value.strip(),
+                previous_subject=self.prev_subject,
+                user_name=interaction.user.display_name,
+                notes=self.notes.value.strip() if self.notes.value else "",
+                auto_retrain=True,
+            )
+            retrain_info = ""
+            if res.get("retrain_metrics"):
+                m = res["retrain_metrics"]
+                retrain_info = f"\n🔄 *Đã hoàn tất 1 Epoch hiệu chuẩn: Loss = `{m.get('total_loss', 0.0)}` | Độ chính xác = `{m.get('subject_accuracy', 100)}%`*"
+            await interaction.response.send_message(
+                f"✅ **ĐÃ GHI NHẬN VÀ HUẤN LUYỆN LẠI!**\n"
+                f"Hệ thống đã cập nhật trọng số cho môn **{self.corrected_subj.value.upper()}**.{retrain_info}",
+                ephemeral=True,
+            )
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Lỗi ghi nhận: `{e}`", ephemeral=True)
+
+
+class DocInspectorAuditView(discord.ui.View):
+    """View cung cấp nút bấm xem Bằng Chứng Minh Bạch Hóa (Audit Trail) và Phản hồi huấn luyện."""
+
+    def __init__(self, report: Any):
+        super().__init__(timeout=None)
+        self.report = report
+
+    @discord.ui.button(label="🔍 Bằng Chứng Thẩm Định", style=discord.ButtonStyle.secondary, custom_id="doc_audit_btn")
+    async def show_audit_trail(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            from DocInspector.explainability import ExplainabilityEngine
+            dossier = ExplainabilityEngine.generate_dossier(self.report)
+            
+            emb = discord.Embed(
+                title=f"🔍 Hồ Sơ Bạch Hóa: {dossier.file_name}",
+                description=f"⏱️ **Thời gian xử lý:** `{dossier.execution_time_ms:.2f} ms` *(100% Thuật toán / Zero AI)*\n"
+                            f"📌 **Kết luận:** `{dossier.verdict}` — {dossier.verdict_explanation}",
+                color=0x3498DB if not dossier.is_spoofed else 0xE74C3C,
+            )
+            st = dossier.subject_trail
+            tokens_str = ", ".join(f"`{t.token}` (x{t.occurrence_count})" for t in st.evidence_tokens[:8]) or "Định dạng cấu trúc"
+            emb.add_field(
+                name="📚 Minh Bạch Môn Học",
+                value=f"• **Môn:** `{st.chosen_subject.value}` (Tin cậy: `{st.confidence*100:.1f}%`)\n"
+                      f"• **Điểm Top 1:** `{st.top_score:.1f}` | **Khoảng cách Top 2:** `+{st.margin:.1f}`\n"
+                      f"• **Thuật ngữ kích hoạt:** {tokens_str}",
+                inline=False,
+            )
+            qs = dossier.questions_summary
+            emb.add_field(
+                name="📝 Bóc Tách Câu Hỏi & Nhận Thức",
+                value=f"• **Tổng số câu:** `{qs.get('total_questions', 0)}`\n"
+                      f"• **Độ khó ước lượng:** `{qs.get('difficulty_index', 0)}/10.0`\n"
+                      f"• **Chuẩn Bộ GD&ĐT 2025:** `{'ĐẠT' if dossier.moet_2025_trail.get('compliant') else 'KHÔNG / DẠNG KHÁC'}`",
+                inline=False,
+            )
+            if dossier.is_spoofed:
+                emb.add_field(
+                    name="⚠️ Cảnh Báo Giả Mạo Tên Tệp",
+                    value=f"```{dossier.spoof_audit or 'Nội dung tệp lệch hoàn toàn so với tên tệp'}```",
+                    inline=False,
+                )
+            emb.set_footer(text="DocInspector Non-AI Explainable Engine • 100% Minh Bạch")
+            await interaction.response.send_message(embed=emb, ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Không thể tạo hồ sơ kiểm toán: `{e}`", ephemeral=True)
+
+    @discord.ui.button(label="🏛️ Dự Thảo Thẩm Định 3+1", style=discord.ButtonStyle.primary, custom_id="doc_quorum_btn")
+    async def show_quorum_draft(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            qa = getattr(self.report, "quorum_arbitration", None)
+            dossier_md = getattr(self.report, "draft_dossier_markdown", None)
+            
+            if not qa and hasattr(self.report, "pass1") and getattr(self.report.pass1, "raw_text", None):
+                from DocInspector.consensus_engine import QuorumArbitrationEngine
+                res = QuorumArbitrationEngine.inspect(self.report.pass1.raw_text, file_name=getattr(self.report, "file_name", ""))
+                qa = res.to_dict()
+                dossier_md = res.draft_dossier_markdown
+
+            if not qa:
+                await interaction.response.send_message("ℹ️ Tài liệu đã được xác thực qua kênh mặc định.", ephemeral=True)
+                return
+
+            is_unanimous = qa.get("is_unanimous", True)
+            badge = "🟢 ĐỒNG THUẬN TUYỆT ĐỐI (3/3)" if is_unanimous else "⚖️ TRỌNG TÀI ĐỐI SOÁT (PASS 4)"
+            
+            emb = discord.Embed(
+                title=f"🏛️ Dự Thảo Thẩm Định: {qa.get('file_name', 'Tài liệu')}",
+                description=f"**Trạng thái biểu quyết:** `{badge}`\n"
+                            f"**Môn kết luận:** `{qa.get('final_subject_vi', 'Chung')}` | **Khối:** `{qa.get('final_grade_vi', 'Chung')}`",
+                color=0x2ECC71 if is_unanimous else 0xF39C12,
+            )
+
+            scans = qa.get("scans", [])
+            scans_text = []
+            for s in scans:
+                icon = "⚖️" if s.get("pass_number") == 4 else "🔹"
+                scans_text.append(f"{icon} **{s.get('pass_name')}:** `{s.get('subject_vi')}` ({s.get('confidence', 0)*100:.0f}%)")
+            
+            if scans_text:
+                emb.add_field(name="🗳️ Biểu Quyết Các Lần Quét", value="\n".join(scans_text), inline=False)
+
+            if not is_unanimous and qa.get("conflict_summary"):
+                emb.add_field(name="⚠️ Giải Trình Bất Đồng", value=qa.get("conflict_summary")[:1024], inline=False)
+                if qa.get("arbitration_rationale"):
+                    emb.add_field(name="⚖️ Phân Xử Của Trọng Tài", value=qa.get("arbitration_rationale")[:1024], inline=False)
+
+            emb.set_footer(text="Hội đồng Trọng tài 3+1 • Zero-AI Heuristic Engine")
+            await interaction.response.send_message(embed=emb, ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Không thể tạo dự thảo thẩm định: `{e}`", ephemeral=True)
+
+    @discord.ui.button(label="🔄 Góp Ý Phân Loại", style=discord.ButtonStyle.secondary, custom_id="doc_feedback_btn")
+    async def open_feedback_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
+        fn = getattr(self.report, "file_name", "document")
+        subj = getattr(self.report, "detected_subject", None)
+        prev_s = subj.name if hasattr(subj, "name") else str(subj)
+        modal = FeedbackModal(file_name=fn, prev_subject=prev_s)
+        await interaction.response.send_modal(modal)
+
+
 def format_rich_exam_metadata(report: Any) -> str:
     """Định dạng siêu dữ liệu đề thi chi tiết (năm học, trường, thời gian, mã đề, kỳ thi, cấu trúc, chuyên đề)."""
     extra = ""
@@ -411,7 +556,7 @@ class DocumentIntakeCog(commands.Cog):
 
                 embed.add_field(
                     name="🔗 Truy cập Kho Đề Web",
-                    value="[Mở Web Dashboard](https://hyperhub-one.vercel.app/#vault)",
+                    value="[Mở Web Dashboard](https://orbit-psi-black.vercel.app/#vault)",
                     inline=False,
                 )
 
@@ -757,6 +902,8 @@ class DocumentIntakeCog(commands.Cog):
         message: discord.Message,
         file_hash: Optional[str] = None,
         raw_text: Optional[str] = None,
+        content_hash: Optional[str] = None,
+        quorum_status: Optional[str] = None,
     ) -> None:
         """Ghi nhận tài liệu mới từ DocInspector vào cơ sở dữ liệu SQLite để thống kê dung lượng."""
         if not hasattr(self.bot, "db"):
@@ -777,15 +924,21 @@ class DocumentIntakeCog(commands.Cog):
                 _conf = float(report.confidence_score) if getattr(report, "confidence_score", None) is not None else None
             except (TypeError, ValueError):
                 _conf = None
+
+            c_hash = content_hash or getattr(report, "content_hash", None)
+            q_status = quorum_status
+            if not q_status and hasattr(report, "quorum_arbitration") and report.quorum_arbitration:
+                q_status = "UNANIMOUS_3_3" if report.quorum_arbitration.get("is_unanimous") else "ARBITRATION_3_PLUS_1"
+
             try:
                 await self.bot.db.execute(
                     """
                     INSERT INTO documents_archive (
                         subject, title, file_name, file_size_bytes, file_type,
                         estimated_level, question_count, page_count, author_id,
-                        author_name, channel_id, message_id, jump_url, timestamp, file_hash, raw_text,
-                        verdict, exam_track, confidence
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        author_name, channel_id, message_id, jump_url, timestamp, file_hash, content_hash, raw_text,
+                        verdict, exam_track, confidence, academic_year, school_or_department, quorum_status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     subject_name,
                     report.file_name,
@@ -802,38 +955,73 @@ class DocumentIntakeCog(commands.Cog):
                     message.jump_url,
                     now_iso,
                     file_hash,
+                    c_hash,
                     raw_text,
                     _verdict,
                     _track,
                     _conf,
+                    getattr(report, "academic_year", None),
+                    getattr(report, "school_or_department", None),
+                    q_status,
                 )
             except Exception:
-                # DB cũ chưa migrate: chèn tương thích không kèm verdict/track/confidence
-                await self.bot.db.execute(
-                    """
-                    INSERT INTO documents_archive (
-                        subject, title, file_name, file_size_bytes, file_type,
-                        estimated_level, question_count, page_count, author_id,
-                        author_name, channel_id, message_id, jump_url, timestamp, file_hash, raw_text
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    subject_name,
-                    report.file_name,
-                    report.file_name,
-                    file_bytes,
-                    report.document_category.value if hasattr(report.document_category, "value") else "EXAM",
-                    f"{report.grade_level_label_vi} ({report.exam_track_label_vi})",
-                    len(report.pass2.questions) if hasattr(report, "pass2") and hasattr(report.pass2, "questions") else 0,
-                    report.pass1.page_count if hasattr(report, "pass1") else 1,
-                    author.id,
-                    author.name,
-                    target_channel.id,
-                    message.id,
-                    message.jump_url,
-                    now_iso,
-                    file_hash,
-                    raw_text,
-                )
+                try:
+                    await self.bot.db.execute(
+                        """
+                        INSERT INTO documents_archive (
+                            subject, title, file_name, file_size_bytes, file_type,
+                            estimated_level, question_count, page_count, author_id,
+                            author_name, channel_id, message_id, jump_url, timestamp, file_hash, raw_text,
+                            verdict, exam_track, confidence
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        subject_name,
+                        report.file_name,
+                        report.file_name,
+                        file_bytes,
+                        report.document_category.value if hasattr(report.document_category, "value") else "EXAM",
+                        f"{report.grade_level_label_vi} ({report.exam_track_label_vi})",
+                        len(report.pass2.questions) if hasattr(report, "pass2") and hasattr(report.pass2, "questions") else 0,
+                        report.pass1.page_count if hasattr(report, "pass1") else 1,
+                        author.id,
+                        author.name,
+                        target_channel.id,
+                        message.id,
+                        message.jump_url,
+                        now_iso,
+                        file_hash,
+                        raw_text,
+                        _verdict,
+                        _track,
+                        _conf,
+                    )
+                except Exception:
+                    # DB cũ nhất
+                    await self.bot.db.execute(
+                        """
+                        INSERT INTO documents_archive (
+                            subject, title, file_name, file_size_bytes, file_type,
+                            estimated_level, question_count, page_count, author_id,
+                            author_name, channel_id, message_id, jump_url, timestamp, file_hash, raw_text
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        subject_name,
+                        report.file_name,
+                        report.file_name,
+                        file_bytes,
+                        report.document_category.value if hasattr(report.document_category, "value") else "EXAM",
+                        f"{report.grade_level_label_vi} ({report.exam_track_label_vi})",
+                        len(report.pass2.questions) if hasattr(report, "pass2") and hasattr(report.pass2, "questions") else 0,
+                        report.pass1.page_count if hasattr(report, "pass1") else 1,
+                        author.id,
+                        author.name,
+                        target_channel.id,
+                        message.id,
+                        message.jump_url,
+                        now_iso,
+                        file_hash,
+                        raw_text,
+                    )
             log.info("Đã lưu metadata đề thi '%s' (%s) vào documents_archive.", report.file_name, format_bytes_to_human(file_bytes))
             if hasattr(self.bot, "embedding_service") and self.bot.embedding_service:
                 try:
@@ -1130,12 +1318,24 @@ class DocumentIntakeCog(commands.Cog):
                     target_ch = guild.get_channel(ch_id)
                     if not target_ch:
                         await self.bot.db.execute("DELETE FROM documents_archive WHERE id = ?", d_id)
+                        try:
+                            from database.turso_client import turso_db
+                            if turso_db.is_configured:
+                                await turso_db.execute("DELETE FROM documents_archive WHERE id = ?", d_id)
+                        except Exception:
+                            pass
                         pruned_deleted += 1
                         continue
                     try:
                         await target_ch.fetch_message(m_id)
                     except discord.NotFound:
                         await self.bot.db.execute("DELETE FROM documents_archive WHERE id = ?", d_id)
+                        try:
+                            from database.turso_client import turso_db
+                            if turso_db.is_configured:
+                                await turso_db.execute("DELETE FROM documents_archive WHERE id = ?", d_id)
+                        except Exception:
+                            pass
                         pruned_deleted += 1
                         log.info("🗑️ [Prune] Đã đồng bộ xóa đề thi mồ côi '%s' (ID: %d) do tin nhắn đã bị xóa.", d_title, d_id)
                     except Exception:
@@ -1165,6 +1365,15 @@ class DocumentIntakeCog(commands.Cog):
                         f"DELETE FROM documents_archive WHERE id IN ({placeholders})",
                         *dup_ids,
                     )
+                    try:
+                        from database.turso_client import turso_db
+                        if turso_db.is_configured:
+                            await turso_db.execute(
+                                f"DELETE FROM documents_archive WHERE id IN ({placeholders})",
+                                *dup_ids,
+                            )
+                    except Exception:
+                        pass
                     log.info("🗑️ [Deduplicate] Đã xóa %d bản ghi đề thi trùng lặp khỏi kho lưu trữ.", pruned_duplicates)
             except Exception as de:
                 log.debug("Bỏ qua lỗi deduplicate: %s", de)
@@ -1550,6 +1759,30 @@ class DocumentIntakeCog(commands.Cog):
             deep=True,
         )
 
+        # === CHỐNG NỘP TRÙNG LAYER 2: CHỮ KÝ NỘI DUNG ĐỀ THI (CONTENT HASH) ===
+        if getattr(report, "content_hash", None) and hasattr(self.bot, "db"):
+            try:
+                existing_content = await self.bot.db.fetchone(
+                    "SELECT jump_url, author_name, timestamp, title FROM documents_archive WHERE content_hash = ?",
+                    report.content_hash,
+                )
+                if existing_content:
+                    dup_jump = existing_content[0] or "N/A"
+                    dup_author = existing_content[1] or "N/A"
+                    dup_time = existing_content[2] or "N/A"
+                    dup_title = existing_content[3] or "N/A"
+                    routing.is_blocked_or_unverifiable = True
+                    routing.submission_reply_message = (
+                        f"🔁 **TÀI LIỆU TRÙNG NỘI DUNG ĐỀ THI!**\n"
+                        f"Nội dung văn bản đề này hoàn toàn trùng khớp với đề **{dup_title}** đã được nộp trước đó bởi **{dup_author}** vào `{dup_time}`.\n"
+                        f"🔗 **Bài đăng gốc:** {dup_jump}\n\n"
+                        f"*Hệ thống đã phát hiện trùng lặp bằng Layer 2 Semantic Content Hash: `{report.content_hash[:16]}...`*"
+                    )
+                    report.human_summary = f"Tài liệu trùng nội dung đề thi với bài đăng của {dup_author}"
+                    return report, routing, None
+            except Exception as e:
+                log.debug("Lỗi kiểm tra trùng nội dung Layer 2: %s", e)
+
         posted_msg = None
         if not routing.is_blocked_or_unverifiable and category and isinstance(category, discord.CategoryChannel):
             target_ch = discord.utils.get(category.channels, name=routing.target_channel_name)
@@ -1571,20 +1804,29 @@ class DocumentIntakeCog(commands.Cog):
 
                 post_content += format_rich_exam_metadata(report)
 
+                # Hiển thị kết quả Hội đồng Thẩm định 3+1
+                if hasattr(report, "quorum_arbitration") and report.quorum_arbitration:
+                    qa = report.quorum_arbitration
+                    if qa.get("is_unanimous"):
+                        post_content += "\n🏛️ **Hội đồng 3+1:** `🟢 Đồng thuận tuyệt đối (3/3)`"
+                    else:
+                        post_content += f"\n🏛️ **Hội đồng 3+1:** `⚖️ Trọng tài đối soát (Pass 4: {qa.get('final_subject_vi', 'Chung')})`"
+
                 try:
+                    audit_view = DocInspectorAuditView(report)
                     if isinstance(file_path_or_bytes, bytes) and file_name:
                         file_forward = discord.File(io.BytesIO(file_path_or_bytes), filename=file_name)
-                        posted_msg = await target_ch.send(content=post_content, file=file_forward)
+                        posted_msg = await target_ch.send(content=post_content, file=file_forward, view=audit_view)
                     elif isinstance(file_path_or_bytes, str) and file_path_or_bytes.startswith(("http://", "https://")):
                         post_content += f"\n🔗 **Link gốc:** {file_path_or_bytes}"
-                        posted_msg = await target_ch.send(content=post_content)
+                        posted_msg = await target_ch.send(content=post_content, view=audit_view)
                     elif isinstance(file_path_or_bytes, str) and os.path.exists(file_path_or_bytes):
                         file_forward = discord.File(file_path_or_bytes, filename=file_name or os.path.basename(file_path_or_bytes))
-                        posted_msg = await target_ch.send(content=post_content, file=file_forward)
+                        posted_msg = await target_ch.send(content=post_content, file=file_forward, view=audit_view)
                 except discord.HTTPException as he:
                     if getattr(he, "status", 0) == 413 or getattr(he, "code", 0) == 40005:
                         post_content += f"\n⚠️ *(Tệp '{file_name}' vượt quá dung lượng upload tối đa của Discord. Metadata và thẩm định đã được lưu an toàn.)*"
-                        posted_msg = await target_ch.send(content=post_content)
+                        posted_msg = await target_ch.send(content=post_content, view=audit_view)
                     else:
                         raise
 
@@ -1592,7 +1834,14 @@ class DocumentIntakeCog(commands.Cog):
                     raw_text_for_db = None
                     if hasattr(report, 'pass1') and hasattr(report.pass1, 'raw_text'):
                         raw_text_for_db = report.pass1.raw_text[:50000] if report.pass1.raw_text else None
-                    await self.record_inspection_report(report, routing, author, target_ch, posted_msg, file_hash=file_hash, raw_text=raw_text_for_db)
+                    q_status = "UNANIMOUS_3_3" if (getattr(report, "quorum_arbitration", None) and report.quorum_arbitration.get("is_unanimous")) else "ARBITRATION_3_PLUS_1"
+                    await self.record_inspection_report(
+                        report, routing, author, target_ch, posted_msg,
+                        file_hash=file_hash,
+                        raw_text=raw_text_for_db,
+                        content_hash=getattr(report, "content_hash", None),
+                        quorum_status=q_status,
+                    )
 
         return report, routing, posted_msg
 
@@ -1893,6 +2142,12 @@ class DocumentIntakeCog(commands.Cog):
             if row:
                 doc_id, subj, title, fname, author = row
                 await self.bot.db.execute("DELETE FROM documents_archive WHERE message_id = ?", payload.message_id)
+                try:
+                    from database.turso_client import turso_db
+                    if turso_db.is_configured:
+                        await turso_db.execute("DELETE FROM documents_archive WHERE id = ? OR message_id = ?", doc_id, payload.message_id)
+                except Exception:
+                    pass
                 log.info(
                     "🗑️ [Auto-Sync Delete] Đã xóa đề thi '%s' (ID: %d, Môn: %s, Người nộp: %s) khỏi kho lưu trữ do tin nhắn đã bị xóa trên Discord.",
                     title or fname, doc_id, subj, author

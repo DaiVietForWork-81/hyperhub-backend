@@ -90,8 +90,8 @@ class TestSystemSyncService(unittest.IsolatedAsyncioTestCase):
         call_kwargs = mock_channel.send.call_args.kwargs
         embed = call_kwargs.get("embed")
         self.assertIsNotNone(embed)
-        self.assertIn("HYPERHUB SYSTEM ONLINE", embed.title)
-        self.assertIn("hyperhub-one.vercel.app", str(embed.to_dict()))
+        self.assertIn("ORBIT SYSTEM ONLINE", embed.title)
+        self.assertIn("orbit-psi-black.vercel.app", str(embed.to_dict()))
 
     async def test_notify_github_update(self):
         """Kiểm tra gửi thông báo cập nhật GitHub kèm nút 1-click update."""

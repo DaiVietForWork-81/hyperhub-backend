@@ -274,18 +274,18 @@ def info_embed(title: str, description: str, **kwargs) -> discord.Embed:
     )
 
 
-# ==================== HYPERHUB EMBED HELPERS ====================
-HYPERHUB_COLOR = 0x9F7AEA
+# ==================== ORBIT EMBED HELPERS ====================
+ORBIT_COLOR = 0x9F7AEA
 AURA_COLOR = 0x7C3AED
 SUCCESS_COLOR = 0x34D399
 ERROR_COLOR = 0xF87171
 WARN_COLOR = 0xFBBF24
 INFO_COLOR = 0x3B82F6
 
-FOOTER_TEXT = "🌌 HYPERHUB MUSIC • LEARN • CHILL • CONNECT"
+FOOTER_TEXT = "🌌 ORBIT | VIETNAM"
 DIVIDER = "━" * 16
 
-_THEME_COLOR = HYPERHUB_COLOR
+_THEME_COLOR = ORBIT_COLOR
 _LOGO_URL = ""
 
 
@@ -416,7 +416,7 @@ def warning(message: str, title: str = "⚠️ Cảnh báo") -> discord.Embed:
     return base_embed(title=title, description=message, color=WARN_COLOR)
 
 
-def info(message: str, title: str = "🌌 HyperHub Music") -> discord.Embed:
+def info(message: str, title: str = "🌌 Orbit | Vietnam") -> discord.Embed:
     return base_embed(title=title, description=message)
 
 

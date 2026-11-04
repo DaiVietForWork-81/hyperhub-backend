@@ -222,7 +222,7 @@ class CloseTicketView(discord.ui.View):
                 ),
                 color=0x9B59B6,
             )
-            shuffled_embed.set_footer(text=f"HyperHub AI Exam Shuffler Engine • {new_code}")
+            shuffled_embed.set_footer(text=f"Orbit AI Exam Shuffler Engine • {new_code}")
 
             if d_files:
                 await interaction.followup.send(embed=shuffled_embed, files=d_files)
@@ -292,7 +292,7 @@ class CloseTicketView(discord.ui.View):
                     color=0x2ECC71,
                     timestamp=datetime.datetime.now(datetime.timezone.utc),
                 )
-                embed.set_footer(text=f"Job ID: {self.job_id} • HyperHub AI Exam Platform")
+                embed.set_footer(text=f"Job ID: {self.job_id} • Orbit AI Exam Platform")
 
                 if d_files:
                     msg = await db_channel.send(embed=embed, files=d_files)
@@ -367,7 +367,7 @@ class GenerateControlPanelView(discord.ui.View):
                 name=thread_name,
                 auto_archive_duration=1440,
                 type=discord.ChannelType.private_thread,
-                reason=f"HyperHub AI Generator Ticket cho {user.name}",
+                reason=f"Orbit AI Generator Ticket cho {user.name}",
             )
             await thread.add_user(user)
         except Exception as e:
@@ -427,7 +427,7 @@ class ExamGeneratorCog(commands.Cog, name="ExamGenerator"):
 
     exam_group = app_commands.Group(
         name="exam",
-        description="Bộ công cụ khảo thí và đề thi AI HyperHub",
+        description="Bộ công cụ khảo thí và đề thi AI Orbit | Vietnam",
     )
 
     def __init__(self, bot: commands.Bot):
@@ -477,7 +477,7 @@ class ExamGeneratorCog(commands.Cog, name="ExamGenerator"):
                 inline=False,
             )
 
-        embed.set_footer(text="HyperHub AI Exam Bank • Học tập & Tái tạo")
+        embed.set_footer(text="Orbit AI Exam Bank | Vietnam")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     async def cog_load(self) -> None:
@@ -503,7 +503,7 @@ class ExamGeneratorCog(commands.Cog, name="ExamGenerator"):
                         return  # Đã có bảng điều khiển
 
             embed = discord.Embed(
-                title="📄 TRẠM KHẢO THÍ & THIẾT KẾ ĐỀ THI AI • HYPERHUB",
+                title="📄 TRẠM KHẢO THÍ & THIẾT KẾ ĐỀ THI AI • ORBIT",
                 description=(
                     "Chào mừng bạn đến với **Nền Tảng Sinh Đề Thi & Tài Liệu Học Tập AI Tự Động**.\n\n"
                     "✨ **Đặc quyền & Tính năng vượt trội:**\n"
@@ -526,7 +526,7 @@ class ExamGeneratorCog(commands.Cog, name="ExamGenerator"):
                 ),
                 inline=False,
             )
-            embed.set_footer(text="HyperHub AI Platform • /check để xem hạn mức của bạn")
+            embed.set_footer(text="Orbit | Vietnam • /check để xem hạn mức của bạn")
             await channel.send(embed=embed, view=GenerateControlPanelView(self.bot))
             logger.info("Đã gửi bảng điều khiển tạo đề mới tại #📄・generate.")
         except Exception as e:
@@ -768,7 +768,7 @@ class ExamGeneratorCog(commands.Cog, name="ExamGenerator"):
                 return
             try:
                 progress_embed.description = stage_text
-                progress_embed.set_footer(text=f"Tiến độ: {int(progress * 100)}% • Chuỗi AI HyperHub")
+                progress_embed.set_footer(text=f"Tiến độ: {int(progress * 100)}% • Chuỗi AI Orbit")
                 await progress_msg.edit(embed=progress_embed)
             except Exception as pe:
                 logger.debug(f"Lỗi cập nhật tiến trình: {pe}")
@@ -835,7 +835,7 @@ class ExamGeneratorCog(commands.Cog, name="ExamGenerator"):
                 title="🎁 CHÍNH SÁCH BỒI HOÀN TRỄ HẠN THỜI GIAN",
                 description=(
                     f"Do hệ thống điều phối chuỗi AI bị quá tải và mất nhiều thời gian hơn dự kiến ({int(gen_duration // 60)} phút),\n"
-                    f"HyperHub đã tự động **hoàn lại 50% ({refund_half} Tokens)** vào tài khoản của bạn như một lời xin lỗi chân thành!"
+                    f"Orbit đã tự động **hoàn lại 50% ({refund_half} Tokens)** vào tài khoản của bạn như một lời xin lỗi chân thành!"
                 ),
                 color=0xFEE75C,
             )
@@ -1032,7 +1032,7 @@ class ExamGeneratorCog(commands.Cog, name="ExamGenerator"):
                 ),
                 color=0x5865F2,
             )
-            dm_embed.set_footer(text=f"Job ID: {job_id} • HyperHub AI Exam Platform")
+            dm_embed.set_footer(text=f"Job ID: {job_id} • Orbit AI Exam Platform")
 
             if dm_files:
                 await user.send(embed=dm_embed, files=dm_files)

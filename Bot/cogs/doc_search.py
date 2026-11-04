@@ -1082,7 +1082,7 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
                 "đã được phân loại và thẩm định.\n\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 "📌 **Muốn tra cứu, lọc và tải đề thi, vui lòng lên Web:**\n"
-                "👉 **https://hyperhub-one.vercel.app/#vault**\n\n"
+                "👉 **https://orbit-psi-black.vercel.app/#vault**\n\n"
                 "Trên Web bạn có thể lọc theo **Môn học**, **Khối lớp**, **Thể loại**, "
                 "tìm theo **từ khóa / trường / năm học** và tải đề trực tiếp.\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -1178,8 +1178,8 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
                         channel = await guild.create_text_channel(
                             name="🔍・tra-cứu-tài-liệu",
                             category=cat if isinstance(cat, discord.CategoryChannel) else None,
-                            topic="Kênh tra cứu kho đề thi & tài liệu học tập HyperHub Web Portal",
-                            reason="Tự động khởi tạo kênh tra cứu tài liệu HyperHub",
+                            topic="Kênh tra cứu kho đề thi & tài liệu học tập Orbit Web Portal",
+                            reason="Tự động khởi tạo kênh tra cứu tài liệu Orbit",
                         )
                         log.info("✨ [Self-Healing] Đã tự động tạo kênh tra cứu mới: #%s (%s)", channel.name, channel.id)
                         break
@@ -1241,7 +1241,7 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
                 try:
                     warn = (
                         f"⚠️ {message.author.mention}, tra cứu đề thi đã chuyển hẳn lên **Web Portal**.\n"
-                        f"Vui lòng truy cập 👉 **https://hyperhub-one.vercel.app/#vault** để tìm và tải đề thi!"
+                        f"Vui lòng truy cập 👉 **https://orbit-psi-black.vercel.app/#vault** để tìm và tải đề thi!"
                     )
                     await message.channel.send(warn, delete_after=7.0)
                 except Exception:
@@ -1531,6 +1531,12 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
         for r in rows:
             doc_id, subj, title, fname, ch_id, m_id, author = r
             await self.bot.db.execute("DELETE FROM documents_archive WHERE id = ?", doc_id)
+            try:
+                from database.turso_client import turso_db
+                if turso_db.is_configured:
+                    await turso_db.execute("DELETE FROM documents_archive WHERE id = ?", doc_id)
+            except Exception:
+                pass
 
             msg_deleted = False
             if xoa_tin_nhan_goc and interaction.guild and ch_id and m_id:

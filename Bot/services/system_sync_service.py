@@ -26,9 +26,9 @@ from utils.permissions import is_admin_or_owner
 logger = logging.getLogger("system_sync")
 
 # Các đường dẫn Vercel chính thức
-VERCEL_BASE_URL = "https://hyperhub-one.vercel.app"
-VERCEL_VAULT_URL = "https://hyperhub-one.vercel.app/#vault"
-VERCEL_ADMIN_URL = "https://hyperhub-one.vercel.app/#admin"
+VERCEL_BASE_URL = "https://orbit-psi-black.vercel.app"
+VERCEL_VAULT_URL = "https://orbit-psi-black.vercel.app/#vault"
+VERCEL_ADMIN_URL = "https://orbit-psi-black.vercel.app/#admin"
 DEFAULT_SYNC_CHANNEL_ID = 1536199276273860638
 GITHUB_REPO_URL = "https://github.com/DaiVietForWork-81/hyperhub-bot.git"
 
@@ -173,8 +173,8 @@ class SystemSyncService:
         embed.add_field(
             name="🌐 Cổng Web Vercel Trực Tuyến",
             value=(
-                f"• **Kho Đề & Tra Cứu:** [hyperhub-one.vercel.app/#vault]({VERCEL_VAULT_URL})\n"
-                f"• **Bảng Quản Trị (Admin Hub):** [hyperhub-one.vercel.app/#admin]({VERCEL_ADMIN_URL})\n"
+                f"• **Kho Đề & Tra Cứu:** [orbit-psi-black.vercel.app/#vault]({VERCEL_VAULT_URL})\n"
+                f"• **Bảng Quản Trị (Admin Hub):** [orbit-psi-black.vercel.app/#admin]({VERCEL_ADMIN_URL})\n"
                 f"• **Trang Chủ:** [{VERCEL_BASE_URL}]({VERCEL_BASE_URL})"
             ),
             inline=False,
@@ -212,7 +212,7 @@ class SystemSyncService:
 
         if git_info.get("commit_msg"):
             embed.set_footer(
-                text=f"Git commit: {git_info['commit_msg']} • Orbit Ecosystem",
+                text=f"Git commit: {git_info['commit_msg']} • Orbit | Vietnam",
                 icon_url=bot.user.display_avatar.url if bot.user else None,
             )
 
@@ -269,7 +269,7 @@ class SystemSyncService:
         embed = discord.Embed(
             title="🔔 PHÁT HIỆN BẢN CẬP NHẬT MỚI TỪ GITHUB!",
             description=(
-                f"Đã phát hiện commit mới trên repository **hyperhub-bot** (nhánh `main`).\n"
+                f"Đã phát hiện commit mới trên repository **Orbit Bot** (nhánh `main`).\n"
                 f"Hệ thống cho phép bạn **Cập Nhật Ngay** chỉ bằng 1 cú click chuột!"
             ),
             color=0xF59E0B,  # Amber

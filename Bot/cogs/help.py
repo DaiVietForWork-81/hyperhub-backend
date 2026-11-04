@@ -152,7 +152,7 @@ class HelpCog(commands.Cog, name="Help"):
                 "2. **`#🔍・tra-cứu-tài-liệu` (`DOC_SEARCH_CHANNEL_ID`)** : Bảng hướng dẫn tra cứu kho đề thi chuyển tiếp trực tiếp sang Web Portal.\n"
                 "3. **`#📄・verify-link` (`LINK_SCANNER_CHANNEL_ID`)** : Trạm kiểm tra URL an toàn, chống lừa đảo & mã độc.\n"
                 "4. **`#help` (`ADMIN_GUIDE_CHANNEL_ID`)** : Panel cẩm nang lệnh Admin tự động làm mới khi khởi động bot.\n"
-                "5. **`Web Portal`** : Cổng tra cứu kho tài liệu hiện đại tại `https://hyperhub-one.vercel.app/#vault` kết nối Bot API Bridge."
+                "5. **`Web Portal`** : Cổng tra cứu kho tài liệu hiện đại tại `https://orbit-psi-black.vercel.app/#vault` kết nối Bot API Bridge."
             ),
             embed_type=EmbedType.INFO,
             color=0x2ECC71,

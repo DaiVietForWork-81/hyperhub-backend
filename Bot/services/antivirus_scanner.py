@@ -60,7 +60,7 @@ class ThreatScanResult:
     sha256: str | None = None
     file_size_bytes: int = 0
     url: str | None = None
-    engine: str = "HyperHub Multi-Layer Security Engine"
+    engine: str = "Orbit Multi-Layer Security Engine"
     scan_time_ms: float = 0.0
 
     @property
@@ -169,7 +169,7 @@ class AntivirusScanner:
         try:
             endpoint = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={api_key}"
             payload = {
-                "client": {"clientId": "hyperhub-discord-bot", "clientVersion": "1.0.0"},
+                "client": {"clientId": "orbit-discord-bot", "clientVersion": "1.0.0"},
                 "threatInfo": {
                     "threatTypes": [
                         "MALWARE",
@@ -204,7 +204,7 @@ class AntivirusScanner:
             # Mã hóa base64 không padding theo quy chuẩn VirusTotal v3
             url_id = base64.urlsafe_b64encode(target_url.encode("utf-8")).decode("utf-8").strip("=")
             endpoint = f"https://www.virustotal.com/api/v3/urls/{url_id}"
-            headers = {"x-apikey": api_key, "User-Agent": "HyperHub-Security-Scanner"}
+            headers = {"x-apikey": api_key, "User-Agent": "Orbit-Security-Scanner"}
 
             timeout = aiohttp.ClientTimeout(total=6)
             async with aiohttp.ClientSession(timeout=timeout) as session:

@@ -123,7 +123,7 @@ class ServerDefenseCog(commands.Cog):
                 color=0xEF4444,
                 timestamp=datetime.now(timezone.utc),
             )
-            embed.set_footer(text="HyperHub Auto-Defense • Anti-Spam Shield")
+            embed.set_footer(text="Orbit Auto-Defense • Anti-Spam Shield")
             await message.channel.send(embed=embed, delete_after=20)
         except Exception as e:
             log.error(f"Lỗi khi xử phạt spam user {member.id}: {e}")
@@ -330,7 +330,7 @@ class ServerDefenseCog(commands.Cog):
             timestamp=datetime.now(timezone.utc),
         )
         embed.set_thumbnail(url=guild.icon.url if guild.icon else settings.LOGO_ID)
-        embed.set_footer(text=f"Server: {guild.name} ({guild.id}) • HyperHub Defense Core")
+        embed.set_footer(text=f"Server: {guild.name} ({guild.id}) • Orbit Defense Core")
 
         # Gửi DM tới Guild Owner
         try:
@@ -378,7 +378,7 @@ class ServerDefenseCog(commands.Cog):
                 color=0x10B981,
                 timestamp=datetime.now(timezone.utc),
             )
-            embed.set_footer(text="HyperHub Disaster Recovery • 100% Auto-Restore")
+            embed.set_footer(text="Orbit Disaster Recovery • 100% Auto-Restore")
             await ctx.send(embed=embed)
         except Exception as e:
             log.exception("Lỗi khi tạo snapshot")
@@ -424,7 +424,7 @@ class ServerDefenseCog(commands.Cog):
             color=0x3B82F6,
             timestamp=datetime.now(timezone.utc),
         )
-        embed.set_footer(text="HyperHub Disaster Recovery • Hoàn tất")
+        embed.set_footer(text="Orbit Disaster Recovery • Hoàn tất")
         await msg.edit(content=None, embed=embed)
 
     @commands.command(name="backup_list")
@@ -455,7 +455,7 @@ class ServerDefenseCog(commands.Cog):
                 ),
                 inline=False,
             )
-        embed.set_footer(text="HyperHub Server Defense • Backups Registry")
+        embed.set_footer(text="Orbit Server Defense • Backups Registry")
         await ctx.send(embed=embed)
 
     @commands.command(name="lockdown")
@@ -495,7 +495,7 @@ class ServerDefenseCog(commands.Cog):
                 timestamp=datetime.now(timezone.utc),
             )
 
-        embed.set_footer(text="HyperHub Emergency Defense Shield")
+        embed.set_footer(text="Orbit Emergency Defense Shield")
         await ctx.send(embed=embed)
 
     @commands.command(name="raid_status")
@@ -557,7 +557,7 @@ class ServerDefenseCog(commands.Cog):
         else:
             embed.add_field(name="🚨 Lịch sử Raid gần nhất", value="Chưa ghi nhận sự cố nào gần đây.", inline=False)
 
-        embed.set_footer(text="HyperHub Auto-Defense System")
+        embed.set_footer(text="Orbit Auto-Defense System")
         await ctx.send(embed=embed)
 
 

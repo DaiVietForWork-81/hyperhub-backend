@@ -89,8 +89,8 @@ class DatabaseBackupService:
         zip_path = BACKUP_DIR / f"bot_backup_{timestamp}.zip"
         temp_db_path = BACKUP_DIR / f"temp_backup_{timestamp}.db"
 
-        # 1. Snapshot SQLite bằng Backup API nếu DB tồn tại
-        db_source = PRIMARY_DB_PATH if PRIMARY_DB_PATH.exists() else SECONDARY_DB_PATH
+        # 1. Snapshot SQLite bằng Backup API (Ưu tiên data/bot.db chứa kho đề HyperHub)
+        db_source = SECONDARY_DB_PATH if (SECONDARY_DB_PATH.exists() and SECONDARY_DB_PATH.stat().st_size > 0) else PRIMARY_DB_PATH
         if db_source.exists() and db_source.stat().st_size > 0:
             try:
                 src_conn = sqlite3.connect(f"file:{db_source}?mode=ro", uri=True)
@@ -104,10 +104,13 @@ class DatabaseBackupService:
         else:
             logger.warning(f"Không tìm thấy file CSDL nguồn tại {db_source}")
 
-        # 2. Đóng gói vào Zip
+        # 2. Đóng gói vào Zip (bao gồm cả data/bot.db và bot.db gốc nếu cả hai cùng tồn tại)
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             if temp_db_path.exists():
                 zf.write(temp_db_path, arcname="bot.db")
+                zf.write(temp_db_path, arcname="data/bot.db")
+            if PRIMARY_DB_PATH.exists() and PRIMARY_DB_PATH != db_source:
+                zf.write(PRIMARY_DB_PATH, arcname="sqlalchemy_bot.db")
             if PROBLEMS_JSON_PATH.exists():
                 zf.write(PROBLEMS_JSON_PATH, arcname="ai_problems.json")
 

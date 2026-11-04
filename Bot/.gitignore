@@ -51,6 +51,7 @@ bot.db*
 *.log
 *.lock
 bot.lock
+.logo_synced_hash
 hardware_cache.json
 
 # Operating System files

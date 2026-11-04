@@ -278,6 +278,26 @@ class Database:
         except Exception:
             pass
         try:
+            await self._conn.execute("ALTER TABLE documents_archive ADD COLUMN content_hash TEXT")
+        except Exception:
+            pass
+        try:
+            await self._conn.execute("ALTER TABLE documents_archive ADD COLUMN quorum_status TEXT")
+        except Exception:
+            pass
+        try:
+            await self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_doc_archive_content_hash ON documents_archive (content_hash)"
+            )
+        except Exception:
+            pass
+        try:
+            await self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_doc_archive_hash ON documents_archive (file_hash)"
+            )
+        except Exception:
+            pass
+        try:
             await self._conn.execute("ALTER TABLE documents_archive ADD COLUMN raw_text TEXT")
         except Exception:
             pass
@@ -442,6 +462,32 @@ class Database:
                 login_count INTEGER DEFAULT 1
             )
             """
+        )
+
+        # Bảng đồng bộ Hồ sơ Học thuật, Chuỗi ngày học (Study Streak) & XP giữa Discord Bot và Web Hub
+        await self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS study_profiles (
+                discord_id INTEGER PRIMARY KEY,
+                username TEXT,
+                display_name TEXT,
+                avatar_url TEXT,
+                current_streak INTEGER DEFAULT 0,
+                max_streak INTEGER DEFAULT 0,
+                last_study_date TEXT DEFAULT '',
+                study_xp INTEGER DEFAULT 0,
+                pomodoro_count INTEGER DEFAULT 0,
+                study_minutes INTEGER DEFAULT 0,
+                exams_completed INTEGER DEFAULT 0,
+                docs_contributed INTEGER DEFAULT 0,
+                dream_school TEXT DEFAULT '',
+                dream_score TEXT DEFAULT '',
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        await self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_study_profiles_xp ON study_profiles (study_xp DESC, current_streak DESC)"
         )
 
     async def execute(self, sql: str, *params) -> None:

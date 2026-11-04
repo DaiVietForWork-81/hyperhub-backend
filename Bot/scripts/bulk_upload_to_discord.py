@@ -163,7 +163,7 @@ def main():
     rows = cur.fetchall()
     total = len(rows)
     print(f"==================================================")
-    print(f"HYPERHUB BULK UPLOAD TO DISCORD: {total} DOCUMENTS")
+    print(f"ORBIT BULK UPLOAD TO DISCORD: {total} DOCUMENTS")
     print(f"==================================================")
 
     success_count = 0
@@ -187,7 +187,7 @@ def main():
         if author_id and author_id > 0:
             author_display = f"<@{author_id}> (`{author_name}`)"
 
-        # Soạn tin nhắn chuẩn HyperHub
+        # Soạn tin nhắn chuẩn Orbit
         post_content = (
             f"📁 **[TÀI LIỆU ĐÃ PHÂN LOẠI | THƯ MỤC `{CATEGORY_ID}`]**\n"
             f"*(Chuyển tiếp tự động từ Kênh Nộp Tài Liệu: <#{INTAKE_CHANNEL_ID}>)*\n"
@@ -198,7 +198,7 @@ def main():
             f"• Thể loại: **{tier_label}** ({tier_desc})\n"
             f"• Độ khó: **{diff_score}/10**\n"
             f"• Cấu trúc: `{pages or 1} trang` | `{format_size(actual_size)}`\n"
-            f"• Trạng thái kiểm định: **Đã lưu trữ an toàn trong HyperHub Vault ✅**"
+            f"• Trạng thái kiểm định: **Đã lưu trữ an toàn trong Orbit Vault ✅**"
         )
 
         url = f"https://discord.com/api/v10/channels/{target_ch_id}/messages"
@@ -251,7 +251,7 @@ def main():
         if not posted_msg:
             post_content_large = (
                 post_content + "\n"
-                f"⚠️ *(Tệp `{file_name}` dung lượng {format_size(actual_size)} (> 25MB). Tệp đã được lưu trữ an toàn trên máy chủ HyperHub và có thể tải trực tiếp trên Web Portal hoặc qua lệnh /tim_de)*"
+                f"⚠️ *(Tệp `{file_name}` dung lượng {format_size(actual_size)} (> 25MB). Tệp đã được lưu trữ an toàn trên máy chủ Orbit và có thể tải trực tiếp trên Web Portal hoặc qua lệnh /tim_de)*"
             )
             for retry in range(4):
                 resp = requests.post(

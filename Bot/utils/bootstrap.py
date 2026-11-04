@@ -178,7 +178,7 @@ def check_filesystem_and_env() -> None:
             print("=" * 70)
 
 
-HYPERHUB_BOT_REPO_URL = "https://github.com/DaiVietForWork-81/hyperhub-bot.git"
+ORBIT_BOT_REPO_URL = "https://github.com/DaiVietForWork-81/hyperhub-bot.git"
 
 
 def check_and_apply_git_updates() -> bool:
@@ -210,11 +210,11 @@ def check_and_apply_git_updates() -> bool:
             stderr=subprocess.DEVNULL,
         )
         if "origin" not in remotes_out:
-            subprocess.run([git_bin, "remote", "add", "origin", HYPERHUB_BOT_REPO_URL], cwd=PROJECT_DIR, check=True)
+            subprocess.run([git_bin, "remote", "add", "origin", ORBIT_BOT_REPO_URL], cwd=PROJECT_DIR, check=True)
         elif "hyperhub-bot" not in remotes_out:
-            subprocess.run([git_bin, "remote", "set-url", "origin", HYPERHUB_BOT_REPO_URL], cwd=PROJECT_DIR, check=True)
+            subprocess.run([git_bin, "remote", "set-url", "origin", ORBIT_BOT_REPO_URL], cwd=PROJECT_DIR, check=True)
 
-        print("[*] Đang kiểm tra cập nhật từ GitHub (hyperhub-bot)...", flush=True)
+        print("[*] Đang kiểm tra cập nhật từ GitHub (Orbit Bot)...", flush=True)
         fetch_res = subprocess.run(
             [git_bin, "fetch", "origin", "main", "--quiet"],
             cwd=PROJECT_DIR,
@@ -236,7 +236,7 @@ def check_and_apply_git_updates() -> bool:
 
         if local_hash and remote_hash and local_hash != remote_hash:
             print("=" * 70, flush=True)
-            print("   🔄 PHÁT HIỆN BẢN CẬP NHẬT MỚI TỪ GITHUB (hyperhub-bot)", flush=True)
+            print("   🔄 PHÁT HIỆN BẢN CẬP NHẬT MỚI TỪ GITHUB (Orbit Bot)", flush=True)
             print(f"      Phiên bản hiện tại : {local_hash[:8]}", flush=True)
             print(f"      Phiên bản mới nhất : {remote_hash[:8]}", flush=True)
             print("=" * 70, flush=True)
@@ -266,7 +266,7 @@ def run_preflight_checks() -> None:
     Hàm entrypoint thực thi toàn bộ quy trình kiểm tra & tự động chuẩn bị.
     Được gọi ngay dòng đầu tiên của bot.py.
     """
-    # 0. Tự động kiểm tra và đồng bộ cập nhật từ GitHub (hyperhub-bot)
+    # 0. Tự động kiểm tra và đồng bộ cập nhật từ GitHub (Orbit Bot)
     check_and_apply_git_updates()
 
     # 1. Tích hợp Toolchains nội bộ (C++, Node.js)

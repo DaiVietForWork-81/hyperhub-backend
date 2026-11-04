@@ -113,6 +113,7 @@ COMMAND_ALLOWLIST = {
     "kick", "ban", "unban", "mute", "unmute", "reset",
     "warn", "deletewarn", "warntest",
     "timde", "layde", "timtailieu", "dongbokhode", "gothailieu",
+    "luyende", "chuoi",
 }
 
 
@@ -138,7 +139,7 @@ def prune_tree_commands(bot) -> int:
 
 
 class CompetitiveProgrammingBot(commands.Bot):
-    """Lớp Bot Discord điều phối hệ thống HyperHub (kho đề + web)."""
+    """Lớp Bot Discord điều phối hệ thống Orbit | Vietnam (kho đề + web)."""
 
     def __init__(self):
         intents = discord.Intents.default()
@@ -154,7 +155,7 @@ class CompetitiveProgrammingBot(commands.Bot):
             chunk_guilds_at_startup=False,  # CỰC KỲ QUAN TRỌNG: Không tải toàn bộ members lúc bật bot để tránh spike CPU 100%
         )
 
-        # HyperHub Services & Database initialization
+        # Orbit Services & Database initialization
         self.settings = settings
         self.db = Database(Path("data/bot.db"))
         self.cooldowns = CooldownRepository(self.db)
@@ -170,7 +171,7 @@ class CompetitiveProgrammingBot(commands.Bot):
         # Giới hạn ThreadPoolExecutor của asyncio.to_thread tối đa 2 workers để không ngốn CPU trên server 0.35 core
         import concurrent.futures
         self.loop.set_default_executor(
-            concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="HyperHubWorker")
+            concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="OrbitWorker")
         )
 
         # Kiểm tra CSDL bot.db có tồn tại hay không, nếu mất dữ liệu -> Tự động khôi phục từ Discord
@@ -238,7 +239,7 @@ class CompetitiveProgrammingBot(commands.Bot):
             if getattr(settings, "LOGO_URL", ""):
                 embeds.set_logo_url(settings.LOGO_URL)
         except Exception as e:
-            logger.warning(f"Lỗi khởi tạo HyperHub Database: {e}")
+            logger.warning(f"Lỗi khởi tạo Orbit Database: {e}")
 
         logger.info("Đang nạp các module Cogs...")
         for ext in INITIAL_EXTENSIONS:
@@ -404,9 +405,12 @@ class CompetitiveProgrammingBot(commands.Bot):
         # Thiết lập trạng thái hoạt động trực quan
         activity = discord.Activity(
             type=discord.ActivityType.watching,
-            name="Orbit • Different paths. One orbit.",
+            name="Orbit | Vietnam",
         )
         await self.change_presence(status=discord.Status.online, activity=activity)
+
+        # Tự động đồng bộ tên Máy chủ Discord, Avatar Bot & Icon Server sang thương hiệu "Orbit | Vietnam"
+        asyncio.create_task(self._auto_sync_logo_and_branding())
 
         # Chặn lặp tác vụ khởi động khi bot reconnect Gateway (tránh spike CPU)
         if self._ready_initialized:
@@ -425,6 +429,55 @@ class CompetitiveProgrammingBot(commands.Bot):
 
         # [ARCHIVED] AI Worker sinh đề Ranked — đã lưu trữ tại archived/duel_arena/
         # asyncio.create_task(problem_worker.start(self))
+
+    async def _auto_sync_logo_and_branding(self) -> None:
+        """Tự động đồng bộ tên Server ('Orbit | Vietnam'), Avatar Bot và Icon Server từ LOGO_ID.png (1 lần theo SHA-256)."""
+        import hashlib
+        from pathlib import Path
+
+        for g in self.guilds:
+            try:
+                if ("Orbit" in g.name or g.id == 1532265330079174697) and g.name != "Orbit | Vietnam":
+                    await g.edit(name="Orbit | Vietnam", reason="Đồng bộ thương hiệu Orbit | Vietnam")
+                    logger.info(f"✨ Đã đồng bộ tên máy chủ Discord thành: Orbit | Vietnam ({g.id})")
+            except Exception as ge:
+                logger.debug(f"Không thể đổi tên guild {g.id}: {ge}")
+
+        bot_dir = Path(__file__).resolve().parent
+        logo_path = bot_dir / "LOGO_ID.png"
+        hash_file = bot_dir / ".logo_synced_hash"
+        if not logo_path.exists():
+            return
+
+        try:
+            logo_bytes = logo_path.read_bytes()
+            current_hash = hashlib.sha256(logo_bytes).hexdigest()
+            synced_hash = hash_file.read_text(encoding="utf-8").strip() if hash_file.exists() else ""
+            if current_hash == synced_hash:
+                return
+
+            updated_any = False
+            if self.user:
+                try:
+                    await self.user.edit(avatar=logo_bytes)
+                    logger.info("🎨 Đã tự động cập nhật Avatar Bot Discord sang LOGO_ID.png mới!")
+                    updated_any = True
+                except Exception as av_err:
+                    logger.warning(f"Không thể cập nhật Avatar Bot (có thể do giới hạn tần suất Discord): {av_err}")
+
+            for g in self.guilds:
+                if "Orbit" in g.name or g.id == 1532265330079174697:
+                    try:
+                        await g.edit(icon=logo_bytes, reason="Đồng bộ logo mới Orbit | Vietnam")
+                        logger.info(f"🎨 Đã tự động cập nhật Icon Máy chủ Discord '{g.name}' ({g.id}) sang LOGO_ID.png mới!")
+                        updated_any = True
+                    except Exception as ic_err:
+                        logger.warning(f"Không thể cập nhật Icon máy chủ {g.id}: {ic_err}")
+
+            if updated_any:
+                hash_file.write_text(current_hash, encoding="utf-8")
+        except Exception as e:
+            logger.debug(f"Lỗi đồng bộ logo tự động: {e}")
 
     async def _auto_assign_member_roles(self) -> None:
         """Tự động kiểm tra và cấp Role '🌱 Học sinh' (MEMBER_ROLE_ID) cho toàn bộ thành viên hiện có trên Server."""
