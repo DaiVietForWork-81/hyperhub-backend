@@ -356,30 +356,37 @@ class SubmitDocModal(discord.ui.Modal, title="📤 Nộp Đường Dẫn Tài Li
 
 
 class DocumentIntakeControlView(discord.ui.View):
-    """Bảng điều khiển tương tác thường trực tại kênh nộp tài liệu."""
+    """Bảng điều khiển tương tác thường trực tại kênh nộp tài liệu (chuyển tiếp lên Web Portal)."""
 
     def __init__(self, cog: DocumentIntakeCog | None = None):
         super().__init__(timeout=None)
         self.cog = cog
-
-    @discord.ui.button(
-        label="📤 Nộp Link / Google Drive",
-        style=discord.ButtonStyle.primary,
-        custom_id="btn_doc_intake_submit_link",
-        emoji="🔗",
-    )
-    async def btn_submit_link(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        cog = self.cog or interaction.client.get_cog("DocumentIntakeCog")
-        if not cog:
-            await interaction.response.send_message("❌ Hệ thống chưa sẵn sàng.", ephemeral=True)
-            return
-        await interaction.response.send_modal(SubmitDocModal(cog))
+        # Nút chuyển tiếp trực tiếp sang Web Portal để nộp tài liệu
+        self.add_item(
+            discord.ui.Button(
+                label="🌐 Mở Web Đóng Góp Đề Thi",
+                url="https://orbit-psi-black.vercel.app/#vault",
+                style=discord.ButtonStyle.link,
+                emoji="📤",
+                row=0,
+            )
+        )
+        self.add_item(
+            discord.ui.Button(
+                label="🚀 Mở Bảng Điều Khiển (Hub)",
+                url="https://orbit-psi-black.vercel.app/hub",
+                style=discord.ButtonStyle.link,
+                emoji="✨",
+                row=0,
+            )
+        )
 
     @discord.ui.button(
         label="📊 Thống Kê Kho Đề & Dung Lượng",
-        style=discord.ButtonStyle.success,
+        style=discord.ButtonStyle.secondary,
         custom_id="btn_doc_intake_stats",
         emoji="💾",
+        row=1,
     )
     async def btn_stats(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         cog = self.cog or interaction.client.get_cog("DocumentIntakeCog")
@@ -1372,39 +1379,28 @@ class DocumentIntakeCog(commands.Cog):
         total_size_human = format_bytes_to_human(stats["grand_total_bytes"])
         total_docs_count = stats["grand_total_items"]
 
-        # Embed 1: Hướng dẫn chi tiết cách thức nộp tài liệu
+        # Embed 1: Hướng dẫn chi tiết cách thức nộp tài liệu trên Web Portal
         guide_desc = (
-            "Chào mừng bạn đến với **Trạm Tiếp Nhận & Phân Loại Đề Thi Tự Động**!\n"
-            "Hệ thống ứng dụng công nghệ **DocInspector Engine** (< 25ms, 100% Deterministic) "
-            "để tự động quét virus, nhận diện môn học, khối lớp, thể loại và lưu trữ vào đúng chuyên mục.\n\n"
+            "Chào mừng bạn đến với **Trạm Tiếp Nhận & Đóng Góp Đề Thi Orbit**!\n\n"
+            "Tính năng nộp đề thi & đóng góp tài liệu học tập hiện đã được chuyển hoàn toàn lên **Orbit Web Portal**.\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "### 🚀 CÁCH THỨC NỘP TÀI LIỆU VÀO KÊNH\n\n"
-            "📂 **Cách 1: Gửi tệp đính kèm trực tiếp (Khuyên dùng)**\n"
-            "> • **Kéo & thả** hoặc chọn gửi tệp (`.pdf`, `.docx`, `.doc`, `.txt`...) trực tiếp vào khung chat kênh này.\n"
-            "> • 🔒 *Tin nhắn của bạn sẽ tự động được xóa ngay sau khi tiếp nhận để giữ kênh luôn sạch sẽ và bảo mật dữ liệu.*\n\n"
-            "🔗 **Cách 2: Gửi liên kết / Google Drive**\n"
-            "> • Dán trực tiếp đường link Google Drive (để chế độ công khai) hoặc link trang web học tập vào khung chat.\n"
-            "> • Hoặc bấm nút **'🔗 Nộp Link / Google Drive'** bên dưới để mở Form nhập kèm ghi chú.\n\n"
+            "### 🌐 TRUY CẬP WEB PORTAL ĐỂ NỘP TÀI LIỆU:\n"
+            "> ### 👉 **https://orbit-psi-black.vercel.app/#vault**\n"
+            "> *(Hoặc vào Bảng điều khiển: **https://orbit-psi-black.vercel.app/hub**)*\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "### 🎯 QUY TRÌNH PHÂN LOẠI 4 CHIỀU TOÀN DIỆN\n"
-            "Mỗi tài liệu gửi lên sẽ được hệ thống tự động thẩm định theo 4 tiêu chí:\n"
-            "1. 📚 **Môn học:** Tự động phát hiện Toán, Tin, Lý, Hóa, Sinh, Văn, Anh, Sử - Địa, GDCD...\n"
-            "2. 🎓 **Khối lớp:** Lớp 12, 11, 10, 9, 8, 7, 6, THCS, THPT, Đội tuyển/Olympic, Đại học.\n"
-            "3. 🏷️ **Thể loại:** `thường` / `hsg` / `chuyên` *(Quy tắc: thường < hsg < chuyên, hsg là cấp độ dễ hơn chuyên)*.\n"
-            "4. 🛡️ **4 Trạng thái thẩm định:**\n"
-            "   • `Xác minh (thấy ổn)`: Đề thi chuẩn, nội dung và cấu trúc rõ ràng.\n"
-            "   • `Chưa rõ ràng`: Nhận diện được đề nhưng chưa chắc chắn hoàn toàn (cần đối soát thêm).\n"
-            "   • `Không rõ ràng`: Xem được đề nhưng không rõ năm/trường hoặc cấu trúc khuyết.\n"
-            "   • `Không xác minh`: File lỗi/rỗng hoặc web chặn bot (*báo không rõ nguồn gốc*).\n\n"
+            "### 🚀 QUY TRÌNH NỘP ĐỀ THI TRÊN WEB:\n"
+            "1. Bấm vào nút **'📤 Mở Web Đóng Góp Đề Thi'** bên dưới để mở giao diện Web.\n"
+            "2. Đăng nhập tài khoản Discord để xác thực thành viên Orbit.\n"
+            "3. Kéo & thả tệp (`.pdf`, `.docx`...) hoặc dán link Google Drive kèm thông tin môn/lớp.\n"
+            "4. Hệ thống AI Cloud sẽ tự động bóc tách câu hỏi, kiểm định và hiển thị đề vào kho học liệu chung tức thì!\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "📁 **Kho học liệu số:** Sau khi thẩm định, đề thi được tự động đồng bộ lên **Orbit Web Portal** (https://orbit-psi-black.vercel.app/#vault) để mọi người có thể tra cứu và làm bài trực tuyến.\n"
-            "📩 **Phản hồi:** Kết quả thẩm định chi tiết và link mở đề thi sẽ được gửi phản hồi ngay cho bạn!"
+            "⚠️ **Lưu ý quan trọng:** *Mọi thao tác nộp đề thi trực tiếp qua khung chat hoặc Bot Discord đã ngừng hoạt động để tập trung xử lý và phân loại chuẩn xác trên Web.*"
         )
 
         embed_guide = discord.Embed(
-            title="📤 HƯỚNG DẪN NỘP TÀI LIỆU & ĐỀ THI TỰ ĐỘNG",
+            title="📤 HƯỚNG DẪN NỘP & ĐÓNG GÓP TÀI LIỆU — LÊN WEB PORTAL",
             description=guide_desc,
-            color=0x5865F2,
+            color=0x9B5CFF,
         )
 
         # Embed 2: Thống kê kho dữ liệu hiện tại
@@ -1832,231 +1828,29 @@ class DocumentIntakeCog(commands.Cog):
 
         # TRƯỜNG HỢP A: Kênh tiếp nhận tài liệu (1535278288828633138)
         if message.channel.id == intake_channel_id:
-            # Nếu bot khác hoặc webhook nhắn vào kênh nộp tài liệu, xóa ngay lập tức
-            if message.author.bot:
-                try:
-                    await message.delete()
-                except Exception:
-                    pass
-                return
+            # Xóa ngay lập tức mọi tin nhắn gửi vào kênh nộp tài liệu (chỉ nộp trên Web)
+            try:
+                await message.delete()
+            except Exception:
+                pass
 
-            has_attachment = len(message.attachments) > 0
-            url_match = re.search(
-                r"https?://[^\s]+|(?:(?:drive|docs)\.google\.com|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/[^\s]*",
-                message.content,
-            )
-
-            # 1. Tin nhắn chat thông thường (không có file đính kèm, không chứa liên kết)
-            if not has_attachment and not url_match:
+            if not message.author.bot:
+                warn_text = (
+                    f"⚠️ {message.author.mention}, nộp tài liệu hiện đã chuyển hoàn toàn lên **Orbit Web Portal** (không nộp trên Bot nữa).\n"
+                    f"👉 Vui lòng truy cập **https://orbit-psi-black.vercel.app/#vault** để nộp đề thi & tài liệu trực tuyến nhé!"
+                )
                 try:
-                    await message.delete()
+                    await message.channel.send(warn_text, delete_after=7.0)
                 except Exception:
                     pass
 
-                dm_sent = True
-                try:
-                    await message.author.send(
-                        "⚠️ **Kênh <#1535278288828633138> chỉ dành riêng để nộp tài liệu học tập & đề thi.**\n"
-                        "Vui lòng gửi kèm tệp (`.pdf`, `.docx`, `.png`, `.jpg`...) hoặc đường dẫn Google Drive / web để hệ thống tự động phân loại!"
-                    )
-                except Exception:
-                    dm_sent = False
-
-                if not dm_sent:
-                    try:
-                        await message.channel.send(
-                            f"⚠️ {message.author.mention}, vui lòng gửi tệp đính kèm (`.pdf`, `.docx`, `.png`, `.jpg`...) hoặc đường dẫn tài liệu học tập để hệ thống tiếp nhận và phân loại.",
-                            delete_after=6.0,
-                        )
-                    except Exception:
-                        pass
-
-                # Dọn dẹp toàn bộ tin nhắn thừa trong kênh ngầm
-                asyncio.create_task(self.clean_intake_channel(message.channel))
-                return
-
-            # 2. Xử lý khi có tệp đính kèm
-            if has_attachment:
-                # Đọc trước toàn bộ dữ liệu tệp đính kèm trước khi xóa tin nhắn
-                loaded_attachments: list[tuple[str, bytes]] = []
-                for att in message.attachments:
-                    try:
-                        data = await att.read()
-                        loaded_attachments.append((att.filename, data))
-                    except Exception as e:
-                        log.warning("Không thể đọc attachment %s: %s", att.filename, e)
-
-                # Xóa ngay tin nhắn nộp của người dùng để kênh luôn sạch sẽ
-                try:
-                    await message.delete()
-                except Exception:
-                    pass
-
-                failed_notifications: list[tuple[str, JumpButtonView | None]] = []
-                for file_name, file_bytes in loaded_attachments:
-                    try:
-                        report, routing, posted_msg = await self.process_and_route(
-                            guild=message.guild,
-                            author=message.author,
-                            file_path_or_bytes=file_bytes,
-                            file_name=file_name,
-                        )
-
-                        reply_text = (routing.submission_reply_message or "") + format_rich_exam_metadata(report)
-
-                        view = JumpButtonView(posted_msg.jump_url) if posted_msg else None
-
-                        try:
-                            await message.author.send(reply_text, view=view)
-                        except Exception:
-                            failed_notifications.append((reply_text, view))
-
-                        # Post thông báo trùng lặp vào kênh intake rồi xóa sau 10 giây
-                        if 'TRÙNG LẶP' in (routing.submission_reply_message or ''):
-                            try:
-                                dup_embed = discord.Embed(
-                                    title="🔁 Tài Liệu Trùng Lặp",
-                                    description=(
-                                        f"Tệp của **{message.author.display_name}** đã được nộp trước đó.\n"
-                                        f"Chi tiết đã được gửi riêng tư.\n"
-                                        f"*Tin nhắn này sẽ tự xóa sau 10 giây.*"
-                                    ),
-                                    color=0xE67E22,
-                                )
-                                dup_public_msg = await message.channel.send(embed=dup_embed)
-                                await asyncio.sleep(10)
-                                try:
-                                    await dup_public_msg.delete()
-                                except Exception:
-                                    pass
-                            except Exception:
-                                pass
-                    except Exception as e:
-                        log.exception("Lỗi khi xử lý file nộp %s: %s", file_name, e)
-                        err_text = f"❌ **Lỗi khi xử lý tệp '{file_name}':** `{e}`"
-                        try:
-                            await message.author.send(err_text)
-                        except Exception:
-                            failed_notifications.append((err_text, None))
-
-                # Nếu người dùng tắt DM máy chủ, hiển thị thông báo tạm thời rồi tự xóa sau 25s
-                for text, view in failed_notifications:
-                    try:
-                        await message.channel.send(
-                            f"{message.author.mention}\n{text}",
-                            view=view,
-                            delete_after=25.0,
-                        )
-                    except Exception:
-                        pass
-
-                # Dọn dẹp tất cả tin nhắn thừa trong kênh ngầm (không làm lag người dùng)
-                asyncio.create_task(self.clean_intake_channel(message.channel))
-                return
-
-            # 3. Xử lý khi gửi link URL / Google Drive trực tiếp trong chat
-            if url_match:
-                raw_url = AntivirusScanner.normalize_url(url_match.group(0))
-                try:
-                    await message.delete()
-                except Exception:
-                    pass
-
-                from services.gdrive_importer import is_valid_gdrive_url_or_id
-                if is_valid_gdrive_url_or_id(raw_url):
-                    try:
-                        success, msg, embed, posted_msg = await self.handle_gdrive_submission(
-                            guild=message.guild,
-                            author=message.author,
-                            gdrive_url=raw_url,
-                        )
-                        view = JumpButtonView(posted_msg.jump_url) if posted_msg else None
-                        try:
-                            if embed:
-                                await message.author.send(embed=embed, view=view)
-                            else:
-                                await message.author.send(msg, view=view)
-                        except Exception:
-                            try:
-                                if embed:
-                                    await message.channel.send(f"{message.author.mention}", embed=embed, view=view, delete_after=25.0)
-                                else:
-                                    await message.channel.send(f"{message.author.mention}\n{msg}", view=view, delete_after=25.0)
-                            except Exception:
-                                pass
-                    except Exception as ge:
-                        log.exception("Lỗi khi xử lý link Google Drive trong chat: %s", ge)
-                        try:
-                            await message.author.send(f"❌ Lỗi kiểm định link Google Drive: `{ge}`")
-                        except Exception:
-                            pass
-
-                    asyncio.create_task(self.clean_intake_channel(message.channel))
-                    return
-
-                failed_url_notifications: list[tuple[str, JumpButtonView | None]] = []
-                try:
-                    report, routing, posted_msg = await self.process_and_route(
-                        guild=message.guild,
-                        author=message.author,
-                        file_path_or_bytes=raw_url,
-                    )
-
-                    reply_text = (routing.submission_reply_message or "") + format_rich_exam_metadata(report)
-
-                    view = JumpButtonView(posted_msg.jump_url) if posted_msg else None
-
-                    try:
-                        await message.author.send(reply_text, view=view)
-                    except Exception:
-                        failed_url_notifications.append((reply_text, view))
-
-                    # Post thông báo trùng lặp vào kênh intake rồi xóa sau 10 giây
-                    if 'TRÙNG LẶP' in (routing.submission_reply_message or ''):
-                        try:
-                            dup_embed = discord.Embed(
-                                title="🔁 Tài Liệu Trùng Lặp",
-                                description=(
-                                    f"Tệp của **{message.author.display_name}** đã được nộp trước đó.\n"
-                                    f"Chi tiết đã được gửi riêng tư.\n"
-                                    f"*Tin nhắn này sẽ tự xóa sau 10 giây.*"
-                                ),
-                                color=0xE67E22,
-                            )
-                            dup_public_msg = await message.channel.send(embed=dup_embed)
-                            await asyncio.sleep(10)
-                            try:
-                                await dup_public_msg.delete()
-                            except Exception:
-                                pass
-                        except Exception:
-                            pass
-                except Exception as e:
-                    log.exception("Lỗi khi xử lý link nộp: %s", e)
-                    err_text = f"❌ **Lỗi khi xử lý liên kết '{raw_url}':** `{e}`"
-                    try:
-                        await message.author.send(err_text)
-                    except Exception:
-                        failed_url_notifications.append((err_text, None))
-
-                # Nếu người dùng tắt DM máy chủ, hiển thị thông báo tạm thời rồi tự xóa sau 25s
-                for text, view in failed_url_notifications:
-                    try:
-                        await message.channel.send(
-                            f"{message.author.mention}\n{text}",
-                            view=view,
-                            delete_after=25.0,
-                        )
-                    except Exception:
-                        pass
-
-                # Dọn dẹp tất cả tin nhắn thừa trong kênh ngầm (không làm lag người dùng)
-                asyncio.create_task(self.clean_intake_channel(message.channel))
-                return
+            asyncio.create_task(self.clean_intake_channel(message.channel))
+            return
 
         # TRƯỜNG HỢP B: Tin nhắn gửi trong các kênh thuộc Thư mục phân loại (1534147951797080174)
         channel_category_id = getattr(message.channel, "category_id", None)
-        if channel_category_id == category_id and (message.attachments or "http" in message.content):
+        doc_search_id = getattr(settings, "DOC_SEARCH_CHANNEL_ID", 1567532842617937931)
+        if channel_category_id == category_id and message.channel.id not in (intake_channel_id, doc_search_id) and (message.attachments or "http" in message.content):
             # 1. Tự động lập chỉ mục đề thi (cả đề do Bot gửi và do Admin/User gửi trực tiếp)
             try:
                 cnt = await self.index_message_document(message)
