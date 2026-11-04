@@ -210,17 +210,11 @@ def create_embed(
     if author_name:
         embed.set_author(name=author_name, icon_url=author_icon, url=author_url)
 
-    # Thumbnail sinh động:
-    local_logo_uri = get_logo_attachment_url()
-
+    # Thumbnail: chỉ gắn khi có user_avatar_url (profile) hoặc custom_thumbnail chỉ định rõ
     if is_profile and user_avatar_url:
         embed.set_thumbnail(url=user_avatar_url)
     elif custom_thumbnail:
         embed.set_thumbnail(url=custom_thumbnail)
-    elif local_logo_uri:
-        embed.set_thumbnail(url=local_logo_uri)
-    elif settings.LOGO_ID and settings.LOGO_ID.startswith("http"):
-        embed.set_thumbnail(url=settings.LOGO_ID)
 
     # Ảnh minh họa chính (Image)
     if custom_image:
@@ -236,14 +230,8 @@ def create_embed(
                 embed.add_field(name=name, value=value, inline=inline)
 
     # Chân trang (Footer)
-    footer = footer_text or "⚡ Đấu trường Lập trình Thi đấu • Codeforces System"
-    icon = None
-    if is_profile and user_avatar_url:
-        icon = user_avatar_url
-    elif local_logo_uri:
-        icon = local_logo_uri
-    elif settings.LOGO_ID and settings.LOGO_ID.startswith("http"):
-        icon = settings.LOGO_ID
+    footer = footer_text or "✦ Orbit • Learn · Chill · Connect · Enjoy"
+    icon = user_avatar_url if (is_profile and user_avatar_url) else None
 
     embed.set_footer(text=footer, icon_url=icon)
 
@@ -307,9 +295,8 @@ def set_logo_url(url: str) -> None:
 
 
 def attach_logo(embed: discord.Embed) -> None:
-    """Dán logo vào thumbnail của embed nếu LOGO_URL đã được cấu hình."""
-    if _LOGO_URL:
-        embed.set_thumbnail(url=_LOGO_URL)
+    """Không tự động dán logo vào thumbnail của mỗi embed."""
+    pass
 
 
 def add_credit(embed: discord.Embed, credit: str = "") -> None:

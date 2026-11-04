@@ -1382,19 +1382,19 @@ class DocumentIntakeCog(commands.Cog):
         # Embed 1: Hướng dẫn chi tiết cách thức nộp tài liệu trên Web Portal
         guide_desc = (
             "Chào mừng bạn đến với **Trạm Tiếp Nhận & Đóng Góp Đề Thi Orbit**!\n\n"
-            "Tính năng nộp đề thi & đóng góp tài liệu học tập hiện đã được chuyển hoàn toàn lên **Orbit Web Portal**.\n\n"
+            "Tính năng nộp đề thi & đóng góp tài liệu học tập được thực hiện trực tiếp trên **Orbit Web Portal**.\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "### 🌐 TRUY CẬP WEB PORTAL ĐỂ NỘP TÀI LIỆU:\n"
             "> ### 👉 **https://orbit-psi-black.vercel.app/#vault**\n"
             "> *(Hoặc vào Bảng điều khiển: **https://orbit-psi-black.vercel.app/hub**)*\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "### 🚀 QUY TRÌNH NỘP ĐỀ THI TRÊN WEB:\n"
-            "1. Bấm vào nút **'📤 Mở Web Đóng Góp Đề Thi'** bên dưới để mở giao diện Web.\n"
-            "2. Đăng nhập tài khoản Discord để xác thực thành viên Orbit.\n"
-            "3. Kéo & thả tệp (`.pdf`, `.docx`...) hoặc dán link Google Drive kèm thông tin môn/lớp.\n"
-            "4. Hệ thống AI Cloud sẽ tự động bóc tách câu hỏi, kiểm định và hiển thị đề vào kho học liệu chung tức thì!\n\n"
+            "### 🔑 ĐIỀU KIỆN & QUYỀN LỢI KHI ĐÓNG GÓP:\n"
+            "• **Điều kiện cực đơn giản:** Chỉ cần kết nối tài khoản Discord với Web Hub (không yêu cầu xác minh email hay phân quyền phức tạp).\n"
+            "• 👤 **Ghi nhận Credit vĩnh viễn:** Tên và Avatar Discord của bạn được hiển thị trang trọng trên thẻ tài liệu trong Kho Đề và cửa sổ chi tiết.\n"
+            "• 📢 **Vinh danh trên Discord:** Tự động mention `<@bạn>` tại kênh lưu trữ `#database` và cấp ngay role <@&1534128847157461034>.\n"
+            "• 🏆 **Cộng điểm học thuật:** Nhận ngay **+100 Study XP** cho mỗi đề thi đóng góp trên **Bảng Xếp Hạng Học Giả**!\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "⚠️ **Lưu ý quan trọng:** *Mọi thao tác nộp đề thi trực tiếp qua khung chat hoặc Bot Discord đã ngừng hoạt động để tập trung xử lý và phân loại chuẩn xác trên Web.*"
+            "⚠️ **Lưu ý:** *Mọi thao tác nộp đề thi trực tiếp qua khung chat hoặc Bot Discord đã chuyển hoàn toàn lên Web để thẩm định 5 lớp bảo mật và chống trùng lặp.*"
         )
 
         embed_guide = discord.Embed(
@@ -1408,10 +1408,9 @@ class DocumentIntakeCog(commands.Cog):
             f"📊 **TỔNG QUAN KHO ĐỀ THI & DUNG LƯỢNG LƯU TRỮ HIỆN TẠI:**\n\n"
             f"• 📚 **Tổng số lượng đề & tài liệu:** `{total_docs_count:,} tài liệu`\n"
             f"• 💾 **Tổng dung lượng toàn bộ kho:** `{total_size_human}`\n"
-            f"• 🏆 **Đề đấu trường CP Arena:** `{stats['cp_problems_count']:,} đề` ({format_bytes_to_human(stats['cp_storage_bytes'])})\n"
             f"• 📂 **Tài liệu các môn học:** `{stats['total_docs']:,} tệp` ({format_bytes_to_human(stats['total_doc_bytes'])})\n\n"
-            "📑 **Định dạng được hỗ trợ:** `.pdf`, `.docx`, `.doc`, `.txt`, `.cpp`, `.py`\n"
-            "🛡️ **An toàn:** Tự động lọc virus, mã độc, phishing và tệp giả mạo."
+            "📑 **Định dạng được hỗ trợ:** `.pdf`, `.docx`, `.doc`, `.txt` (hoặc link Google Drive)\n"
+            "🛡️ **An toàn:** Tự động kiểm tra trùng lặp SHA-256, lọc mã độc và phân loại chuẩn Bộ GD&ĐT 2025."
         )
 
         embed_stats = discord.Embed(
