@@ -630,7 +630,6 @@ class DocumentIntakeCog(commands.Cog):
         intake_id = getattr(settings, "DOC_INTAKE_CHANNEL_ID", 1535278288828633138)
         ch_intake = guild.get_channel(intake_id)
         return ch_intake if isinstance(ch_intake, discord.TextChannel) else None
-            return None
 
     async def handle_gdrive_submission(
         self,
