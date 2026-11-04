@@ -1,12 +1,12 @@
-# Báo cáo bàn giao — HyperHub Web (`LEARN • CHILL • CONNECT`)
+# Báo cáo bàn giao — Orbit Web (`LEARN • CHILL • CONNECT`)
 
 ## 1. Tổng quan bản làm lại
 
-Dự án đã được thiết kế và xây dựng lại toàn diện theo định hướng **Pixel Bloom** (kết hợp **editorial dark UI**, **voxel/pixel craft** từ biểu tượng HyperHub gốc và **layered cherry-blossom glow** `#9B5CFF` / `#FF4FCB` / `#FFB8E6` trên nền than ánh tím `#0E0C14`).
+Dự án đã được thiết kế và xây dựng lại toàn diện theo định hướng **Pixel Bloom** (kết hợp **editorial dark UI**, **voxel/pixel craft** từ biểu tượng Orbit gốc và **layered cherry-blossom glow** `#9B5CFF` / `#FF4FCB` / `#FFB8E6` trên nền than ánh tím `#0E0C14`).
 
 | Hạng mục | Trước khi làm lại | Sau khi làm lại |
 | --- | --- | --- |
-| Thương hiệu & logo | Bị lẫn câu chữ / tệp cấu hình `"Orbit"`, logo lệch màu xanh cyan | Khôi phục nguyên bản **HyperHub** (`LEARN • CHILL • CONNECT`), logo khối chữ H hồng-tím và hệ biểu tượng voxel |
+| Thương hiệu & logo | Chưa đồng bộ thương hiệu | Đồng bộ toàn diện **Orbit** (`LEARN • CHILL • CONNECT`), logo hành tinh tím-hồng và hệ biểu tượng voxel |
 | Hero section | Khối giới thiệu phẳng + canvas 3D xoay liên tục | Wordmark SVG **130 khối voxel** rơi theo cột & phản hồi con trỏ, 3 trụ cột pixel-wipe, headline tiếng Việt reveal theo từ, 2 dải môn học chạy ngược chiều, bảng trạng thái bot/kho đề thời gian thực |
 | Cấu trúc cuộn (Scroll Storytelling) | Các section rời rạc, cùng một kiểu fade-up | Dẫn chuyện 3 chương **01 / LEARN**, **02 / CHILL**, **03 / CONNECT** + **Chapter Rail** chỉ báo tiến độ thực tế và nhảy chương |
 | Tương tác con trỏ | 1 đốm tròn cố định (`MouseAura`) | Hệ thống pointer **3 tầng (`rich` / `standard` / `lite`)**: Aura kép lệch pha, Bloom Grid, Spotlight trên thẻ lớn, Magnetic CTA, Tilt 3° duy nhất trên thẻ sáng lập chính |

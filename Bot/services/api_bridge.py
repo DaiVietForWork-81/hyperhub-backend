@@ -4000,12 +4000,13 @@ class BotAPIBridge:
         headers = {"X-Bot-Secret": secret}
         snapshot_routes = [
             ("admin_channels", "/api/admin/channels"),
-            ("admin_members", "/api/admin/members?limit=50"),
+            ("admin_members", "/api/admin/members?limit=100"),
             ("admin_bans", "/api/admin/bans"),
             ("admin_logs", "/api/admin/logs?lines=200&level=ALL"),
             ("admin_config", "/api/admin/config"),
             ("admin_audit_logs", "/api/admin/audit-logs"),
             ("system_update_status", "/api/system/update_status"),
+            ("forum_threads", "/api/forum/threads"),
         ]
         async with _aiohttp.ClientSession(timeout=_aiohttp.ClientTimeout(total=5.0)) as sess:
             for kv_key, route in snapshot_routes:
@@ -4352,6 +4353,11 @@ class BotAPIBridge:
 
     async def handle_forum_get_threads(self, request: web.Request) -> web.Response:
         """GET /api/forum/threads: Lấy danh sách các bài thảo luận trong #💡・diễn-đàn đồng bộ với Discord."""
+        now_ts = time.time()
+        cached_forum = getattr(self, "_forum_threads_cache", None)
+        if cached_forum and now_ts - cached_forum[1] < 12.0:
+            return web.json_response(cached_forum[0])
+
         st_ch, ch_data = await self._discord_rest("GET", f"/channels/{self.FORUM_CHANNEL_ID}")
         available_tags = (ch_data or {}).get("available_tags", []) if st_ch == 200 else []
         tag_id_to_name = {str(t["id"]): t["name"] for t in available_tags}
@@ -4421,14 +4427,14 @@ class BotAPIBridge:
         enriched = await asyncio.gather(*[_enrich_thread(t) for t in raw_threads[:25]])
         enriched_list = sorted(enriched, key=lambda x: int(x["id"]), reverse=True)
 
-        return web.json_response(
-            {
-                "channel_id": str(self.FORUM_CHANNEL_ID),
-                "channel_name": "💡・diễn-đàn",
-                "categories": list(self.FORUM_CATEGORIES),
-                "threads": enriched_list,
-            }
-        )
+        payload_resp = {
+            "channel_id": str(self.FORUM_CHANNEL_ID),
+            "channel_name": "💡・diễn-đàn",
+            "categories": list(self.FORUM_CATEGORIES),
+            "threads": enriched_list,
+        }
+        self._forum_threads_cache = (payload_resp, time.time())
+        return web.json_response(payload_resp)
 
     async def handle_forum_get_thread_detail(self, request: web.Request) -> web.Response:
         """GET /api/forum/threads/{thread_id}: Lấy chi tiết chủ đề và toàn bộ tin nhắn đồng bộ với Discord."""
@@ -4534,6 +4540,7 @@ class BotAPIBridge:
             )
 
         tid = str(created.get("id"))
+        self._forum_threads_cache = None
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
         starter_msg = {
             "id": tid,
@@ -4606,6 +4613,7 @@ class BotAPIBridge:
                 status=502,
             )
 
+        self._forum_threads_cache = None
         return web.json_response(
             {
                 "success": True,

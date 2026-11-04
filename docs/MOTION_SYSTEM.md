@@ -1,10 +1,10 @@
-# HyperHub Motion System
+# Orbit Motion System
 
-> Phạm vi: trang chủ HyperHub (`/`) và lớp chuyển view Home ↔ Hub. Workspace Hub (`/hub`) giữ nguyên chuyển động của Dashboard cũ, chỉ thêm cursor aura ở cường độ thấp.
+> Phạm vi: trang chủ Orbit (`/`) và lớp chuyển view Home ↔ Hub. Workspace Hub (`/hub`) giữ nguyên chuyển động của Dashboard cũ, chỉ thêm cursor aura ở cường độ thấp.
 
 ## 1. Định hướng — "Pixel Bloom"
 
-HyperHub bắt nguồn từ logo voxel/pixel hồng tím giữa vườn anh đào. Ngôn ngữ chuyển động tách làm hai giọng rõ ràng:
+Orbit bắt nguồn từ logo voxel/pixel hồng tím giữa vườn anh đào. Ngôn ngữ chuyển động tách làm hai giọng rõ ràng:
 
 | Giọng | Dùng cho | Đặc tính |
 | --- | --- | --- |
