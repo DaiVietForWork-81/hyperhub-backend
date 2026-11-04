@@ -43,13 +43,13 @@ venv/
 Thumbs.db
 desktop.ini
 
-# Legacy / dữ liệu cục bộ không commit
-HyperHub-Web/
-web-test/
-KhoaHoc/
-Skills/
-.taste-skill/
-omi-models.txt
+# Legacy / dữ liệu cục bộ không commit (neo cố định vào thư mục gốc repo)
+/HyperHub-Web/
+/web-test/
+/KhoaHoc/
+/Skills/
+/.taste-skill/
+/omi-models.txt
 
 # DocInspector artifacts sinh tự động khi audit/train
 DocInspector/audit_*.html

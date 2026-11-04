@@ -276,6 +276,7 @@ def info_embed(title: str, description: str, **kwargs) -> discord.Embed:
 
 # ==================== ORBIT EMBED HELPERS ====================
 ORBIT_COLOR = 0x9F7AEA
+HYPERHUB_COLOR = ORBIT_COLOR  # Alias tương thích ngược
 AURA_COLOR = 0x7C3AED
 SUCCESS_COLOR = 0x34D399
 ERROR_COLOR = 0xF87171

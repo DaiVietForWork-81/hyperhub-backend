@@ -234,7 +234,26 @@ def check_and_apply_git_updates() -> bool:
             [git_bin, "rev-parse", "origin/main"], cwd=PROJECT_DIR, text=True, stderr=subprocess.DEVNULL
         ).strip()
 
-        if local_hash and remote_hash and local_hash != remote_hash:
+        ahead_count = int(
+            subprocess.check_output(
+                [git_bin, "rev-list", "--count", "origin/main..HEAD"],
+                cwd=PROJECT_DIR,
+                text=True,
+                stderr=subprocess.DEVNULL,
+            ).strip()
+            or "0"
+        )
+        behind_count = int(
+            subprocess.check_output(
+                [git_bin, "rev-list", "--count", "HEAD..origin/main"],
+                cwd=PROJECT_DIR,
+                text=True,
+                stderr=subprocess.DEVNULL,
+            ).strip()
+            or "0"
+        )
+
+        if behind_count > 0 and ahead_count == 0:
             print("=" * 70, flush=True)
             print("   🔄 PHÁT HIỆN BẢN CẬP NHẬT MỚI TỪ GITHUB (Orbit Bot)", flush=True)
             print(f"      Phiên bản hiện tại : {local_hash[:8]}", flush=True)
