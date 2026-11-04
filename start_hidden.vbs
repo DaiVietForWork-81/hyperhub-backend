@@ -1,4 +1,4 @@
-' HyperHub headless launcher — chay Bot + Ngrok HOAN TOAN AN (khong cua so).
+' Orbit headless launcher — chay Bot + Ngrok HOAN TOAN AN (khong cua so).
 ' Dung cho Task Scheduler (tu chay khi dang nhap) hoac chay tay: wscript.exe start_hidden.vbs
 Option Explicit
 Dim sh

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""HyperHub Ecosystem Unified Launcher.
+"""Orbit Ecosystem Unified Launcher.
 
-Cung cấp menu khởi chạy nhanh cho toàn bộ hệ sinh thái HyperHub:
+Cung cấp menu khởi chạy nhanh cho toàn bộ hệ sinh thái Orbit | Vietnam:
 [1] Discord Bot (Bot/bot.py)
 [2] Web Platform (Web/app.py) -> http://localhost:5000
 [3] Cả Hai (Chạy song song Bot & Web với cơ chế giám sát và dọn dẹp tiến trình an toàn)
@@ -37,11 +37,11 @@ SUBPROCESS_ENV = dict(os.environ, PYTHONIOENCODING="utf-8")
 
 
 def print_banner() -> None:
-    """In giao diện banner phong cách HyperHub."""
+    """In giao diện banner phong cách Orbit."""
     banner = """
 ╔══════════════════════════════════════════════════════════════╗
-║                 HYPERHUB ECOSYSTEM LAUNCHER                  ║
-║                     LEARN • CODE • CHILL                     ║
+║                  ORBIT ECOSYSTEM LAUNCHER                    ║
+║                  LEARN • CHILL • CONNECT                     ║
 ╚══════════════════════════════════════════════════════════════╝
     """
     print(banner.strip())
@@ -63,7 +63,7 @@ def run_bot() -> int:
 
 def run_web() -> int:
     """Khởi chạy Web Platform độc lập."""
-    print("\n🌐 Đang khởi chạy HyperHub Web Platform...")
+    print("\n🌐 Đang khởi chạy Orbit Web Platform...")
     if not WEB_ENTRY.exists():
         print(f"❌ Không tìm thấy file: {WEB_ENTRY}")
         return 1
@@ -139,7 +139,7 @@ def run_both() -> int:
                 except Exception:
                     pass
 
-        print("✅ Đã dừng an toàn toàn bộ hệ sinh thái HyperHub.")
+        print("✅ Đã dừng an toàn toàn bộ hệ sinh thái Orbit.")
         return 0
 
 

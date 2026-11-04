@@ -42,3 +42,15 @@ venv/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Legacy / dữ liệu cục bộ không commit
+HyperHub-Web/
+web-test/
+KhoaHoc/
+Skills/
+.taste-skill/
+omi-models.txt
+
+# DocInspector artifacts sinh tự động khi audit/train
+DocInspector/audit_*.html
+DocInspector/*.csv
