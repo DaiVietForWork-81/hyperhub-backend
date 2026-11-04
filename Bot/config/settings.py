@@ -64,7 +64,7 @@ if HAS_PYDANTIC:
             description="Thư mục phân loại tài liệu (Classification Category)",
         )
         DOC_SEARCH_CHANNEL_ID: int = Field(
-            default=1553678782101979186,
+            default=1567532842617937931,
             description="Kênh tra cứu kho tài liệu học tập & đề thi",
         )
         DUEL_LOG_CHANNEL_ID: int = Field(

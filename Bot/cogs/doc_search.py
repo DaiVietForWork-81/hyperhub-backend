@@ -1076,22 +1076,23 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
         """Bảng chuyển hướng tra cứu lên Web Portal (tra cứu Discord đã ngừng)."""
         stats = await self.get_stats()
         embed = discord.Embed(
-            title="🔍 TRA CỨU KHO ĐỀ THI — LÊN WEB PORTAL",
+            title="📥 TRẠM LẤY TÀI LIỆU & ĐỀ THI — LÊN WEB PORTAL",
             description=(
                 "Kho học liệu hiện có **{items:,}** đề thi (`{size}`) "
                 "đã được phân loại và thẩm định.\n\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                "📌 **Muốn tra cứu, lọc và tải đề thi, vui lòng lên Web:**\n"
-                "👉 **https://orbit-psi-black.vercel.app/#vault**\n\n"
-                "Trên Web bạn có thể lọc theo **Môn học**, **Khối lớp**, **Thể loại**, "
-                "tìm theo **từ khóa / trường / năm học** và tải đề trực tiếp.\n"
+                "📌 **Muốn tra cứu, xem trước và lấy tài liệu, vui lòng lên Web:**\n"
+                "👉 **https://orbit-psi-black.vercel.app/#vault**\n"
+                "*(Hoặc vào Orbit Hub: **https://orbit-psi-black.vercel.app/hub**)*\n\n"
+                "Trên Web bạn có thể lọc tức thì theo **Môn học**, **Khối lớp** (6–12, ĐGNL, Chuyên), **Thể loại** (`thường` / `hsg` / `chuyên`), "
+                "tìm theo **từ khóa / trường / năm học**, xem trực tiếp câu hỏi và tải đề nguyên bản.\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                "⚠️ *Tra cứu ngay trong Discord đã ngừng hoạt động — mọi thao tác tìm đề thực hiện trên Web.*"
+                "💡 *Mọi thao tác tìm và lấy đề thực hiện tập trung trên Web Portal để tối ưu trải nghiệm đọc & làm đề.*"
             ).format(
                 items=stats["total_items"],
                 size=format_bytes_to_human(stats["total_bytes"]),
             ),
-            color=0x3498DB,
+            color=0xFF4FCB,
         )
         embed.set_footer(
             text="Orbit Web Portal • Tra cứu & Tải đề trên Web",

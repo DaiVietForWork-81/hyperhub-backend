@@ -615,44 +615,21 @@ class DocumentIntakeCog(commands.Cog):
     async def _get_or_create_subject_channel(
         self, guild: discord.Guild, category_id: int, channel_slug: str, icon: str, subject_name: str
     ) -> discord.TextChannel | None:
-        """Tìm kênh chuyên môn trong Category, hoặc tự động tạo nếu chưa có."""
-        category = guild.get_channel(category_id)
-        if not category or not isinstance(category, discord.CategoryChannel):
-            if hasattr(self.bot, "fetch_channel"):
-                try:
-                    category = await self.bot.fetch_channel(category_id)
-                except Exception:
-                    pass
-
-        if not category or not isinstance(category, discord.CategoryChannel):
-            log.warning("Không tìm thấy Category ID: %s", category_id)
-            return None
-
-        clean_slug = channel_slug.lower().replace(" ", "-")
-        target_name = f"{icon}・{clean_slug}"
-
-        for ch in category.text_channels:
-            if clean_slug in ch.name.lower():
-                return ch
-
-        try:
-            new_channel = await category.create_text_channel(
-                name=target_name,
-                topic=f"📚 Kho lưu trữ & phân loại đề thi môn {subject_name} được đóng góp tự động.",
-                reason="Auto-created subject channel for document intake system",
-            )
-            log.info("Đã tạo kênh chuyên môn mới: #%s trong Category %s", new_channel.name, category.name)
-            return new_channel
-        except Exception as e:
-            log.warning("Không thể tự động tạo kênh #%s: %s", target_name, e)
-            intake_id = getattr(settings, "DOC_INTAKE_CHANNEL_ID", 1535278288828633138)
-            valid_dest_channels = [
-                ch for ch in category.text_channels
-                if ch.id != intake_id
-                and not any(k in ch.name.lower() for k in ["nop-tai-lieu", "nộp-tài-liệu", "tra-cuu", "verify-link", "bot-log"])
-            ]
-            if valid_dest_channels:
-                return valid_dest_channels[0]
+        """Lưu trữ tài liệu vào kênh lưu trữ chuyên biệt (#database), không tự sinh kênh môn học rác trong Category Tài Liệu."""
+        db_archive_id = getattr(settings, "DATABASE_ARCHIVE_CHANNEL_ID", 1548627763467128912)
+        archive_ch = guild.get_channel(db_archive_id)
+        if archive_ch and isinstance(archive_ch, discord.TextChannel):
+            return archive_ch
+        if hasattr(self.bot, "fetch_channel"):
+            try:
+                ch = await self.bot.fetch_channel(db_archive_id)
+                if isinstance(ch, discord.TextChannel):
+                    return ch
+            except Exception:
+                pass
+        intake_id = getattr(settings, "DOC_INTAKE_CHANNEL_ID", 1535278288828633138)
+        ch_intake = guild.get_channel(intake_id)
+        return ch_intake if isinstance(ch_intake, discord.TextChannel) else None
             return None
 
     async def handle_gdrive_submission(
@@ -1421,8 +1398,8 @@ class DocumentIntakeCog(commands.Cog):
             "   • `Không rõ ràng`: Xem được đề nhưng không rõ năm/trường hoặc cấu trúc khuyết.\n"
             "   • `Không xác minh`: File lỗi/rỗng hoặc web chặn bot (*báo không rõ nguồn gốc*).\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "📁 **Thư mục lưu trữ:** Sau khi kiểm tra thành công, tài liệu sẽ được tự động chuyển tiếp sang kênh tương ứng tại **Thư Mục Phân Loại** (<#1534147951797080174>).\n"
-            "📩 **Phản hồi riêng tư:** Kết quả thẩm định và link nhảy tới bài đăng trong thư mục sẽ được gửi riêng cho bạn!"
+            "📁 **Kho học liệu số:** Sau khi thẩm định, đề thi được tự động đồng bộ lên **Orbit Web Portal** (https://orbit-psi-black.vercel.app/#vault) để mọi người có thể tra cứu và làm bài trực tuyến.\n"
+            "📩 **Phản hồi:** Kết quả thẩm định chi tiết và link mở đề thi sẽ được gửi phản hồi ngay cho bạn!"
         )
 
         embed_guide = discord.Embed(
