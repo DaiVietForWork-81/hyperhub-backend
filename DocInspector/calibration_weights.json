@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "last_trained_timestamp": 1793631592.4709115,
+  "total_epochs_trained": 50,
+  "final_loss": 0.0,
+  "subject_weight_multipliers": {
+    "MATHEMATICS": 1.0,
+    "INFORMATICS": 1.0,
+    "ENGLISH": 1.0,
+    "PHYSICS": 1.0,
+    "CHEMISTRY": 1.0,
+    "BIOLOGY": 1.0,
+    "LITERATURE": 1.0,
+    "HISTORY": 1.0,
+    "GEOGRAPHY": 1.0,
+    "CIVIC_EDUCATION": 1.0,
+    "NATURAL_SCIENCE": 1.0,
+    "RUSSIAN": 1.0,
+    "JAPANESE": 1.0,
+    "CHINESE": 1.0,
+    "KOREAN": 1.0,
+    "FRENCH": 1.0
+  },
+  "keyword_boosts": {},
+  "confidence_thresholds": {
+    "subject_min_score": 3.0,
+    "high_confidence_margin": 12.0,
+    "spoof_divergence_ratio": 0.35
+  }
+}

@@ -718,6 +718,93 @@ Câu 1: Dựa vào đồ thị ta thấy hàm số đồng biến trên khoảng
         self.assertTrue(d["has_detailed_solutions"])
         self.assertEqual(d["academic_year"], "2024-2025")
 
+    def test_tcvn3_and_symbol_pua_normalization(self):
+        """Kiểm thử tự động chuyển mã TCVN3 (.VnTime) và ký tự toán PUA (Symbol) sang Unicode chuẩn."""
+        from DocInspector.extractors import FastDocumentExtractor
+        from DocInspector.question_parser import QuestionParser
+
+        tcvn3_raw = (
+            "C©u 1: Cho hµm sè y = f(x) cã ®å thÞ nh\xad h×nh vÏ. "
+            "Ph\xad¬ng tr×nh f(x) \uf03d \uf0d62 \uf0b1 1 cã bao nhiªu nghiÖm thực phân biệt?\n"
+            "A. 1   B. 2   C. 3   D. 4"
+        )
+        normalized, warn = FastDocumentExtractor.normalize_exam_text(tcvn3_raw)
+        self.assertIsNotNone(warn)
+        self.assertIn("Câu 1: Cho hàm số y = f(x) có đồ thị như hình vẽ", normalized)
+        self.assertIn("Phương trình f(x) = √2 ± 1 có bao nhiêu nghiệm", normalized)
+
+        questions, _ = QuestionParser.parse_all_questions(normalized)
+        self.assertEqual(len(questions), 1)
+        self.assertEqual(questions[0].question_index, 1)
+        self.assertEqual(questions[0].options.get("A"), "1")
+        self.assertEqual(questions[0].options.get("D"), "4")
+
+    def test_markdown_multicol_answer_table_and_end_boundary(self):
+        """Kiểm thử bảng đáp án Markdown đa cột dọc/ngang và chặn câu cuối nuốt bảng đáp án."""
+        from DocInspector.question_parser import QuestionParser
+
+        exam_text = """
+Câu 1 (0,25 điểm): Đạo hàm của hàm số y = x^3 - 3x là:
+| A. 3x^2 - 3 | B. x^2 - 3 | C. 3x^2 | D. 3x - 3 |
+
+Câu 2: Cho hình lập phương ABCD.A'B'C'D' cạnh a.
+| a) Đường chéo AC = a√2 |
+| b) Thể tích V = a^3 |
+| c) Khoảng cách từ A đến (BCD') bằng a/2 |
+| d) Góc giữa AC' và đáy bằng 45 độ |
+
+------ HẾT ------
+BẢNG ĐÁP ÁN
+| Câu | ĐA | Câu | ĐA | Câu | ĐA |
+| --- | --- | --- | --- | --- | --- |
+| 1 | A | 11 | C | 21 | D |
+| Câu 2 | a-Đ, b-Đ, c-S, d-S | Câu 12 | B | Câu 22 | 12,5 |
+"""
+        ans_map = QuestionParser.extract_answer_keys(exam_text)
+        self.assertEqual(ans_map.get(1), "A")
+        self.assertEqual(ans_map.get(11), "C")
+        self.assertEqual(ans_map.get(21), "D")
+        self.assertEqual(ans_map.get(12), "B")
+        self.assertEqual(ans_map.get(2), "a-Đ, b-Đ, c-S, d-S")
+        self.assertEqual(ans_map.get(22), "12,5")
+
+        questions, _ = QuestionParser.parse_all_questions(exam_text, answer_map=ans_map)
+        self.assertEqual(len(questions), 2)
+        self.assertEqual(questions[0].options.get("A"), "3x^2 - 3")
+        self.assertEqual(questions[0].options.get("D"), "3x - 3")
+        self.assertEqual(questions[1].question_type, "TRUE_FALSE_GROUP")
+        self.assertEqual(len(questions[1].sub_questions), 4)
+        # Câu cuối không bị nuốt phần "--- HẾT ---" hay "BẢNG ĐÁP ÁN"
+        self.assertNotIn("BẢNG ĐÁP ÁN", questions[1].prompt)
+        for sub_q in questions[1].sub_questions:
+            self.assertNotIn("BẢNG ĐÁP ÁN", sub_q)
+
+    def test_docx_sequential_table_and_paragraph_order(self):
+        """Kiểm thử trích xuất DOCX giữ nguyên thứ tự tuần tự giữa Đoạn văn và Bảng biểu."""
+        import io
+        from docx import Document
+        from DocInspector.extractors import FastDocumentExtractor
+
+        doc = Document()
+        doc.add_paragraph("Câu 1: Cho bảng biến thiên sau:")
+        tbl = doc.add_table(rows=2, cols=2)
+        tbl.cell(0, 0).text = "x"
+        tbl.cell(0, 1).text = "y"
+        tbl.cell(1, 0).text = "0"
+        tbl.cell(1, 1).text = "5"
+        doc.add_paragraph("Câu 2: Tìm giá trị lớn nhất của hàm số.")
+
+        buf = io.BytesIO()
+        doc.save(buf)
+        extracted = FastDocumentExtractor.extract(buf.getvalue(), file_name="test_order.docx")
+
+        pos_q1 = extracted.full_text.find("Câu 1:")
+        pos_tbl = extracted.full_text.find("| x | y |")
+        pos_q2 = extracted.full_text.find("Câu 2:")
+        self.assertGreaterEqual(pos_q1, 0)
+        self.assertGreater(pos_tbl, pos_q1)
+        self.assertGreater(pos_q2, pos_tbl)
+
 
 if __name__ == "__main__":
     unittest.main()

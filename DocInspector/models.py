@@ -594,6 +594,10 @@ class InspectionReport:
     programming_language: Optional[str] = None
     detailed_exam_track: Optional[str] = None
     moet_2025_compliant: bool = False
+    file_hash: Optional[str] = None
+    content_hash: Optional[str] = None
+    quorum_arbitration: Optional[Dict[str, Any]] = None
+    draft_dossier_markdown: Optional[str] = None
     
     detailed_metadata: ExamDetailedMetadata = field(default_factory=ExamDetailedMetadata)
     
@@ -605,6 +609,7 @@ class InspectionReport:
     pass1: Pass1Report = field(default_factory=lambda: Pass1Report("UNKNOWN", "", False, False, 0, 0, "", ""))
     pass2: Pass2Report = field(default_factory=lambda: Pass2Report(0, 0, "", False, False))
     pass3: Pass3Report = field(default_factory=lambda: Pass3Report())
+    standardized_document: Optional[Any] = None
 
     def to_dict(self) -> Dict[str, Any]:
         d = {
@@ -622,6 +627,10 @@ class InspectionReport:
             "exam_track_rationale": self.exam_track_rationale,
             "academic_year": self.academic_year,
             "school_or_department": self.school_or_department,
+            "file_hash": self.file_hash,
+            "content_hash": self.content_hash,
+            "quorum_arbitration": self.quorum_arbitration,
+            "draft_dossier_markdown": self.draft_dossier_markdown,
             "programming_language": self.programming_language,
             "detailed_exam_track": self.detailed_exam_track,
             "moet_2025_compliant": self.moet_2025_compliant,
@@ -685,5 +694,7 @@ class InspectionReport:
             d["requirement_audit"] = self.requirement_audit.to_dict()
         if self.channel_compliance:
             d["channel_compliance"] = self.channel_compliance.to_dict()
+        if self.standardized_document and hasattr(self.standardized_document, "to_dict"):
+            d["standardized_document"] = self.standardized_document.to_dict()
         return d
 

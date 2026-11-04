@@ -90,16 +90,16 @@ RE_GRADE_UNIVERSITY: Pattern = re.compile(
 )
 
 
-# Question and Option Extraction Patterns (hỗ trợ không dấu cho OCR)
+# Question and Option Extraction Patterns (hỗ trợ không dấu cho OCR, đậm/nghiêng và bảng Markdown)
 RE_QUESTION_HEADING: Pattern = re.compile(
-    r"(?i)(?:^|\n)\s*(?:câu|cau|bài|bai|question|problem|task)\s+(\d+)[\s*.:\)]+",
+    r"(?i)(?:^|\n|\|\s*)\s*(?:[\*\_\#\-\•]+\s*)?(?:câu|cau|bài|bai|question|problem|task)\s+(\d{1,3})(?:\s*\([^)\n]{1,25}\))?[\s*.:\)\-–—]+",
 )
 RE_MCQ_FOUR_OPTIONS: Pattern = re.compile(
-    r"(?:^|[\s\t\n])([A-D])[.:)]\s*(.*?)(?=(?:[\s\t]+[A-D][.:)]\s+)|\n\s*[A-D][.:)]\s*|\n\s*(?:câu|cau|bài|bai|question|\d+[\.\)])|$)",
+    r"(?:^|[\s\t\n|])(?:[\*\_]*?)([A-D])(?:[\*\_]*?)[.:)][ \t]+(?=\S)(.*?)(?=(?:[\s\t|]+(?:[\*\_]*?)[A-D](?:[\*\_]*?)[.:)][ \t]+\S)|\n\s*(?:[\|\*\_]*\s*)[A-D](?:[\*\_]*?)[.:)][ \t]*\S|\n\s*(?:[\|\*\_]*\s*)(?:câu|cau|bài|bai|question|\d+[\.\)])|$)",
     re.DOTALL,
 )
 RE_TRUE_FALSE_SUBITEMS: Pattern = re.compile(
-    r"(?i)(?:^|[\s\t\n])([a-d])[\.\)]\s*(.*?)(?=(?:[\s\t]+[a-d][\.\)]\s*)|\n\s*[a-d][\.\)]\s*|\n\s*(?:câu|cau|bài|bai|question|\d+[\.\)])|$)",
+    r"(?:^|[\n|][ \t]*|[ \t]+)(?:[\*\_]*?)([a-d])(?:[\*\_]*?)[\.\)][ \t]+(?=\S)(.*?)(?=(?:[ \t|]+(?:[\*\_]*?)[a-d](?:[\*\_]*?)[\.\)][ \t]+\S)|\n\s*(?:[\|\*\_]*\s*)[a-d](?:[\*\_]*?)[\.\)][ \t]+\S|\n\s*(?:[\|\*\_]*\s*)(?:[cC][âaÂA]u|[bB][àaÀA]i|[qQ]uestion|\d+[\.\)])|$)",
     re.DOTALL,
 )
 
@@ -422,7 +422,7 @@ RE_TOTAL_POINTS: Pattern = re.compile(
 
 # 5. Thang điểm câu hỏi: "(1,0 điểm)", "(0.5 điểm)", "(2,0đ)", "[1 điểm]", "(0,25 điểm)"
 RE_QUESTION_POINTS: Pattern = re.compile(
-    r"(?i)(?:[\(\[]\s*(\d+(?:[.,]\d+)?)\s*(?:điểm|đ|pts?|points?)[\)\]])"
+    r"(?i)(?:[\(\[]\s*(\d+(?:[.,]\d+)?)\s*(?:điểm|diem|[?đd.\xb7\ufffd]i[?ểe.\xb7\ufffd]m|đ|pts?|points?)\s*[\)\]])"
 )
 
 # 6. Tách Lời giải / Hướng dẫn giải trong từng câu hỏi

@@ -46,6 +46,15 @@ from .track_classifier import ExamTrackClassifier
 from .url_fetcher import UrlBlockedOrUnknownOriginError, UrlDocumentFetcher
 from .validator import DifficultyAssessor, RequirementValidator
 from .verification_engine import VerificationVerdictEvaluator
+
+try:
+    from .ai_extractor import AIDocumentEnhancer
+except ImportError:
+    try:
+        from ai_extractor import AIDocumentEnhancer
+    except Exception:
+        AIDocumentEnhancer = None
+
 from .signatures import (
     RE_ADMIN_CONTRACT,
     RE_ANSWER_MATRIX,
@@ -392,7 +401,7 @@ class DocumentInspector:
         total_time_ms = (time.perf_counter() - start_total) * 1000.0
 
         category, exam_type, subject, language, conf, summary = cls._synthesize_consensus(
-            pass1, pass2, pass3, filename=name
+            pass1, pass2, pass3, filename=name, raw_text=doc.full_text
         )
 
         # --- BÓC TÁCH NĂM HỌC & TRƯỜNG / TỈNH RA ĐỀ ---
@@ -424,6 +433,18 @@ class DocumentInspector:
                     # Loại bỏ noise đuôi
                     school_str = re.sub(r'\s*[-–—]\s*$', '', school_str).strip()
                     break
+
+        # AI metadata refinement fallback (nếu thiếu năm học hoặc trường ra đề)
+        if (not academic_year_str or not school_str) and AIDocumentEnhancer is not None and AIDocumentEnhancer.is_available():
+            try:
+                ai_meta = AIDocumentEnhancer.extract_structured_metadata_with_ai(_raw_text)
+                if ai_meta:
+                    if not academic_year_str and ai_meta.get("academic_year"):
+                        academic_year_str = str(ai_meta["academic_year"]).strip()
+                    if not school_str and ai_meta.get("school_or_province"):
+                        school_str = str(ai_meta["school_or_province"]).strip()
+            except Exception:
+                pass
 
         # --- BÓC TÁCH SIÊU DỮ LIỆU ĐỀ THI CHI TIẾT (ZERO AI) ---
         subj_val = subject.value if hasattr(subject, "value") else str(subject)
@@ -524,6 +545,26 @@ class DocumentInspector:
             )
         )
 
+        # -------------------------------------------------------------
+        # 3+1 QUORUM ARBITRATION CONSENSUS & DUAL-LAYER DUPLICATE GUARD
+        # -------------------------------------------------------------
+        from .consensus_engine import QuorumArbitrationEngine
+        from .duplicate_guard import DuplicateGuard
+
+        raw_bytes_for_hash = file_path_or_bytes if isinstance(file_path_or_bytes, bytes) else None
+        calc_file_hash, calc_content_hash, _ = DuplicateGuard.compute_hashes(
+            file_bytes=raw_bytes_for_hash,
+            text_content=_raw_text,
+        )
+
+        quorum_res = QuorumArbitrationEngine.inspect(_raw_text, file_name=name)
+        if category not in (DocumentCategory.ADMIN_CONTRACT, DocumentCategory.LESSON_PLAN):
+            if quorum_res.final_subject != Subject.GENERAL and quorum_res.final_confidence >= 0.85:
+                subject = quorum_res.final_subject
+                conf = max(conf, quorum_res.final_confidence)
+            if quorum_res.final_grade != GradeLevel.UNKNOWN and pass2.grade_level == GradeLevel.UNKNOWN:
+                pass2.grade_level = quorum_res.final_grade
+
         report = InspectionReport(
             file_name=name,
             file_path=path_str,
@@ -541,10 +582,19 @@ class DocumentInspector:
             programming_language=prog_lang,
             detailed_exam_track=detailed_track_str,
             moet_2025_compliant=is_moet_2025,
+            file_hash=calc_file_hash,
+            content_hash=calc_content_hash,
+            quorum_arbitration=quorum_res.to_dict(),
+            draft_dossier_markdown=quorum_res.draft_dossier_markdown,
             detected_language=language,
             confidence_score=conf,
-            grade_level=pass2.grade_level,
-            grade_level_label_vi=GRADE_LEVEL_VI_NAMES.get(pass2.grade_level, pass2.grade_level.value),
+            grade_level=pass2.grade_level if pass2.grade_level != GradeLevel.UNKNOWN else (
+                getattr(cls, "_latest_adv_grade", GradeLevel.UNKNOWN)
+            ),
+            grade_level_label_vi=GRADE_LEVEL_VI_NAMES.get(
+                pass2.grade_level if pass2.grade_level != GradeLevel.UNKNOWN else getattr(cls, "_latest_adv_grade", GradeLevel.UNKNOWN),
+                (pass2.grade_level if pass2.grade_level != GradeLevel.UNKNOWN else getattr(cls, "_latest_adv_grade", GradeLevel.UNKNOWN)).value,
+            ),
             is_spoofed_filename=pass3.filename_spoofed,
             spoof_details=pass3.spoof_warning,
             human_summary=summary,
@@ -573,7 +623,35 @@ class DocumentInspector:
             if not compliance.is_compliant:
                 report.human_summary = f"[SAI KÊNH #{compliance.channel_name}] {compliance.warning_message} | " + report.human_summary
 
+        if deep:
+            try:
+                from .structural_validator import ExamParsingEngineV2
+                report.standardized_document = ExamParsingEngineV2().parse_document(
+                    file_path_or_bytes,
+                    file_name=name,
+                    subject=subj_val,
+                )
+            except Exception as std_err:
+                log.debug("StandardizedDocument attachment warning: %s", std_err)
+
         return report
+
+    @classmethod
+    def parse_standardized(
+        cls,
+        file_path_or_bytes: str | Path | bytes,
+        file_name: str = "document",
+        ocr_mode: Optional[Any] = None,
+        subject: Optional[str] = None,
+    ):
+        """Trích xuất, phân tích cấu trúc câu hỏi và kiểm định theo Schema chuẩn hóa v2.0.0 (7-Stage Pipeline)."""
+        from .structural_validator import ExamParsingEngineV2
+        return ExamParsingEngineV2().parse_document(
+            source=file_path_or_bytes,
+            file_name=file_name,
+            ocr_mode=ocr_mode,
+            subject=subject,
+        )
 
     # =========================================================================
     # PASS 1 IMPLEMENTATION
@@ -965,6 +1043,18 @@ class DocumentInspector:
             except Exception:
                 return s.lower()
 
+        # Load trained multipliers from calibration_weights.json if available
+        trained_mults: Dict[str, float] = {}
+        try:
+            from pathlib import Path as _P
+            import json as _json
+            _calib = _P("D:/Project/DocInspector/calibration_weights.json")
+            if _calib.exists():
+                _calib_data = _json.loads(_calib.read_text(encoding="utf-8"))
+                trained_mults = _calib_data.get("subject_weight_multipliers", {})
+        except Exception:
+            pass
+
         # 1. Lexical Scans across 16 Subjects / Domains (có dấu + fallback không dấu 60% weight)
         for subject_name, terms in SUBJECT_LEXICONS.items():
             score = 0.0
@@ -984,7 +1074,8 @@ class DocumentInspector:
                         if um > 0:
                             score += weight * 0.6 * min(um, 6)
                             matched_terms_by_subject[subject_name].append(f"{term}~kd (x{um})")
-            subject_scores[subject_name] = score
+            mult = trained_mults.get(subject_name, 1.0)
+            subject_scores[subject_name] = score * mult
 
         # 2. Structural Bias Integration
         if ExamType.COMPETITIVE_PROGRAMMING in pass2.candidate_exam_types:
@@ -1202,6 +1293,7 @@ class DocumentInspector:
         pass2: Pass2Report,
         pass3: Pass3Report,
         filename: str = "",
+        raw_text: str = "",
     ) -> Tuple[DocumentCategory, ExamType, Subject, str, float, str]:
         """
         Merge results of Pass 1, 2, and 3 to produce unequivocal, 100% accurate classification.
@@ -1209,6 +1301,21 @@ class DocumentInspector:
         language = pass1.detected_language
         subject = pass3.top_subject
         conf = pass3.confidence
+
+        # Tối ưu hóa phân loại bằng AdvancedDocumentClassifier (Zone-based + Contrastive Suppression)
+        cls._latest_adv_grade = GradeLevel.UNKNOWN
+        if raw_text:
+            try:
+                from .advanced_classifier import AdvancedDocumentClassifier
+                adv = AdvancedDocumentClassifier.classify(raw_text, file_name=filename)
+                cls._latest_adv_grade = adv.grade
+                if adv.subject == Subject.NON_ACADEMIC:
+                    return DocumentCategory.ADMIN_CONTRACT, ExamType.NOT_AN_EXAM, Subject.NON_ACADEMIC, language, 1.0, "Văn bản hành chính / Hợp đồng pháp lý"
+                if adv.confidence >= 0.90 and adv.subject != Subject.GENERAL:
+                    subject = adv.subject
+                    conf = max(conf, adv.confidence)
+            except Exception:
+                pass
 
         if subject == Subject.GENERAL and filename:
             fn_l = filename.lower()
