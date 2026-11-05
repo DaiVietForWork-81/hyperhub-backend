@@ -435,11 +435,17 @@ class CompetitiveProgrammingBot(commands.Bot):
 
         for g in self.guilds:
             try:
-                if ("Orbit" in g.name or g.id == 1532265330079174697) and g.name != "Orbit | Vietnam":
+                if g.id == 1532265330079174697 and g.name != "Orbit | Vietnam":
                     await g.edit(name="Orbit | Vietnam", reason="Đồng bộ thương hiệu Orbit | Vietnam")
                     logger.info(f"✨ Đã đồng bộ tên máy chủ Discord thành: Orbit | Vietnam ({g.id})")
+                elif g.id == 1567904557076316250:
+                    if g.name != "Orbit | Toán":
+                        await g.edit(name="Orbit | Toán", reason="Đồng bộ thương hiệu CLB Orbit | Toán")
+                    from scripts.setup_orbit_toan import setup_orbit_math_guild
+                    res = await asyncio.to_thread(setup_orbit_math_guild, str(g.id))
+                    logger.info(f"📐 Đã tự động thiết lập máy chủ CLB Orbit | Toán ({g.id}): {res.get('ok')}")
             except Exception as ge:
-                logger.debug(f"Không thể đổi tên guild {g.id}: {ge}")
+                logger.debug(f"Không thể đồng bộ guild {g.id}: {ge}")
 
         bot_dir = Path(__file__).resolve().parent
         logo_path = bot_dir / "LOGO_ID.png"
@@ -530,15 +536,38 @@ class CompetitiveProgrammingBot(commands.Bot):
         await super().close()
         logger.info("Đã tắt bot và giải phóng tài nguyên hoàn tất.")
 
+    async def on_guild_join(self, guild: discord.Guild) -> None:
+        """Tự động thiết lập cấu trúc kênh & role khi Bot được mời vào máy chủ CLB Orbit | Toán."""
+        logger.info(f"🎉 Bot vừa tham gia máy chủ mới: {guild.name} (ID: {guild.id})")
+        if guild.id == 1567904557076316250:
+            try:
+                if guild.name != "Orbit | Toán":
+                    await guild.edit(name="Orbit | Toán", reason="Đồng bộ thương hiệu CLB Orbit | Toán")
+            except Exception:
+                pass
+            try:
+                from scripts.setup_orbit_toan import setup_orbit_math_guild
+                res = await asyncio.to_thread(setup_orbit_math_guild, str(guild.id))
+                logger.info(f"✅ Đã hoàn tất dựng tự động CLB Orbit | Toán ({guild.id}): {res}")
+            except Exception as e:
+                logger.error(f"Lỗi khi tự động thiết lập CLB Orbit | Toán: {e}")
+
     async def on_member_join(self, member: discord.Member) -> None:
-        """Tự động gán Role '🌱 Học sinh' (MEMBER_ROLE_ID) cho mọi thành viên mới vào server."""
+        """Tự động gán Role '🌱 Học sinh' / '🎓 Học Sinh' cho mọi thành viên mới vào server."""
         if member.bot:
             return
 
         roles_to_add = []
 
-        # 1. Role Thành viên mặc định (🌱 Học sinh)
-        if settings.MEMBER_ROLE_ID and settings.MEMBER_ROLE_ID > 0:
+        if member.guild.id == 1567904557076316250:
+            # CLB Orbit | Toán: gán role chính "🎓 Học Sinh"
+            hs_role = discord.utils.find(
+                lambda r: "học sinh" in r.name.lower(),
+                member.guild.roles,
+            )
+            if hs_role and hs_role not in member.roles:
+                roles_to_add.append(hs_role)
+        elif settings.MEMBER_ROLE_ID and settings.MEMBER_ROLE_ID > 0:
             member_role = member.guild.get_role(settings.MEMBER_ROLE_ID)
             if member_role and member_role not in member.roles:
                 roles_to_add.append(member_role)
