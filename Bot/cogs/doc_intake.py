@@ -84,16 +84,16 @@ def format_bytes_to_human(size_bytes: int | float) -> str:
 
 
 class JumpButtonView(discord.ui.View):
-    """View chứa nút bấm chuyển tiếp nhanh tới bài đăng trong thư mục phân loại."""
+    """View chứa nút bấm chuyển tiếp nhanh tới Kho Đề Web (không tiết lộ kênh lưu trữ nội bộ)."""
 
-    def __init__(self, jump_url: str):
+    def __init__(self, jump_url: str | None = None):
         super().__init__(timeout=None)
         self.add_item(
             discord.ui.Button(
-                label="📖 Xem Đề Trong Thư Mục",
+                label="🌐 Xem Trong Kho Đề Web",
                 style=discord.ButtonStyle.link,
-                url=jump_url,
-                emoji="📂",
+                url="https://orbit-psi-black.vercel.app/#vault",
+                emoji="📚",
             )
         )
 
@@ -1391,7 +1391,7 @@ class DocumentIntakeCog(commands.Cog):
             "### 🔑 ĐIỀU KIỆN & QUYỀN LỢI KHI ĐÓNG GÓP:\n"
             "• **Điều kiện cực đơn giản:** Chỉ cần kết nối tài khoản Discord với Web Hub (không yêu cầu xác minh email hay phân quyền phức tạp).\n"
             "• 👤 **Ghi nhận Credit vĩnh viễn:** Tên và Avatar Discord của bạn được hiển thị trang trọng trên thẻ tài liệu trong Kho Đề và cửa sổ chi tiết.\n"
-            "• 📢 **Vinh danh trên Discord:** Tự động mention `<@bạn>` tại kênh lưu trữ `#database` và cấp ngay role <@&1534128847157461034>.\n"
+            "• ✍️ **Cấp Role Discord:** Tự động nhận ngay role chính thức <@&1534128847157461034> trên máy chủ sau khi nộp đề!\n"
             "• 🏆 **Cộng điểm học thuật:** Nhận ngay **+100 Study XP** cho mỗi đề thi đóng góp trên **Bảng Xếp Hạng Học Giả**!\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "⚠️ **Lưu ý:** *Mọi thao tác nộp đề thi trực tiếp qua khung chat hoặc Bot Discord đã chuyển hoàn toàn lên Web để thẩm định 5 lớp bảo mật và chống trùng lặp.*"

@@ -1002,7 +1002,7 @@ class BotAPIBridge:
                 "author_name": r[9],
                 "author_id": author_id_val,
                 "author_avatar": author_avatar_val,
-                "jump_url": r[10],
+                "jump_url": "https://orbit-psi-black.vercel.app/#vault",
                 "timestamp": r[11],
                 "file_hash": h,
                 "notes": notes_str,
@@ -1337,7 +1337,7 @@ class BotAPIBridge:
                 "author_name": row[9],
                 "author_id": author_id_val,
                 "author_avatar": author_avatar_val,
-                "jump_url": row[10],
+                "jump_url": "https://orbit-psi-black.vercel.app/#vault",
                 "timestamp": row[11],
                 "file_hash": row[12] if len(row) > 12 else None,
                 "notes": notes_str,
@@ -1436,9 +1436,7 @@ class BotAPIBridge:
         if download_url:
             raise web.HTTPFound(download_url)
 
-        # 4. Fallback: Nếu có jump_url
-        if jump_url:
-            raise web.HTTPFound(jump_url)
+        # Không redirect trực tiếp tới kênh lưu trữ nội bộ
 
         return web.json_response({"error": "Không tìm thấy liên kết tải cho tệp này"}, status=404)
 
@@ -1534,8 +1532,8 @@ class BotAPIBridge:
             except Exception:
                 pass
 
-        if not direct_url and jump_url:
-            direct_url = jump_url
+        if not direct_url:
+            direct_url = f'/api/documents/{doc_id}/view'
 
         return web.json_response({
             "success": True,
@@ -1549,7 +1547,7 @@ class BotAPIBridge:
             "direct_url": direct_url,
             "download_url": f"/api/documents/{doc_id}/download",
             "view_url": f"/api/documents/{doc_id}/view",
-            "jump_url": jump_url,
+            "jump_url": "https://orbit-psi-black.vercel.app/#vault",
         })
 
     async def _fetch_document_raw_bytes(self, doc_id: int) -> tuple[bytes | None, str, str]:
