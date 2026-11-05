@@ -388,7 +388,18 @@ def setup_orbit_math_guild(guild_id: str = MATH_GUILD_ID) -> dict:
                     chan_map[ch_spec["key"]] = str(created_ch["id"])
                 time.sleep(0.25)
 
-    # Xóa các kênh mặc định dư thừa của Discord (như "general", "Text Channels", "Voice Channels") nếu không nằm trong danh sách
+    # Cập nhật kênh hệ thống / Community của Guild sang bộ kênh mới trước khi xóa kênh mặc định
+    patch_guild_chans = {}
+    if chan_map.get("rules"):
+        patch_guild_chans["rules_channel_id"] = chan_map["rules"]
+    if chan_map.get("staff_chat"):
+        patch_guild_chans["public_updates_channel_id"] = chan_map["staff_chat"]
+    if chan_map.get("welcome"):
+        patch_guild_chans["system_channel_id"] = chan_map["welcome"]
+    if patch_guild_chans:
+        api_req(token, "PATCH", f"/guilds/{guild_id}", patch_guild_chans)
+
+    # Xóa các kênh mặc định dư thừa của Discord (như "general", "rules", "Kênh Chat", "Kênh đàm thoại") nếu không nằm trong danh sách
     keep_ids = set(chan_map.values())
     st_c2, all_chans_now = api_req(token, "GET", f"/guilds/{guild_id}/channels")
     if st_c2 == 200 and isinstance(all_chans_now, list):
@@ -397,7 +408,7 @@ def setup_orbit_math_guild(guild_id: str = MATH_GUILD_ID) -> dict:
             cid = str(c["id"])
             cname = c.get("name", "").lower()
             if cid not in keep_ids and cid not in keep_cat_ids:
-                if cname in ("general", "chung", "text channels", "voice channels", "kênh văn bản", "kênh thoại", "phòng chờ"):
+                if cname in ("general", "chung", "rules", "kênh chat", "kênh đàm thoại", "text channels", "voice channels", "kênh văn bản", "kênh thoại", "phòng chờ"):
                     api_req(token, "DELETE", f"/channels/{cid}")
                     time.sleep(0.2)
 
