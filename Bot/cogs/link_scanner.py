@@ -224,26 +224,18 @@ class LinkScannerCog(commands.Cog):
     def build_control_panel_embed(self) -> discord.Embed:
         """Tạo Embed bảng điều khiển thường trực tại kênh 1546522680638054461."""
         desc = (
-            "Chào mừng bạn đến với **Trạm Kiểm Tra & Quét An Toàn Đường Dẫn Tự Động**!\n\n"
-            "Trước khi click vào một đường dẫn lạ hoặc tải tệp tài liệu, bạn có thể sử dụng trạm này "
-            "để kiểm tra xem liên kết đó có **an toàn hay dính virus, mã độc, lừa đảo (phishing)**.\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "🛡️ **CÁC TÍNH NĂNG BẢO VỆ CHÍNH:**\n"
-            "• 🦠 **Phát hiện Virus & Trojan:** Quét tệp thực thi ẩn danh, mã độc ngụy trang.\n"
-            "• 🎣 **Chống Phishing & Scam:** Phát hiện website mạo danh tài khoản, fake Nitro.\n"
-            "• 🕵️ **Chặn IP Logger:** Nhận diện và cảnh báo các liên kết thu thập thông tin cá nhân.\n"
-            "• 📁 **Kiểm tra File:** Tự động phát hiện macro nguy hại và khai thác lỗ hổng.\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "⏱️ **Hạn mức sử dụng:** Mỗi thành viên có **3 lượt kiểm tra / 1 tiếng**.\n"
-            "🔒 **Bảo mật tuyệt đối:** Kết quả quét được gửi **RIÊNG TƯ (chỉ mình bạn đọc được)**.\n\n"
-            "💡 *Hãy nhấn nút **'🛡️ Quét An Toàn Link'** bên dưới để bắt đầu kiểm tra!*"
+            "Kiểm tra nhanh mức độ an toàn của đường dẫn (URL) hoặc liên kết tải tệp trước khi mở.\n\n"
+            "• 🦠 **Quét Virus & Mã Độc** — Phát hiện tệp thực thi ẩn danh và liên kết độc hại.\n"
+            "• 🎣 **Chống Phishing & Scam** — Cảnh báo trang web giả mạo Discord/tài khoản cá nhân.\n"
+            "• 🕵️ **Chặn IP Logger** — Nhận diện liên kết thu thập địa chỉ IP và dữ liệu trình duyệt.\n\n"
+            "⏱️ **Hạn mức:** `3 lượt / 1 giờ` mỗi thành viên • 🔒 **Kết quả hiển thị riêng tư**."
         )
         embed = discord.Embed(
             title="🛡️ TRẠM KIỂM TRA ĐƯỜNG DẪN & AN TOÀN LIÊN KẾT",
             description=desc,
             color=0x3498DB,
         )
-        embed.set_footer(text="Orbit Security Shield • Hệ Thống Phòng Chống Mã Độc Đa Tầng")
+        embed.set_footer(text="Orbit | Vietnam • Nhấn nút bên dưới để dán liên kết cần kiểm tra")
         return embed
 
     def build_scan_report_embed(
@@ -359,15 +351,26 @@ class LinkScannerCog(commands.Cog):
             return
 
         try:
-            # 1. Kiểm tra xem bảng điều khiển kiểm tra link đã có sẵn hay chưa
+            # 1. Kiểm tra xem bảng điều khiển kiểm tra link đã có sẵn hay chưa và xóa bản trùng lặp
             existing_panel = None
+            duplicates = []
             try:
-                async for m in channel.history(limit=5):
-                    if m.author == self.bot.user and m.embeds and ("KIỂM TRA AN TOÀN" in (m.embeds[0].title or "") or "LINK" in (m.embeds[0].title or "")):
-                        existing_panel = m
-                        break
+                async for m in channel.history(limit=20):
+                    if m.author == self.bot.user and m.embeds:
+                        t = (m.embeds[0].title or "").upper()
+                        if "TRẠM KIỂM TRA" in t or "LIÊN KẾT" in t or "KIỂM TRA AN TOÀN" in t or "LINK" in t:
+                            if existing_panel is None:
+                                existing_panel = m
+                            else:
+                                duplicates.append(m)
             except Exception:
                 pass
+
+            for dup in duplicates:
+                try:
+                    await dup.delete()
+                except Exception:
+                    pass
 
             panel_embed = self.build_control_panel_embed()
             view = LinkScannerControlView(self)

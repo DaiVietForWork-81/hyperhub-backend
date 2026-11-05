@@ -1374,53 +1374,30 @@ class DocumentIntakeCog(commands.Cog):
         }
 
     async def build_intake_panel_embeds(self) -> list[discord.Embed]:
-        """Tạo 2 Embeds hướng dẫn nộp tài liệu chuẩn và bảng thống kê dung lượng kho đề."""
+        """Tạo Embed hướng dẫn nộp tài liệu chuẩn và thống kê kho đề gọn gàng."""
         stats = await self.get_storage_statistics()
         total_size_human = format_bytes_to_human(stats["grand_total_bytes"])
         total_docs_count = stats["grand_total_items"]
 
-        # Embed 1: Hướng dẫn chi tiết cách thức nộp tài liệu trên Web Portal
         guide_desc = (
-            "Chào mừng bạn đến với **Trạm Tiếp Nhận & Đóng Góp Đề Thi Orbit**!\n\n"
-            "Tính năng nộp đề thi & đóng góp tài liệu học tập được thực hiện trực tiếp trên **Orbit Web Portal**.\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "### 🌐 TRUY CẬP WEB PORTAL ĐỂ NỘP TÀI LIỆU:\n"
-            "> ### 👉 **https://orbit-psi-black.vercel.app/#vault**\n"
-            "> *(Hoặc vào Bảng điều khiển: **https://orbit-psi-black.vercel.app/hub**)*\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "### 🔑 ĐIỀU KIỆN & QUYỀN LỢI KHI ĐÓNG GÓP:\n"
-            "• **Điều kiện cực đơn giản:** Chỉ cần kết nối tài khoản Discord với Web Hub (không yêu cầu xác minh email hay phân quyền phức tạp).\n"
-            "• 👤 **Ghi nhận Credit vĩnh viễn:** Tên và Avatar Discord của bạn được hiển thị trang trọng trên thẻ tài liệu trong Kho Đề và cửa sổ chi tiết.\n"
-            "• ✍️ **Cấp Role Discord:** Tự động nhận ngay role chính thức <@&1534128847157461034> trên máy chủ sau khi nộp đề!\n"
-            "• 🏆 **Cộng điểm học thuật:** Nhận ngay **+100 Study XP** cho mỗi đề thi đóng góp trên **Bảng Xếp Hạng Học Giả**!\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "⚠️ **Lưu ý:** *Mọi thao tác nộp đề thi trực tiếp qua khung chat hoặc Bot Discord đã chuyển hoàn toàn lên Web để thẩm định 5 lớp bảo mật và chống trùng lặp.*"
+            "Đóng góp đề thi & tài liệu học tập trực tiếp trên **Orbit Web Portal** để nhận vinh danh tác giả.\n\n"
+            "🌐 **Cổng nộp đề trực tuyến:** **https://orbit-psi-black.vercel.app/#submit_doc**\n\n"
+            "**Quyền lợi khi đóng góp (Chỉ cần liên kết tài khoản Discord, không cần xác minh email):**\n"
+            "• 👤 **Vinh danh Credit:** Tên & Avatar Discord hiển thị trực tiếp trên thẻ đề thi.\n"
+            "• ✍️ **Danh hiệu chính thức:** Tự động cấp role <@&1534128847157461034> trên máy chủ.\n"
+            "• 🏆 **Điểm học thuật:** Cộng ngay **+100 Study XP** trên Bảng Xếp Hạng Học Giả.\n\n"
+            f"📊 **Trạng thái kho hiện tại:** `{total_docs_count:,} tài liệu` (`{total_size_human}`) • "
+            "Hỗ trợ `.pdf`, `.docx`, `.doc`, `.txt` & Google Drive."
         )
 
         embed_guide = discord.Embed(
-            title="📤 HƯỚNG DẪN NỘP & ĐÓNG GÓP TÀI LIỆU — LÊN WEB PORTAL",
+            title="📤 TRẠM ĐÓNG GÓP ĐỀ THI & TÀI LIỆU HỌC TẬP",
             description=guide_desc,
             color=0x9B5CFF,
         )
+        embed_guide.set_footer(text="Orbit | Vietnam • Phân loại tự động chuẩn Bộ GD&ĐT 2025 & chống trùng lặp SHA-256")
 
-        # Embed 2: Thống kê kho dữ liệu hiện tại
-        stats_desc = (
-            f"📊 **TỔNG QUAN KHO ĐỀ THI & DUNG LƯỢNG LƯU TRỮ HIỆN TẠI:**\n\n"
-            f"• 📚 **Tổng số lượng đề & tài liệu:** `{total_docs_count:,} tài liệu`\n"
-            f"• 💾 **Tổng dung lượng toàn bộ kho:** `{total_size_human}`\n"
-            f"• 📂 **Tài liệu các môn học:** `{stats['total_docs']:,} tệp` ({format_bytes_to_human(stats['total_doc_bytes'])})\n\n"
-            "📑 **Định dạng được hỗ trợ:** `.pdf`, `.docx`, `.doc`, `.txt` (hoặc link Google Drive)\n"
-            "🛡️ **An toàn:** Tự động kiểm tra trùng lặp SHA-256, lọc mã độc và phân loại chuẩn Bộ GD&ĐT 2025."
-        )
-
-        embed_stats = discord.Embed(
-            title="📊 THỐNG KÊ KHO DỮ LIỆU & BẢO MẬT",
-            description=stats_desc,
-            color=0x2ECC71,
-        )
-        embed_stats.set_footer(text=f"DocInspector Engine • Sub-25ms Non-AI • Dung lượng hiện tại: {total_size_human}")
-
-        return [embed_guide, embed_stats]
+        return [embed_guide]
 
     async def build_intake_panel_embed(self) -> discord.Embed:
         """Tương thích ngược: trả về embed hướng dẫn đầu tiên."""
@@ -1435,17 +1412,10 @@ class DocumentIntakeCog(commands.Cog):
         embed = discord.Embed(
             title="📊 THỐNG KÊ CHI TIẾT KHO ĐỀ & DUNG LƯỢNG",
             description=(
-                f"💾 **Tổng dung lượng toàn bộ kho:** `{total_size_human}`\n"
-                f"📚 **Tổng số lượng bài/tệp:** `{stats['grand_total_items']:,} tài liệu`\n\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                f"💾 **Tổng dung lượng kho:** `{total_size_human}`\n"
+                f"📚 **Tổng số lượng tài liệu:** `{stats['grand_total_items']:,} đề thi`\n"
             ),
             color=0x2ECC71,
-        )
-
-        embed.add_field(
-            name="🏆 Đấu Trường Thuật Toán CP Arena",
-            value=f"• Số bài: `{stats['cp_problems_count']:,} đề`\n• Dung lượng: `{format_bytes_to_human(stats['cp_storage_bytes'])}`",
-            inline=False,
         )
 
         subject_icons = {
@@ -1473,11 +1443,11 @@ class DocumentIntakeCog(commands.Cog):
         else:
             embed.add_field(
                 name="📂 Tài Liệu Chuyên Môn",
-                value="*Chưa có tài liệu nào được nộp vào database.*",
+                value="*Chưa có tài liệu nào được lưu trữ.*",
                 inline=False,
             )
 
-        embed.set_footer(text="Hệ Thống Tự Động Phân Loại Đề Thi • Orbit")
+        embed.set_footer(text="Orbit | Vietnam • Thống kê Kho Đề Thi")
         return embed
 
     async def clean_intake_channel(self, channel: discord.TextChannel) -> None:
@@ -1495,7 +1465,7 @@ class DocumentIntakeCog(commands.Cog):
                 if not panel_msg:
                     async for m in channel.history(limit=50):
                         if m.author.id == self.bot.user.id and m.embeds:
-                            if any("HƯỚNG DẪN NỘP TÀI LIỆU" in (e.title or "") for e in m.embeds):
+                            if any(("NỘP" in (e.title or "").upper() or "ĐÓNG GÓP" in (e.title or "").upper() or "HƯỚNG DẪN" in (e.title or "").upper()) for e in m.embeds):
                                 panel_msg = m
                                 self._panel_message_id = m.id
                                 break
@@ -1575,7 +1545,7 @@ class DocumentIntakeCog(commands.Cog):
                 existing_panel = None
                 try:
                     async for m in channel.history(limit=5):
-                        if m.author == self.bot.user and m.embeds and ("NỘP TÀI LIỆU" in (m.embeds[0].title or "") or "HƯỚNG DẪN" in (m.embeds[0].title or "")):
+                        if m.author == self.bot.user and m.embeds and any(k in (m.embeds[0].title or "").upper() for k in ("NỘP", "ĐÓNG GÓP", "HƯỚNG DẪN")):
                             existing_panel = m
                             break
                 except Exception:

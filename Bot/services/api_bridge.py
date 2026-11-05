@@ -1098,55 +1098,7 @@ class BotAPIBridge:
         ip_history.append(now)
         self._exam_rate_limits[client_ip] = ip_history
 
-        # 2. BẮT BUỘC là thành viên Discord Server (kèm email đã xác minh)
-        auth_header = request.headers.get("Authorization", "")
-        token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
-        secret_ok = self._is_valid_bot_api_secret(token)
-        if not secret_ok and "X-Bot-Secret" in request.headers:
-            secret_ok = self._is_valid_bot_api_secret(request.headers["X-Bot-Secret"].strip())
-
-        if not secret_ok:
-            if not token:
-                return web.json_response({
-                    "success": False,
-                    "error": "Chưa liên kết Discord",
-                    "message": "Bạn cần liên kết tài khoản Discord để lấy đề thi.",
-                    "reason": "no_token",
-                }, status=401)
-            user_data = await self._verify_discord_bearer_token(token)
-            if not user_data:
-                return web.json_response({
-                    "success": False,
-                    "error": "Phiên Discord hết hạn",
-                    "message": "Phiên đăng nhập Discord đã hết hạn. Hãy đăng xuất và liên kết lại.",
-                    "reason": "no_token",
-                }, status=401)
-            if not user_data.get("verified", False):
-                return web.json_response({
-                    "success": False,
-                    "error": "Tài khoản Discord chưa xác minh Email",
-                    "message": "Tài khoản Discord của bạn chưa xác minh Email (Unverified). Vui lòng xác minh email trên Discord để được cấp quyền nhận phát đề.",
-                    "reason": "unverified",
-                }, status=403)
-            try:
-                exam_user_id = int(user_data.get("id", 0))
-            except (ValueError, TypeError):
-                exam_user_id = 0
-            guild = self.bot.get_guild(DISCORD_GUILD_ID) or (self.bot.guilds[0] if self.bot.guilds else None)
-            member = guild.get_member(exam_user_id) if guild and exam_user_id else None
-            if member is None and guild and exam_user_id:
-                try:
-                    member = await guild.fetch_member(exam_user_id)
-                except Exception:
-                    member = None
-            if not member:
-                return web.json_response({
-                    "success": False,
-                    "error": "Chưa tham gia server",
-                    "message": "Bạn phải tham gia Discord Server Orbit mới được lấy đề thi.",
-                    "reason": "not_member",
-                    "guild_id": str(DISCORD_GUILD_ID),
-                }, status=403)
+        # 2. Mở tự do tính năng bốc đề ngẫu nhiên 100% Free cho mọi học giả trên Web
 
         query_params = request.rel_url.query
         grade = query_params.get("grade", "").strip()
@@ -2381,7 +2333,7 @@ class BotAPIBridge:
         if not hasattr(self.bot, "db"):
             return web.json_response({"error": "Cơ sở dữ liệu bot chưa sẵn sàng"}, status=503)
 
-        # 1. BẮT BUỘC XÁC THỰC DISCORD VÀ EMAIL ĐÃ XÁC MINH TRÊN SERVER
+        # 1. XÁC THỰC LIÊN KẾT DISCORD (Chấp nhận cả OAuth2 Token hoặc Liên kết nhanh Discord ID/Username)
         auth_header = request.headers.get("Authorization", "")
         token = ""
         if auth_header.startswith("Bearer "):
@@ -2391,6 +2343,9 @@ class BotAPIBridge:
 
         user_data = None
         is_bot_admin = False
+        uploader_name = ""
+        uploader_id = 0
+        u_avatar = ""
         if self._is_valid_bot_api_secret(token):
             is_bot_admin = True
             uploader_name = "Bot Administrator"
@@ -2398,48 +2353,7 @@ class BotAPIBridge:
         elif token:
             user_data = await self._verify_discord_bearer_token(token)
 
-        if not is_bot_admin:
-            if not user_data:
-                return web.json_response({
-                    "error": "Yêu cầu kết nối tài khoản Discord",
-                    "message": "Bạn cần đăng nhập hoặc liên kết tài khoản Discord để nộp đề thi và ghi nhận credit người đóng góp vĩnh viễn.",
-                }, status=401)
-
-            # Lấy thông tin tác giả TRỰC TIẾP TỪ DISCORD API - KHÔNG CẦN XÁC MINH EMAIL RƯỜM RÀ
-            uploader_id = int(user_data.get("id", 0))
-            uploader_name = user_data.get("global_name") or user_data.get("username") or "Discord User"
-            avatar_hash = user_data.get("avatar")
-            u_avatar = (
-                f"https://cdn.discordapp.com/avatars/{uploader_id}/{avatar_hash}.png"
-                if avatar_hash
-                else f"https://cdn.discordapp.com/embed/avatars/{int(user_data.get('discriminator', 0)) % 5}.png"
-            )
-            # Tự động lưu / cập nhật linked_accounts để vinh danh tác giả
-            try:
-                now_iso_la = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                await self.bot.db.execute(
-                    """
-                    INSERT INTO linked_accounts (discord_id, username, global_name, avatar_url, email, verified, first_seen, last_seen, login_count)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-                    ON CONFLICT(discord_id) DO UPDATE SET
-                        username=excluded.username,
-                        global_name=excluded.global_name,
-                        avatar_url=excluded.avatar_url,
-                        last_seen=excluded.last_seen
-                    """,
-                    uploader_id,
-                    user_data.get("username", ""),
-                    user_data.get("global_name", "") or user_data.get("username", ""),
-                    u_avatar,
-                    user_data.get("email", ""),
-                    1 if user_data.get("verified") else 0,
-                    now_iso_la,
-                    now_iso_la,
-                )
-            except Exception as le:
-                logger.debug(f"Save linked_accounts on upload error: {le}")
-
-        # Rate Limiting: tối đa 100 tệp trong 5 phút trên mỗi IP (cho phép nộp vô hạn theo đợt, chống spam)
+        # Rate Limiting: tối đa 100 tệp trong 5 phút trên mỗi IP
         client_ip = request.remote or "unknown"
         now = time.time()
         upload_history = [t for t in self._upload_rate_limits.get(client_ip, []) if now - t < 300.0]
@@ -2473,6 +2387,9 @@ class BotAPIBridge:
         client_summary = ""
         client_exam_type = ""
         client_question_count = 0
+        form_uploader_id = 0
+        form_uploader_name = ""
+        form_uploader_avatar = ""
 
         while True:
             part = await reader.next()
@@ -2485,6 +2402,14 @@ class BotAPIBridge:
                 custom_subject = (await part.text()).strip()
             elif part.name == "grade":
                 custom_grade = (await part.text()).strip()
+            elif part.name == "uploader_id":
+                raw_uid = (await part.text()).strip()
+                if raw_uid.isdigit():
+                    form_uploader_id = int(raw_uid)
+            elif part.name == "uploader_name":
+                form_uploader_name = (await part.text()).strip()[:80]
+            elif part.name == "uploader_avatar":
+                form_uploader_avatar = (await part.text()).strip()[:300]
             elif part.name == "client_pre_parsed":
                 client_pre_parsed = (await part.text()).strip().lower() in ("true", "1")
             elif part.name == "file_hash":
@@ -2523,6 +2448,72 @@ class BotAPIBridge:
                     client_question_count = int((await part.text()).strip())
                 except Exception:
                     pass
+
+        if not is_bot_admin:
+            if user_data:
+                uploader_id = int(user_data.get("id", 0))
+                uploader_name = user_data.get("global_name") or user_data.get("username") or form_uploader_name or "Discord User"
+                avatar_hash = user_data.get("avatar")
+                u_avatar = (
+                    f"https://cdn.discordapp.com/avatars/{uploader_id}/{avatar_hash}.png"
+                    if avatar_hash
+                    else (form_uploader_avatar or f"https://cdn.discordapp.com/embed/avatars/{int(user_data.get('discriminator', 0)) % 5}.png")
+                )
+            elif form_uploader_id > 0 or form_uploader_name:
+                uploader_id = form_uploader_id
+                uploader_name = form_uploader_name or f"Discord User #{uploader_id}"
+                u_avatar = form_uploader_avatar
+                # Nếu có uploader_id, tra thêm từ Guild hoặc Discord API để lấy tên & avatar chuẩn nhất
+                if uploader_id > 0:
+                    guild = self.bot.get_guild(DISCORD_GUILD_ID) or (self.bot.guilds[0] if self.bot.guilds else None)
+                    member = guild.get_member(uploader_id) if guild else None
+                    if not member and guild:
+                        try:
+                            member = await guild.fetch_member(uploader_id)
+                        except Exception:
+                            member = None
+                    if member:
+                        uploader_name = member.display_name or member.global_name or member.name or uploader_name
+                        if member.display_avatar:
+                            u_avatar = member.display_avatar.url
+                    elif not u_avatar:
+                        try:
+                            d_user = await self.bot.fetch_user(uploader_id)
+                            if d_user:
+                                uploader_name = d_user.global_name or d_user.name or uploader_name
+                                if d_user.display_avatar:
+                                    u_avatar = d_user.display_avatar.url
+                        except Exception:
+                            pass
+            else:
+                return web.json_response({
+                    "error": "Yêu cầu liên kết tài khoản Discord",
+                    "message": "Bạn chỉ cần liên kết tài khoản Discord (qua Username/ID hoặc OAuth2, không cần xác minh email) để nộp đề thi và nhận vinh danh Credit.",
+                }, status=401)
+
+            if uploader_id > 0:
+                try:
+                    now_iso_la = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    await self.bot.db.execute(
+                        """
+                        INSERT INTO linked_accounts (discord_id, username, global_name, avatar_url, email, verified, first_seen, last_seen, login_count)
+                        VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1)
+                        ON CONFLICT(discord_id) DO UPDATE SET
+                            username=excluded.username,
+                            global_name=excluded.global_name,
+                            avatar_url=CASE WHEN excluded.avatar_url != '' THEN excluded.avatar_url ELSE linked_accounts.avatar_url END,
+                            last_seen=excluded.last_seen
+                        """,
+                        uploader_id,
+                        user_data.get("username", uploader_name) if user_data else uploader_name,
+                        uploader_name,
+                        u_avatar or f"https://cdn.discordapp.com/embed/avatars/{uploader_id % 5}.png",
+                        user_data.get("email", "") if user_data else "",
+                        now_iso_la,
+                        now_iso_la,
+                    )
+                except Exception as le:
+                    logger.debug(f"Save linked_accounts on upload error: {le}")
 
         if not file_bytes:
             return web.json_response({"error": "Không tìm thấy tệp đính kèm để nộp"}, status=400)
@@ -2948,7 +2939,12 @@ class BotAPIBridge:
         import_history.append(now)
         self._import_rate_limits[client_ip] = import_history
 
-        # 2. Yêu cầu Discord Bearer token (đã verify email) hoặc BOT_API_SECRET
+        try:
+            body = await request.json()
+        except Exception:
+            return web.json_response({"error": "Dữ liệu JSON không hợp lệ"}, status=400)
+
+        # 2. Xác thực liên kết Discord (OAuth2 Token hoặc Liên kết nhanh Discord ID/Username)
         auth_header = request.headers.get("Authorization", "")
         token = ""
         if auth_header.startswith("Bearer "):
@@ -2958,50 +2954,56 @@ class BotAPIBridge:
 
         uploader_name = "Web User (Google Drive)"
         uploader_id = 0
+        u_avatar = ""
         if not self._is_valid_bot_api_secret(token):
             user_data = await self._verify_discord_bearer_token(token) if token else None
-            if not user_data:
-                return web.json_response({
-                    "error": "Yêu cầu kết nối tài khoản Discord",
-                    "message": "Bạn cần đăng nhập hoặc liên kết tài khoản Discord để nạp đề từ Google Drive và ghi nhận credit người đóng góp."
-                }, status=401)
-            uploader_id = int(user_data.get("id", 0))
-            uploader_name = user_data.get("global_name") or user_data.get("username") or "Discord User"
-            avatar_hash = user_data.get("avatar")
-            u_avatar = (
-                f"https://cdn.discordapp.com/avatars/{uploader_id}/{avatar_hash}.png"
-                if avatar_hash
-                else f"https://cdn.discordapp.com/embed/avatars/{int(user_data.get('discriminator', 0)) % 5}.png"
-            )
-            # Tự động lưu / cập nhật linked_accounts
-            try:
-                now_iso_la = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                await self.bot.db.execute(
-                    """
-                    INSERT INTO linked_accounts (discord_id, username, global_name, avatar_url, email, verified, first_seen, last_seen, login_count)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-                    ON CONFLICT(discord_id) DO UPDATE SET
-                        username=excluded.username,
-                        global_name=excluded.global_name,
-                        avatar_url=excluded.avatar_url,
-                        last_seen=excluded.last_seen
-                    """,
-                    uploader_id,
-                    user_data.get("username", ""),
-                    user_data.get("global_name", "") or user_data.get("username", ""),
-                    u_avatar,
-                    user_data.get("email", ""),
-                    1 if user_data.get("verified") else 0,
-                    now_iso_la,
-                    now_iso_la,
-                )
-            except Exception as le:
-                logger.debug(f"Save linked_accounts on gdrive import error: {le}")
+            raw_uid = str(body.get("uploader_id") or "").strip()
+            body_uid = int(raw_uid) if raw_uid.isdigit() else 0
+            body_uname = str(body.get("uploader_name") or "").strip()[:80]
+            body_uavatar = str(body.get("uploader_avatar") or "").strip()[:300]
 
-        try:
-            body = await request.json()
-        except Exception:
-            return web.json_response({"error": "Dữ liệu JSON không hợp lệ"}, status=400)
+            if user_data:
+                uploader_id = int(user_data.get("id", 0))
+                uploader_name = user_data.get("global_name") or user_data.get("username") or body_uname or "Discord User"
+                avatar_hash = user_data.get("avatar")
+                u_avatar = (
+                    f"https://cdn.discordapp.com/avatars/{uploader_id}/{avatar_hash}.png"
+                    if avatar_hash
+                    else (body_uavatar or f"https://cdn.discordapp.com/embed/avatars/{int(user_data.get('discriminator', 0)) % 5}.png")
+                )
+            elif body_uid > 0 or body_uname:
+                uploader_id = body_uid
+                uploader_name = body_uname or f"Discord User #{uploader_id}"
+                u_avatar = body_uavatar
+            else:
+                return web.json_response({
+                    "error": "Yêu cầu liên kết tài khoản Discord",
+                    "message": "Bạn chỉ cần liên kết tài khoản Discord (qua Username/ID hoặc OAuth2, không cần xác minh email) để nạp đề từ Google Drive và ghi nhận Credit."
+                }, status=401)
+
+            if uploader_id > 0:
+                try:
+                    now_iso_la = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    await self.bot.db.execute(
+                        """
+                        INSERT INTO linked_accounts (discord_id, username, global_name, avatar_url, email, verified, first_seen, last_seen, login_count)
+                        VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1)
+                        ON CONFLICT(discord_id) DO UPDATE SET
+                            username=excluded.username,
+                            global_name=excluded.global_name,
+                            avatar_url=CASE WHEN excluded.avatar_url != '' THEN excluded.avatar_url ELSE linked_accounts.avatar_url END,
+                            last_seen=excluded.last_seen
+                        """,
+                        uploader_id,
+                        user_data.get("username", uploader_name) if user_data else uploader_name,
+                        uploader_name,
+                        u_avatar or f"https://cdn.discordapp.com/embed/avatars/{uploader_id % 5}.png",
+                        user_data.get("email", "") if user_data else "",
+                        now_iso_la,
+                        now_iso_la,
+                    )
+                except Exception as le:
+                    logger.debug(f"Save linked_accounts on gdrive import error: {le}")
 
         url = body.get("url", "").strip()
 
@@ -4436,6 +4438,57 @@ class BotAPIBridge:
             else f"https://cdn.discordapp.com/embed/avatars/{int(member.id) % 5}.png"
         )
         roles = [r.name for r in member.roles if r.name != "@everyone"]
+        display_name = member.display_name or member.global_name or member.name
+        now_iso_la = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+        try:
+            if hasattr(self.bot, "db") and self.bot.db:
+                await self.bot.db.execute(
+                    """
+                    INSERT INTO linked_accounts (discord_id, username, global_name, avatar_url, email, verified, first_seen, last_seen, login_count)
+                    VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1)
+                    ON CONFLICT(discord_id) DO UPDATE SET
+                        username=excluded.username,
+                        global_name=excluded.global_name,
+                        avatar_url=excluded.avatar_url,
+                        last_seen=excluded.last_seen,
+                        login_count=linked_accounts.login_count + 1
+                    """,
+                    int(member.id),
+                    member.name,
+                    display_name,
+                    avatar_url,
+                    f"{member.name}@discord.orbit.vn",
+                    now_iso_la,
+                    now_iso_la,
+                )
+        except Exception as e_la:
+            logger.debug(f"Save linked_accounts on verify_member error: {e_la}")
+
+        try:
+            from database.turso_client import turso_db
+            if turso_db.is_configured:
+                await turso_db.execute(
+                    """
+                    INSERT INTO linked_accounts (discord_id, username, global_name, avatar_url, email, verified, first_seen, last_seen, login_count)
+                    VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1)
+                    ON CONFLICT(discord_id) DO UPDATE SET
+                        username=excluded.username,
+                        global_name=excluded.global_name,
+                        avatar_url=excluded.avatar_url,
+                        last_seen=excluded.last_seen,
+                        login_count=linked_accounts.login_count + 1
+                    """,
+                    int(member.id),
+                    member.name,
+                    display_name,
+                    avatar_url,
+                    f"{member.name}@discord.orbit.vn",
+                    now_iso_la,
+                    now_iso_la,
+                )
+        except Exception as e_tla:
+            logger.debug(f"Turso save linked_accounts on verify_member error: {e_tla}")
 
         return web.json_response(
             {

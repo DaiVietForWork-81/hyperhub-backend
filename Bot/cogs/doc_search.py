@@ -194,8 +194,7 @@ class SearchResultPaginationView(discord.ui.View):
             embed.add_field(name=f"#{idx}. {title}", value=val, inline=False)
 
         embed.set_footer(
-            text="Hệ Thống Tra Cứu Kho Đề Thi Tự Động • Orbit",
-            icon_url="https://assets.codeforces.com/favicon-96x96.png",
+            text="Orbit | Vietnam • Hệ Thống Tra Cứu Kho Đề Thi",
         )
         return embed
 
@@ -1017,21 +1016,16 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
             return []
 
     async def build_search_panel_embed(self) -> discord.Embed:
-        """Bảng chuyển hướng tra cứu lên Web Portal (tra cứu Discord đã ngừng)."""
+        """Bảng chuyển hướng tra cứu lên Web Portal."""
         stats = await self.get_stats()
         embed = discord.Embed(
-            title="📥 TRẠM LẤY TÀI LIỆU & ĐỀ THI — LÊN WEB PORTAL",
+            title="📥 TRẠM TRA CỨU & LẤY ĐỀ THI",
             description=(
-                "Kho học liệu hiện có **{items:,}** đề thi (`{size}`) "
-                "đã được phân loại và thẩm định.\n\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                "📌 **Muốn tra cứu, xem trước và lấy tài liệu, vui lòng lên Web:**\n"
-                "👉 **https://orbit-psi-black.vercel.app/#vault**\n"
-                "*(Hoặc vào Orbit Hub: **https://orbit-psi-black.vercel.app/hub**)*\n\n"
-                "Trên Web bạn có thể lọc tức thì theo **Môn học**, **Khối lớp** (6–12, ĐGNL, Chuyên), **Thể loại** (`thường` / `hsg` / `chuyên`), "
-                "tìm theo **từ khóa / trường / năm học**, xem trực tiếp câu hỏi và tải đề nguyên bản.\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                "💡 *Mọi thao tác tìm và lấy đề thực hiện tập trung trên Web Portal để tối ưu trải nghiệm đọc & làm đề.*"
+                "Kho học liệu hiện có **{items:,} đề thi** (`{size}`) đã được phân loại chuẩn Bộ GD&ĐT 2025.\n\n"
+                "🌐 **Truy cập Kho Đề trực tuyến:** **https://orbit-psi-black.vercel.app/#vault**\n\n"
+                "• **Lọc đa chiều:** Môn học, Khối lớp (6–12, ĐGNL, Chuyên), Phân loại (`thường` / `hsg` / `chuyên`), Trường & Năm học.\n"
+                "• **Đọc & Luyện đề trực tiếp:** Xem trước PDF, bốc đề ngẫu nhiên và tải file gốc miễn phí 100%.\n"
+                "• **Lệnh nhanh trên Discord:** `/timde`, `/layde`, `/luyende` tại kênh <#1535558236957188176>."
             ).format(
                 items=stats["total_items"],
                 size=format_bytes_to_human(stats["total_bytes"]),
@@ -1039,7 +1033,7 @@ class DocumentSearchCog(commands.Cog, name="DocumentSearch"):
             color=0xFF4FCB,
         )
         embed.set_footer(
-            text="Orbit Web Portal • Tra cứu & Tải đề trên Web",
+            text="Orbit | Vietnam • Miễn phí 100% cho toàn bộ thành viên",
         )
         return embed
 

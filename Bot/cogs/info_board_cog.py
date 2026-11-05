@@ -192,49 +192,42 @@ class InfoBoardCog(commands.Cog, name="InfoBoard"):
                         pass
 
             e0 = discord.Embed(
-                title="🌌 CHÀO MỪNG ĐẾN VỚI ORBIT • LEARN — CHILL — STUDY",
+                title="🌌 CHÀO MỪNG ĐẾN VỚI ORBIT | VIETNAM",
                 description=(
-                    "╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮\n"
-                    "　🪐 **HỆ SINH THÁI HỌC TẬP & CÔNG NGHỆ ORBIT**\n"
-                    "　*Không Gian Học Tập • Thư Giãn Tập Trung • Ôn Luyện Hiệu Quả (Vietnam)*\n"
-                    "╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n"
-                    "🌟 **Ý NGHĨA BIỂU TƯỢNG ORBIT:**\n"
-                    "• 🌙 **Vầng Trăng Khuyết (The Crescent):** Đại diện cho hành trình tích lũy tri thức không ngừng nghỉ. Mỗi ngày học hỏi là một bước tiến để hoàn thiện bản thân.\n"
-                    "• 🪐 **Vòng Quỹ Đạo Đa Chiều (Orbital Ring):** Tượng trưng cho sự gắn kết cộng đồng, chu kỳ học tập tuần hoàn liên tục và khát vọng bứt phá trong kỷ nguyên công nghệ.\n"
-                    "• 🎨 **Gam Màu Cosmic Neon (Purple & Rose Magenta):** Sự kết hợp hài hòa giữa chiều sâu tư duy (Tím Vũ Trụ) và nhiệt huyết, sáng tạo tuổi trẻ (Hồng Phát Quang).\n\n"
-                    "🏛️ **4 TRỤ CỘT HỆ SINH THÁI TOÀN DIỆN:**\n"
-                    "• 🌐 **Orbit Web Hub (https://orbit-psi-black.vercel.app/):** Nền tảng học tập trung tâm tích hợp Kho Đề Thi, Nộp Đề Trực Tuyến, Diễn Đàn Discord Forum Sync, Phòng Tự Học Pomodoro & Bảng Xếp Hạng Học Giả.\n"
-                    "• 📚 **Thư Viện Đề Thi Tự Động (Doc Vault):** Lưu trữ 184+ đề thi THPT/THCS chuẩn form Bộ GD&ĐT 2025, kiểm định chống trùng lặp đa tầng, hỗ trợ đọc PDF & làm đề bấm giờ trực tuyến.\n"
-                    "• 💡 **Diễn Đàn Thảo Luận Đồng Bộ (Forum 2-Way Sync):** Kênh thảo luận cộng đồng trên `💡・diễn-đàn` được đồng bộ 2 chiều tức thì với giao diện Web hiện đại.\n"
-                    "• ⏱️ **Phòng Tự Học & Chuỗi Ngày Học (Streak):** Không gian tập trung cao độ, đồng bộ thời gian tự học, check-in chuỗi ngày học liên tục và tích lũy XP học thuật."
+                    "**Orbit** là không gian học tập, chia sẻ đề thi thực chiến và kết nối cộng đồng học sinh — sinh viên Việt Nam (**Learn • Chill • Connect**).\n\n"
+                    "🏛️ **4 TRỤ CỘT HỆ SINH THÁI ORBIT (100% MIỄN PHÍ):**\n"
+                    "• 🌐 **Orbit Web Hub (`orbit-psi-black.vercel.app`)** — Trung tâm tra cứu kho đề, nộp đề vinh danh tác giả, diễn đàn học thuật và phòng tự học Pomodoro.\n"
+                    "• 📚 **Kho Đề Thi Thực Chiến (Doc Vault)** — Hơn 184+ đề thi THPT/THCS/HSG/Chuyên chuẩn Bộ GD&ĐT 2025, đọc PDF và bấm giờ làm bài trực tiếp.\n"
+                    "• 💡 **Diễn Đàn Học Thuật 2 Chiều** — Thảo luận bài tập, hỏi đáp & chia sẻ kiến thức đồng bộ tức thì giữa Web và <#1535557885721841744>.\n"
+                    "• ⏱️ **Phòng Tự Học & Bảng Xếp Hạng** — Duy trì chuỗi ngày học (Streak), tích lũy XP và vinh danh Học Giả đóng góp."
                 ),
                 color=0xA855F7,
             )
-            e0.set_footer(text="Orbit Community | Vietnam")
+            e0.set_footer(text="Orbit | Vietnam • Hệ Sinh Thái Học Tập & Kho Đề Thi Mở")
 
             e1 = discord.Embed(
-                title="🗺️ SƠ ĐỒ ĐIỀU HƯỚNG CÁC KÊNH TRONG MÁY CHỦ",
+                title="🗺️ SƠ ĐỒ ĐIỀU HƯỚNG CÁC KÊNH CHÍNH",
                 description=(
-                    "Để trải nghiệm tốt nhất tại máy chủ **Orbit**, bạn có thể khám phá theo các khu vực chức năng sau:\n\n"
-                    "📌 **KHU VỰC THÔNG TIN (CHÍNH THỨC):**\n"
-                    "• <#1532628139249893397> : Nội quy máy chủ & văn hóa ứng xử.\n"
-                    "• <#1534148107712073788> : Cổng chào đón tân học giả tham gia Orbit.\n"
-                    "• <#1534148186942214226> : Cẩm nang toàn diện hệ sinh thái & tính năng.\n"
-                    "• <#1534545282497253566> : Chi tiết hệ thống phân quyền & vai trò (Roles).\n\n"
-                    "📚 **KHU VỰC TÀI LIỆU & ĐỀ THI:**\n"
-                    "• <#1567532842617937931> : Cổng tra cứu, tải về & làm đề thi trực tiếp trên Web Hub.\n"
-                    "• <#1535278288828633138> : Cổng hướng dẫn nộp đề & ghi nhận credit đóng góp vĩnh viễn trên Web Hub.\n\n"
-                    "💬 **KHU VỰC CỘNG ĐỒNG:**\n"
-                    "• <#1532265332545425561> : Kênh trò chuyện tự do, kết nối học tập.\n"
-                    "• <#1535557885721841744> : Diễn đàn học thuật, hỏi đáp bài tập, ôn thi (Đồng bộ 2 chiều với Web).\n"
-                    "• <#1535558236957188176> : Tra cứu lệnh bot & tiện ích hệ thống.\n\n"
-                    "🎙️ **KHU VỰC VOICE CHAT & TỰ HỌC:**\n"
-                    "• <#1535557467260461076> : Phòng học bài với nền nhạc lofi chill 24/7.\n"
-                    "• <#1535557505948590181> / <#1535557542049226763> : Phòng học nhóm & tự học tập trung (Focus)."
+                    "📌 **THÔNG TIN & ĐỊNH HƯỚNG**\n"
+                    "• <#1532628139249893397> — Nội quy máy chủ & văn hóa ứng xử.\n"
+                    "• <#1534148186942214226> — Giới thiệu hệ sinh thái & sơ đồ máy chủ.\n"
+                    "• <#1534545282497253566> — Hệ thống vai trò, danh hiệu & đặc quyền.\n"
+                    "• <#1534148289450741770> / <#1535557678615756903> — Thông báo & cập nhật mới nhất.\n\n"
+                    "📚 **KHO ĐỀ THI & HỌC THUẬT**\n"
+                    "• <#1567532842617937931> — Cổng tra cứu, xem trước & tải đề thi trên Web Hub.\n"
+                    "• <#1535278288828633138> — Đóng góp đề thi, nhận **Credit vĩnh viễn + 100 XP + Role ✍️ Tác giả**.\n"
+                    "• <#1544204803016630302> — Tổng hợp lộ trình ôn tập & tài liệu trọng tâm.\n\n"
+                    "💬 **CỘNG ĐỒNG & TIỆN ÍCH**\n"
+                    "• <#1532265332545425561> — Trò chuyện chung & giao lưu thành viên.\n"
+                    "• <#1535557885721841744> — Diễn đàn hỏi đáp bài tập & chia sẻ kinh nghiệm ôn thi.\n"
+                    "• <#1535558236957188176> — Khu vực sử dụng lệnh Slash Commands của Bot.\n"
+                    "• <#1546522680638054461> — Trạm kiểm tra độ an toàn của đường dẫn (URL).\n\n"
+                    "🎙️ **PHÒNG TỰ HỌC & VOICE**\n"
+                    "• <#1535557467260461076> • <#1535557505948590181> • <#1535557542049226763>"
                 ),
                 color=0x3B82F6,
             )
-            e1.set_footer(text="✦ Orbit • Learn · Chill · Connect · Enjoy")
+            e1.set_footer(text="Orbit | Vietnam • Nhấn các nút bên dưới để mở nhanh Web Portal")
 
             if existing_msg is not None and not force:
                 await existing_msg.edit(embeds=[e0, e1], view=InfoBoardRefreshView())

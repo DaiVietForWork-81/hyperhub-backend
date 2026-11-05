@@ -100,9 +100,9 @@ INITIAL_EXTENSIONS = [
     "cogs.rolemanager",         # Quản lý role
     "cogs.conflict_moderator",  # Giám sát xung đột AI
     "cogs.lists",               # Danh sách lệnh
-    "cogs.exam_generator_cog",  # Tạo đề thi AI
-    "cogs.info_board_cog",      # Sổ tay & bảng giá Gói Hyper
-    "cogs.study_practice_cog",  # 🎯 Tính năng Học Tập & Luyện Đề (Chưa kích hoạt)
+    # "cogs.exam_generator_cog",  # Tạo đề thi AI (Đã ngừng sử dụng)
+    "cogs.info_board_cog",      # Bảng thông tin & Role Info
+    "cogs.study_practice_cog",  # 🎯 Tính năng Học Tập & Luyện Đề
 ]
 
 
@@ -296,13 +296,11 @@ class CompetitiveProgrammingBot(commands.Bot):
 
         from cogs.doc_intake import DocumentIntakeControlView
         from cogs.link_scanner import LinkScannerControlView
-        from cogs.exam_generator_cog import GenerateControlPanelView
         from cogs.info_board_cog import InfoBoardRefreshView
         from services.system_sync_service import SystemControlView, SystemUpdateView
 
         self.add_view(DocumentIntakeControlView())
         self.add_view(LinkScannerControlView())
-        self.add_view(GenerateControlPanelView(self))
         self.add_view(InfoBoardRefreshView())
         self.add_view(SystemControlView())
         self.add_view(SystemUpdateView())
