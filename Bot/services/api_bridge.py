@@ -2810,7 +2810,12 @@ class BotAPIBridge:
                 for g in list(self.bot.guilds):
                     if g.id == 1532265330079174697:
                         continue
-                    if club_keyword in g.name.lower() or (club_keyword == "toán" and g.id == 1567904557076316250):
+                    g_lower = g.name.lower()
+                    if (
+                        club_keyword in g_lower
+                        or (club_keyword == "toán" and g.id == 1567904557076316250)
+                        or (club_keyword == "tin" and "hyperhub" in g_lower)
+                    ):
                         vault_chan = discord.utils.find(
                             lambda c: isinstance(c, discord.TextChannel) and "kho-đề" in c.name.lower(),
                             g.channels,
@@ -2820,13 +2825,9 @@ class BotAPIBridge:
                             notify_embed = discord.Embed(
                                 title=f"🆕 ĐỀ {detected_subject.upper()} MỚI: {file_name}",
                                 description=(
-                                    f"• **Khối / Cấp độ:** `{detected_grade}` • **Phân loại:** `{exam_type_str}`
-"
-                                    f"• **Quy mô:** `{question_count} câu` • `{page_count} trang`
-"
-                                    f"• 👤 **Người đóng góp (Credit):** {credit_str}
-
-"
+                                    f"• **Khối / Cấp độ:** `{detected_grade}` • **Phân loại:** `{exam_type_str}`\n"
+                                    f"• **Quy mô:** `{question_count} câu` • `{page_count} trang`\n"
+                                    f"• 👤 **Người đóng góp (Credit):** {credit_str}\n\n"
                                     f"👉 **Xem PDF & Tải đề ngay:** **https://orbit-psi-black.vercel.app/#exam-{doc_id}**"
                                 ),
                                 color=0xA855F7,

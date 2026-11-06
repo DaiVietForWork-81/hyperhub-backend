@@ -103,6 +103,15 @@ INITIAL_EXTENSIONS = [
     # "cogs.exam_generator_cog",  # Tạo đề thi AI (Đã ngừng sử dụng)
     "cogs.info_board_cog",      # Bảng thông tin & Role Info
     "cogs.study_practice_cog",  # 🎯 Tính năng Học Tập & Luyện Đề
+    # === HYPERHUB (ORBIT | TIN HỌC) — ĐẤU TRƯỜNG THI ĐẤU TIN HỌC (CP ARENA & DUEL 1:1) ===
+    "cogs.codeforces",          # Liên kết tài khoản Codeforces tự động (#✅・accounts)
+    "cogs.mode_selector",       # Sổ tay 6 Embeds & Chọn chế độ Freedom / Ranked 1:1 (#📤・mode)
+    "cogs.contest",             # Danh mục cuộc thi Codeforces & Bài tập theo Div/Tier (#📋・contest)
+    "cogs.submission",          # Trạm nộp bài trực tiếp Sandbox 17 ngôn ngữ (#📤・submit)
+    "cogs.ranked_duel",         # Đấu trường đối kháng Ranked 1:1 thời gian thực (#📋・ranked)
+    "cogs.leaderboard",         # Bảng xếp hạng Top 50 Freedom & Ranked 1:1 (#✅・leaderboard)
+    "cogs.search",              # Tra cứu đề bài, thuật toán (Editorial) & Code mẫu (/search)
+    "cogs.profile",             # Hồ sơ thi đấu Competitive Programming (/profile)
 ]
 
 
@@ -114,6 +123,8 @@ COMMAND_ALLOWLIST = {
     "warn", "deletewarn", "warntest",
     "timde", "layde", "timtailieu", "dongbokhode", "gothailieu",
     "luyende", "chuoi",
+    # Lệnh Thi Đấu Tin Học (HyperHub CP Arena & Ranked Duel 1:1)
+    "profile", "search", "view", "setup_mode",
 }
 
 
@@ -305,6 +316,20 @@ class CompetitiveProgrammingBot(commands.Bot):
         self.add_view(SystemControlView())
         self.add_view(SystemUpdateView())
 
+        # Persistent Views cho Đấu Trường Thi Đấu Tin Học (HyperHub CP Arena)
+        try:
+            from cogs.codeforces import CFChannelControlView
+            from cogs.mode_selector import ModeInteractiveView
+            from cogs.submission import SubmitChannelControlView
+            from cogs.leaderboard import RankChannelLeaderboardView
+
+            self.add_view(CFChannelControlView())
+            self.add_view(ModeInteractiveView(self))
+            self.add_view(SubmitChannelControlView(self))
+            self.add_view(RankChannelLeaderboardView(self, page=1))
+        except Exception as cp_view_err:
+            logger.warning(f"Không thể đăng ký Persistent Views cho CP Arena: {cp_view_err}")
+
         # Khởi chạy BanScheduler
         self.loop.create_task(self._start_ban_scheduler())
         self.loop.create_task(self._periodic_mod_cleanup())
@@ -361,6 +386,31 @@ class CompetitiveProgrammingBot(commands.Bot):
         help_cog = self.get_cog("Help")
         if help_cog and hasattr(help_cog, "auto_setup_admin_guide"):
             setup_items.append(("#admin-guide", help_cog.auto_setup_admin_guide(purge=False)))
+
+        # 5. Đấu Trường Thi Đấu Tin Học (HyperHub CP Arena — tự động kích hoạt khi có kênh)
+        cf_cog = self.get_cog("Codeforces")
+        if cf_cog and hasattr(cf_cog, "auto_setup_cf_channel") and getattr(settings, "CF_ID", 0) > 0:
+            setup_items.append(("#✅・accounts", cf_cog.auto_setup_cf_channel()))
+
+        mode_cog = self.get_cog("ModeSelector")
+        if mode_cog and hasattr(mode_cog, "auto_setup_chon_channel") and getattr(settings, "CHON_ID", 0) > 0:
+            setup_items.append(("#📤・mode", mode_cog.auto_setup_chon_channel()))
+
+        contest_cog = self.get_cog("Contest")
+        if contest_cog and hasattr(contest_cog, "auto_setup_baitap_channel") and getattr(settings, "BAITAP_ID", 0) > 0:
+            setup_items.append(("#📋・contest", contest_cog.auto_setup_baitap_channel()))
+
+        sub_cog = self.get_cog("Submissions")
+        if sub_cog and hasattr(sub_cog, "auto_setup_submit_channel") and getattr(settings, "SUBMIT_ID", 0) > 0:
+            setup_items.append(("#📤・submit", sub_cog.auto_setup_submit_channel()))
+
+        lb_cog = self.get_cog("Leaderboard")
+        if lb_cog and hasattr(lb_cog, "auto_setup_rank_channel") and getattr(settings, "UP_RANK", 0) > 0:
+            setup_items.append(("#✅・leaderboard", lb_cog.auto_setup_rank_channel()))
+
+        duel_cog = self.get_cog("RankedDuelCog")
+        if duel_cog and hasattr(duel_cog, "_auto_setup_ranked_channel") and getattr(settings, "RANKED_CHANNEL_ID", 0) > 0:
+            setup_items.append(("#📋・ranked", duel_cog._auto_setup_ranked_channel()))
 
         for name, coro in setup_items:
             await run_setup(name, coro)
@@ -444,6 +494,8 @@ class CompetitiveProgrammingBot(commands.Bot):
                     from scripts.setup_orbit_toan import setup_orbit_math_guild
                     res = await asyncio.to_thread(setup_orbit_math_guild, str(g.id))
                     logger.info(f"📐 Đã tự động thiết lập máy chủ CLB Orbit | Toán ({g.id}): {res.get('ok')}")
+                elif "hyperhub" in g.name.lower() or "orbit | tin" in g.name.lower():
+                    await self._setup_hyperhub_guild_and_panels(g)
             except Exception as ge:
                 logger.debug(f"Không thể đồng bộ guild {g.id}: {ge}")
 
@@ -536,8 +588,33 @@ class CompetitiveProgrammingBot(commands.Bot):
         await super().close()
         logger.info("Đã tắt bot và giải phóng tài nguyên hoàn tất.")
 
+    async def _setup_hyperhub_guild_and_panels(self, guild: discord.Guild) -> None:
+        """Tự động dựng máy chủ HyperHub (CLB Tin Học + Đấu Trường Thi Đấu) và khởi tạo 6 trạm tương tác."""
+        try:
+            from scripts.setup_hyperhub_tin import setup_hyperhub_guild
+            res = await asyncio.to_thread(setup_hyperhub_guild, str(guild.id))
+            logger.info(f"💻 Đã tự động thiết lập máy chủ HyperHub | Orbit Tin Học ({guild.id}): {res.get('ok')}")
+            await asyncio.sleep(1.5)
+            for cog_name, method_name in [
+                ("Codeforces", "auto_setup_cf_channel"),
+                ("ModeSelector", "auto_setup_chon_channel"),
+                ("Contest", "auto_setup_baitap_channel"),
+                ("Submissions", "auto_setup_submit_channel"),
+                ("Leaderboard", "auto_setup_rank_channel"),
+                ("RankedDuelCog", "_auto_setup_ranked_channel"),
+            ]:
+                cog_obj = self.get_cog(cog_name)
+                if cog_obj and hasattr(cog_obj, method_name):
+                    try:
+                        await getattr(cog_obj, method_name)()
+                        await asyncio.sleep(1.0)
+                    except Exception as ce:
+                        logger.warning(f"Lỗi khởi tạo panel {cog_name}.{method_name}: {ce}")
+        except Exception as e:
+            logger.error(f"Lỗi khi tự động thiết lập HyperHub ({guild.id}): {e}")
+
     async def on_guild_join(self, guild: discord.Guild) -> None:
-        """Tự động thiết lập cấu trúc kênh & role khi Bot được mời vào máy chủ CLB Orbit | Toán."""
+        """Tự động thiết lập cấu trúc kênh & role khi Bot được mời vào máy chủ CLB Orbit | Toán hoặc HyperHub."""
         logger.info(f"🎉 Bot vừa tham gia máy chủ mới: {guild.name} (ID: {guild.id})")
         if guild.id == 1567904557076316250:
             try:
@@ -551,22 +628,31 @@ class CompetitiveProgrammingBot(commands.Bot):
                 logger.info(f"✅ Đã hoàn tất dựng tự động CLB Orbit | Toán ({guild.id}): {res}")
             except Exception as e:
                 logger.error(f"Lỗi khi tự động thiết lập CLB Orbit | Toán: {e}")
+        elif "hyperhub" in guild.name.lower() or "tin" in guild.name.lower():
+            await self._setup_hyperhub_guild_and_panels(guild)
 
     async def on_member_join(self, member: discord.Member) -> None:
-        """Tự động gán Role '🌱 Học sinh' / '🎓 Học Sinh' cho mọi thành viên mới vào server."""
+        """Tự động gán Role '🌱 Học sinh' / '🎓 Học Sinh' (và '⭐ T8 - Ranked' tại HyperHub) cho thành viên mới."""
         if member.bot:
             return
 
         roles_to_add = []
 
         if member.guild.id != 1532265330079174697:
-            # Các CLB chuyên môn Orbit (Orbit | Toán, Văn, Anh, ...): tự động gán role chính "🎓 Học Sinh"
+            # Các CLB chuyên môn Orbit (Orbit | Toán, HyperHub, Văn, Anh, ...): tự động gán role chính "🎓 Học Sinh"
             hs_role = discord.utils.find(
                 lambda r: "học sinh" in r.name.lower(),
                 member.guild.roles,
             )
             if hs_role and hs_role not in member.roles:
                 roles_to_add.append(hs_role)
+            # Nếu là máy chủ HyperHub (có role T8 - Ranked), tự động cấp thêm bậc khởi đầu ⭐ T8 - Ranked
+            t8_role = discord.utils.find(
+                lambda r: "t8 - ranked" in r.name.lower(),
+                member.guild.roles,
+            )
+            if t8_role and t8_role not in member.roles:
+                roles_to_add.append(t8_role)
         elif settings.MEMBER_ROLE_ID and settings.MEMBER_ROLE_ID > 0:
             member_role = member.guild.get_role(settings.MEMBER_ROLE_ID)
             if member_role and member_role not in member.roles:

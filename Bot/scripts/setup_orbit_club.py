@@ -127,12 +127,12 @@ CLUB_PRESETS: dict[str, dict] = {
         "code": "tin",
         "short_name": "Tin",
         "full_subject": "Tin Học",
-        "guild_name": "Orbit | Tin",
+        "guild_name": "HyperHub | Orbit Tin Học",
         "emoji": "💻",
         "color": 0x6366F1,
         "slug": "tin",
         "vdc_channel": "🏆・thuật-toán-hsg-tin",
-        "topics_desc": "Lập trình C++ / Python, Cấu trúc dữ liệu & Giải thuật, Đề thi HSG Tin học & Chuyên Tin",
+        "topics_desc": "Lập trình C++ / Python, Cấu trúc dữ liệu & Giải thuật, Đấu trường Competitive Programming (Codeforces & Ranked 1:1), Đề thi HSG Tin học & Chuyên Tin",
         "guild_id": "",
         "managers_note": "Ban Quản Lý Chuyên Tin / HyperHub",
     },
@@ -231,6 +231,9 @@ def build_desired_roles(club: dict) -> list[dict]:
 
 def setup_orbit_club_guild(club_code: str, guild_id: str) -> dict:
     club_code = club_code.lower().strip()
+    if club_code in ("tin", "hyperhub"):
+        from scripts.setup_hyperhub_tin import setup_hyperhub_guild
+        return setup_hyperhub_guild(guild_id)
     if club_code not in CLUB_PRESETS:
         return {"ok": False, "error": f"Unknown club_code '{club_code}'. Valid: {list(CLUB_PRESETS.keys())}"}
 
