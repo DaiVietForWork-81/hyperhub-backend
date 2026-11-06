@@ -1429,7 +1429,10 @@ class BotAPIBridge:
                 channel_id = int(m_jump.group(1))
                 message_id = int(m_jump.group(2))
 
-        if channel_id and message_id:
+        if not hasattr(self, "_dead_channel_ids"):
+            self._dead_channel_ids: set[int] = set()
+
+        if channel_id and message_id and int(channel_id) not in self._dead_channel_ids:
             try:
                 channel = self.bot.get_channel(int(channel_id))
                 if not channel:
@@ -1443,7 +1446,9 @@ class BotAPIBridge:
                     if not direct_url and msg.attachments:
                         direct_url = msg.attachments[0].url
             except Exception as e:
-                logger.warning(f"Không thể lấy attachment từ Discord: {e}")
+                if "10003" in str(e) or "Unknown Channel" in str(e):
+                    self._dead_channel_ids.add(int(channel_id))
+                logger.debug(f"Không thể lấy attachment từ Discord: {e}")
 
         # Lưu direct_url (signed Discord CDN URL) lên Turso bot_kv_store để Vercel Serverless tự stream không tốn băng thông máy nhà
         if direct_url and direct_url.startswith("http"):
@@ -1554,7 +1559,10 @@ class BotAPIBridge:
                 logger.warning(f"Lỗi ghép chunk đề #{doc_id}: {e}")
 
         # 3. Tải trực tiếp từ Discord attachment (tự động làm mới signed CDN URL)
-        if raw_bytes is None and channel_id and message_id:
+        if not hasattr(self, "_dead_channel_ids"):
+            self._dead_channel_ids = set()
+
+        if raw_bytes is None and channel_id and message_id and int(channel_id) not in self._dead_channel_ids:
             try:
                 channel = self.bot.get_channel(int(channel_id))
                 if not channel:
@@ -1571,7 +1579,9 @@ class BotAPIBridge:
                     if target_att:
                         raw_bytes = await target_att.read()
             except Exception as e:
-                logger.warning(f"Không thể đọc attachment Discord cho đề #{doc_id}: {e}")
+                if "10003" in str(e) or "Unknown Channel" in str(e):
+                    self._dead_channel_ids.add(int(channel_id))
+                logger.debug(f"Không thể đọc attachment Discord cho đề #{doc_id}: {e}")
 
         # Lưu vào LRU RAM cache nếu kích thước <= 12MB (giữ tối đa 6 file trong RAM)
         if raw_bytes is not None and len(raw_bytes) <= 12 * 1024 * 1024:
@@ -4601,14 +4611,32 @@ class BotAPIBridge:
         row_display = ""
         row_avatar = ""
 
-        # 1. Kiểm tra trên SQLite local
+        # 1. Ưu tiên kiểm tra trên Turso Cloud trước (đồng bộ trực tiếp với Vercel)
+        try:
+            from database.turso_client import turso_db
+            if turso_db.is_configured:
+                t_rows = await turso_db.fetchall(
+                    "SELECT code, expires_at, username, display_name, avatar_url FROM web_verify_codes WHERE discord_id = ? LIMIT 1",
+                    discord_id,
+                )
+                if t_rows:
+                    tr = t_rows[0]
+                    row_code = str(tr.get("code") or "").strip()
+                    row_expires = int(tr.get("expires_at") or 0)
+                    row_username = str(tr.get("username") or "")
+                    row_display = str(tr.get("display_name") or "")
+                    row_avatar = str(tr.get("avatar_url") or "")
+        except Exception as e_turso:
+            logger.debug(f"Turso verify_code query error: {e_turso}")
+
+        # 2. Kiểm tra thêm trên SQLite local nếu bản ghi local mới hơn
         try:
             if hasattr(self.bot, "db") and self.bot.db:
                 row = await self.bot.db.fetchone(
                     "SELECT code, expires_at, username, display_name, avatar_url FROM web_verify_codes WHERE discord_id = ? LIMIT 1",
                     discord_id,
                 )
-                if row:
+                if row and int(row[1] or 0) > row_expires:
                     row_code = str(row[0]).strip()
                     row_expires = int(row[1] or 0)
                     row_username = str(row[2] or "")
@@ -4616,25 +4644,6 @@ class BotAPIBridge:
                     row_avatar = str(row[4] or "")
         except Exception as e_sql:
             logger.debug(f"SQLite verify_code query error: {e_sql}")
-
-        # 2. Fallback kiểm tra trên Turso Cloud nếu chưa thấy
-        if not row_code:
-            try:
-                from database.turso_client import turso_db
-                if turso_db.is_configured:
-                    t_rows = await turso_db.fetchall(
-                        "SELECT code, expires_at, username, display_name, avatar_url FROM web_verify_codes WHERE discord_id = ? LIMIT 1",
-                        discord_id,
-                    )
-                    if t_rows:
-                        tr = t_rows[0]
-                        row_code = str(tr.get("code") or "").strip()
-                        row_expires = int(tr.get("expires_at") or 0)
-                        row_username = str(tr.get("username") or "")
-                        row_display = str(tr.get("display_name") or "")
-                        row_avatar = str(tr.get("avatar_url") or "")
-            except Exception as e_turso:
-                logger.debug(f"Turso verify_code query error: {e_turso}")
 
         if not row_code:
             return web.json_response(
