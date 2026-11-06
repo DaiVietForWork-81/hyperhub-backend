@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import secrets
 import time
+from typing import Any
 import discord
 from discord.ext import commands
 
@@ -15,10 +17,18 @@ from utils.logger import get_logger
 logger = get_logger("WebVerifyCog")
 
 CODE_TTL_SECONDS = 300  # 5 phút (300 giây)
+_TABLE_INITIALIZED = False
+
+# Bộ nhớ đệm RAM tức thì cho mã xác minh (0ms latency)
+MEMORY_VERIFY_CODES: dict[str, dict[str, Any]] = {}
 
 
 async def ensure_web_verify_table(bot: commands.Bot) -> None:
-    """Đảm bảo bảng web_verify_codes tồn tại trên cả SQLite local và Turso Cloud."""
+    """Đảm bảo bảng web_verify_codes tồn tại trên cả SQLite local và Turso Cloud (chỉ chạy 1 lần)."""
+    global _TABLE_INITIALIZED
+    if _TABLE_INITIALIZED:
+        return
+
     ddl = """
     CREATE TABLE IF NOT EXISTS web_verify_codes (
         discord_id TEXT PRIMARY KEY,
@@ -40,14 +50,13 @@ async def ensure_web_verify_table(bot: commands.Bot) -> None:
         from database.turso_client import turso_db
         if turso_db.is_configured:
             await turso_db.execute(ddl)
+            _TABLE_INITIALIZED = True
     except Exception as e:
         logger.debug(f"Turso init web_verify_codes error: {e}")
 
 
-async def issue_new_verify_code(bot: commands.Bot, user: discord.abc.User) -> tuple[str, int]:
-    """Tạo mã 6 số mới cho user (hiệu lực 5 phút) và hủy ngay lập tức mã cũ nếu có."""
-    await ensure_web_verify_table(bot)
-
+def generate_verify_code_instant(user: discord.abc.User) -> tuple[str, int, dict[str, Any]]:
+    """Sinh mã 6 số mới tức thì trong RAM (<0.01ms) và hủy mã cũ ngay lập tức."""
     code = f"{secrets.randbelow(900000) + 100000:06d}"
     now_sec = int(time.time())
     expires_at = now_sec + CODE_TTL_SECONDS
@@ -64,6 +73,31 @@ async def issue_new_verify_code(bot: commands.Bot, user: discord.abc.User) -> tu
         if getattr(user, "display_avatar", None)
         else f"https://cdn.discordapp.com/embed/avatars/{int(user.id) % 5}.png"
     )
+
+    record = {
+        "discord_id": uid_str,
+        "username": username,
+        "display_name": display_name,
+        "avatar_url": avatar_url,
+        "code": code,
+        "created_at": now_sec,
+        "expires_at": expires_at,
+    }
+    MEMORY_VERIFY_CODES[uid_str] = record
+    return code, expires_at, record
+
+
+async def persist_verify_code(bot: commands.Bot, record: dict[str, Any]) -> None:
+    """Lưu mã 6 số xuống SQLite local & Turso Cloud (ghi đè hủy mã cũ)."""
+    await ensure_web_verify_table(bot)
+
+    uid_str = record["discord_id"]
+    username = record["username"]
+    display_name = record["display_name"]
+    avatar_url = record["avatar_url"]
+    code = record["code"]
+    now_sec = record["created_at"]
+    expires_at = record["expires_at"]
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
     upsert_code_sql = """
@@ -79,32 +113,7 @@ async def issue_new_verify_code(bot: commands.Bot, user: discord.abc.User) -> tu
     """
     params = (uid_str, username, display_name, avatar_url, code, now_sec, expires_at)
 
-    # 1. Lưu trên SQLite local (ghi đè mã cũ ngay lập tức)
-    try:
-        if hasattr(bot, "db") and bot.db:
-            await bot.db.execute(upsert_code_sql, *params)
-            await bot.db.execute(
-                """
-                INSERT INTO linked_accounts (discord_id, username, global_name, avatar_url, email, verified, first_seen, last_seen, login_count)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1)
-                ON CONFLICT(discord_id) DO UPDATE SET
-                    username = excluded.username,
-                    global_name = excluded.global_name,
-                    avatar_url = excluded.avatar_url,
-                    last_seen = excluded.last_seen
-                """,
-                int(user.id),
-                username,
-                display_name,
-                avatar_url,
-                f"{username}@discord.orbit.vn",
-                now_iso,
-                now_iso,
-            )
-    except Exception as e_local:
-        logger.warning(f"Lỗi lưu mã verify vào SQLite: {e_local}")
-
-    # 2. Đồng bộ tức thì lên Turso Cloud để Vercel xác thực < 50ms
+    # 1. Lưu trên Turso Cloud trước để Vercel đọc tức thì
     try:
         from database.turso_client import turso_db
         if turso_db.is_configured:
@@ -119,7 +128,7 @@ async def issue_new_verify_code(bot: commands.Bot, user: discord.abc.User) -> tu
                     avatar_url = excluded.avatar_url,
                     last_seen = excluded.last_seen
                 """,
-                int(user.id),
+                int(uid_str),
                 username,
                 display_name,
                 avatar_url,
@@ -130,7 +139,77 @@ async def issue_new_verify_code(bot: commands.Bot, user: discord.abc.User) -> tu
     except Exception as e_turso:
         logger.warning(f"Lỗi đồng bộ mã verify lên Turso Cloud: {e_turso}")
 
-    return code, expires_at
+    # 2. Lưu trên SQLite local
+    try:
+        if hasattr(bot, "db") and bot.db:
+            await bot.db.execute(upsert_code_sql, *params)
+            await bot.db.execute(
+                """
+                INSERT INTO linked_accounts (discord_id, username, global_name, avatar_url, email, verified, first_seen, last_seen, login_count)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1)
+                ON CONFLICT(discord_id) DO UPDATE SET
+                    username = excluded.username,
+                    global_name = excluded.global_name,
+                    avatar_url = excluded.avatar_url,
+                    last_seen = excluded.last_seen
+                """,
+                int(uid_str),
+                username,
+                display_name,
+                avatar_url,
+                f"{username}@discord.orbit.vn",
+                now_iso,
+                now_iso,
+            )
+    except Exception as e_local:
+        logger.warning(f"Lỗi lưu mã verify vào SQLite: {e_local}")
+
+
+async def handle_verify_button_interaction(interaction: discord.Interaction) -> None:
+    """Xử lý cấp mã 6 số phản hồi tức thì (<100ms) khi người dùng bấm nút."""
+    try:
+        code, expires_at, record = generate_verify_code_instant(interaction.user)
+        embed = create_embed(
+            title="🔑 MÃ XÁC MINH ĐĂNG NHẬP WEB ORBIT",
+            description=(
+                f"Xin chào **{interaction.user.display_name}** (`@{interaction.user.name}`),\n"
+                f"Dưới đây là mã xác minh đăng nhập cổng **Orbit Web** của riêng bạn:\n\n"
+                f"```yaml\n{code}\n```\n"
+                f"• ⏱️ **Thời hạn sử dụng:** Hết hạn <t:{expires_at}:R> (lúc <t:{expires_at}:T> — **5 phút**).\n"
+                f"• 🔄 **Tự động hủy mã cũ:** Mọi mã bạn đã tạo trước đó đều đã bị vô hiệu hóa.\n"
+                f"• 🌐 **Cách dùng:** Quay lại cửa sổ đăng nhập trên **https://orbit-psi-black.vercel.app** và điền mã **`{code}`** vào ô xác minh."
+            ),
+            embed_type=EmbedType.SUCCESS,
+            color=0x10B981,
+            footer_text="Bảo mật 2 lớp Orbit | Vietnam • Tuyệt đối không chia sẻ mã này cho người khác",
+        )
+
+        # Phản hồi trực tiếp cho người dùng và đồng bộ Turso/SQLite song song
+        if not interaction.response.is_done():
+            await asyncio.gather(
+                interaction.response.send_message(embed=embed, ephemeral=True),
+                persist_verify_code(interaction.client, record),
+            )
+        else:
+            await asyncio.gather(
+                interaction.followup.send(embed=embed, ephemeral=True),
+                persist_verify_code(interaction.client, record),
+            )
+        logger.info(f"🔑 Đã cấp mã xác minh Web ({code}) cho {interaction.user} ({interaction.user.id})")
+    except Exception as e:
+        logger.error(f"Lỗi khi tạo mã verify web cho {interaction.user.id}: {e}")
+        err_embed = create_embed(
+            title="❌ KHÔNG THỂ TẠO MÃ XÁC MINH",
+            description=f"Đã xảy ra lỗi khi khởi tạo mã xác minh: `{e}`. Vui lòng thử lại sau giây lát.",
+            embed_type=EmbedType.ERROR,
+        )
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(embed=err_embed, ephemeral=True)
+            else:
+                await interaction.followup.send(embed=err_embed, ephemeral=True)
+        except Exception:
+            pass
 
 
 class WebVerifyControlView(discord.ui.View):
@@ -154,34 +233,7 @@ class WebVerifyControlView(discord.ui.View):
     async def get_code_click(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
-        await interaction.response.defer(ephemeral=True)
-        try:
-            code, expires_at = await issue_new_verify_code(
-                interaction.client, interaction.user
-            )
-            embed = create_embed(
-                title="🔑 MÃ XÁC MINH ĐĂNG NHẬP WEB ORBIT",
-                description=(
-                    f"Xin chào **{interaction.user.display_name}** (`@{interaction.user.name}`),\n"
-                    f"Dưới đây là mã xác minh đăng nhập cổng **Orbit Web** của riêng bạn:\n\n"
-                    f"```yaml\n{code}\n```\n"
-                    f"• ⏱️ **Thời hạn sử dụng:** Hết hạn <t:{expires_at}:R> (lúc <t:{expires_at}:T> — **5 phút**).\n"
-                    f"• 🔄 **Tự động hủy mã cũ:** Mọi mã bạn đã tạo trước đó đều đã bị vô hiệu hóa.\n"
-                    f"• 🌐 **Cách dùng:** Quay lại cửa sổ đăng nhập trên **https://orbit-psi-black.vercel.app** và điền mã **`{code}`** vào ô xác minh."
-                ),
-                embed_type=EmbedType.SUCCESS,
-                color=0x10B981,
-                footer_text="Bảo mật 2 lớp Orbit | Vietnam • Tuyệt đối không chia sẻ mã này cho người khác",
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-        except Exception as e:
-            logger.error(f"Lỗi khi tạo mã verify web cho {interaction.user.id}: {e}")
-            err_embed = create_embed(
-                title="❌ KHÔNG THỂ TẠO MÃ XÁC MINH",
-                description=f"Đã xảy ra lỗi khi khởi tạo mã xác minh: `{e}`. Vui lòng thử lại sau giây lát.",
-                embed_type=EmbedType.ERROR,
-            )
-            await interaction.followup.send(embed=err_embed, ephemeral=True)
+        await handle_verify_button_interaction(interaction)
 
 
 class WebVerifyCog(commands.Cog, name="WebVerify"):
@@ -264,4 +316,5 @@ class WebVerifyCog(commands.Cog, name="WebVerify"):
 
 
 async def setup(bot: commands.Bot) -> None:
+    bot.add_view(WebVerifyControlView())
     await bot.add_cog(WebVerifyCog(bot))
