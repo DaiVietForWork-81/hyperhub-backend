@@ -248,7 +248,7 @@ class WebVerifyCog(commands.Cog, name="WebVerify"):
             title="🔐 XÁC MINH & LẤY MÃ ĐĂNG NHẬP CỔNG WEB — ORBIT | VIETNAM",
             description=(
                 "Để bảo vệ tài khoản thành viên và đồng bộ quyền lợi chính chủ giữa **Discord Server** ↔ **Orbit Web Hub** "
-                "(Credit Tác giả đóng góp đề, Chuỗi ngày học Streak, Study XP & Diễn Đàn), vui lòng thực hiện **2 bước** sau:\n\n"
+                "(Credit Tác giả đóng góp đề, Kho Đề Thực Chiến & Diễn Đàn 2 chiều), vui lòng thực hiện **2 bước** sau:\n\n"
                 "### 🧭 QUY TRÌNH ĐĂNG NHẬP TRÊN WEB (2 BƯỚC):\n"
                 "1️⃣ **Bước 1 — Xác minh & Liên kết tài khoản Discord:**\n"
                 "• Truy cập **https://orbit-psi-black.vercel.app** và bấm nút **Xác minh & Liên kết tài khoản Discord** (ủy quyền chính chủ qua cổng Discord OAuth2).\n\n"

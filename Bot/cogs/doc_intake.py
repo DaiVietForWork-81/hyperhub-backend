@@ -1384,8 +1384,7 @@ class DocumentIntakeCog(commands.Cog):
             "🌐 **Cổng nộp đề trực tuyến:** **https://orbit-psi-black.vercel.app/#submit_doc**\n\n"
             "**Quyền lợi khi đóng góp (Chỉ cần liên kết tài khoản Discord, không cần xác minh email):**\n"
             "• 👤 **Vinh danh Credit:** Tên & Avatar Discord hiển thị trực tiếp trên thẻ đề thi.\n"
-            "• ✍️ **Danh hiệu chính thức:** Tự động cấp role <@&1534128847157461034> trên máy chủ.\n"
-            "• 🏆 **Điểm học thuật:** Cộng ngay **+100 Study XP** trên Bảng Xếp Hạng Học Giả.\n\n"
+            "• ✍️ **Danh hiệu chính thức:** Tự động cấp role <@&1534128847157461034> trên máy chủ.\n\n"
             f"📊 **Trạng thái kho hiện tại:** `{total_docs_count:,} tài liệu` (`{total_size_human}`) • "
             "Hỗ trợ `.pdf`, `.docx`, `.doc`, `.txt` & Google Drive."
         )

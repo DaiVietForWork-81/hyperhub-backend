@@ -224,100 +224,14 @@ class StudyPracticeCog(commands.Cog, name="StudyPractice"):
             title=f"🎯 Phòng Thi Thực Chiến: {mon}",
             description=(
                 f"⏱️ **Thời gian làm bài:** `{thoi_gian} phút`\n"
-                f"👤 **Thí sinh:** {interaction.user.mention}\n"
-                f"🔥 **Chuỗi ngày học (Streak):** `{streak_val} ngày` • **Tổng XP:** `{xp_val} XP`"
+                f"👤 **Thí sinh:** {interaction.user.mention}"
                 f"{doc_info}\n"
                 "💡 *Mẹo: Nhấn **Đọc PDF & Làm Đề Trên Web** để mở chế độ Chia Đôi Màn Hình (Đọc PDF + Phiếu Trả Lời Chuẩn 2025)!*"
             ),
             color=0xA855F7,
         )
-        embed.set_footer(text="Orbit Study Engine • Đồng bộ Hồ Sơ & Streak 2 chiều Discord ↔ Web")
+        embed.set_footer(text="Orbit Study Engine • Đồng bộ Kho Đề Thi Thực Chiến 2 chiều Discord ↔ Web")
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-
-    @app_commands.command(
-        name="chuoi",
-        description="🔥 Xem Chuỗi Ngày Học (Study Streak), Cấp bậc Học Thuật & Bảng Xếp Hạng đồng bộ Web ↔ Discord",
-    )
-    async def cmd_chuoi_hoc_tap(self, interaction: discord.Interaction) -> None:
-        """Lệnh điểm danh và xem hồ sơ chuỗi ngày học ngay trên Discord."""
-        await interaction.response.defer(ephemeral=True)
-        if not hasattr(self.bot, "db") or not self.bot.db:
-            await interaction.followup.send("❌ Cơ sở dữ liệu chưa sẵn sàng.", ephemeral=True)
-            return
-
-        vn_tz = datetime.timezone(datetime.timedelta(hours=7))
-        today_str = datetime.datetime.now(vn_tz).strftime("%Y-%m-%d")
-        yesterday_str = (datetime.datetime.now(vn_tz) - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-        contrib_row = await self.bot.db.fetchone(
-            "SELECT COUNT(*) FROM documents_archive WHERE author_id = ?",
-            interaction.user.id,
-        )
-        docs_contrib = contrib_row[0] if contrib_row else 0
-
-        prof = await self.bot.db.fetchone(
-            """
-            SELECT current_streak, max_streak, last_study_date, study_xp,
-                   pomodoro_count, study_minutes, exams_completed, dream_school
-            FROM study_profiles
-            WHERE discord_id = ?
-            """,
-            interaction.user.id,
-        )
-
-        checked_in_now = False
-        if prof:
-            c_streak, m_streak, l_date, s_xp, pomo, mins, exams, dream = (
-                prof[0] or 0, prof[1] or 0, prof[2] or "", prof[3] or 0,
-                prof[4] or 0, prof[5] or 0, prof[6] or 0, prof[7] or ""
-            )
-            if l_date != today_str:
-                c_streak = (c_streak + 1) if l_date == yesterday_str else 1
-                m_streak = max(m_streak, c_streak)
-                s_xp += 50
-                checked_in_now = True
-                await self.bot.db.execute(
-                    """
-                    UPDATE study_profiles
-                    SET username = ?, display_name = ?, current_streak = ?, max_streak = ?,
-                        last_study_date = ?, study_xp = ?, docs_contributed = MAX(docs_contributed, ?), updated_at = ?
-                    WHERE discord_id = ?
-                    """,
-                    interaction.user.name, interaction.user.display_name, c_streak, m_streak,
-                    today_str, s_xp, docs_contrib, now_iso, interaction.user.id,
-                )
-        else:
-            c_streak, m_streak, s_xp, pomo, mins, exams, dream = 1, 1, 50 + docs_contrib * 50, 0, 0, 0, ""
-            checked_in_now = True
-            await self.bot.db.execute(
-                """
-                INSERT INTO study_profiles
-                (discord_id, username, display_name, avatar_url, current_streak, max_streak,
-                 last_study_date, study_xp, pomodoro_count, study_minutes, exams_completed,
-                 docs_contributed, dream_school, dream_score, updated_at)
-                VALUES (?, ?, ?, ?, 1, 1, ?, ?, 0, 0, 0, ?, '', '', ?)
-                """,
-                interaction.user.id, interaction.user.name, interaction.user.display_name,
-                str(interaction.user.display_avatar.url) if interaction.user.display_avatar else "",
-                today_str, s_xp, docs_contrib, now_iso,
-            )
-
-        status_line = "✨ **Đã điểm danh hôm nay (+50 XP)!**" if checked_in_now else "✅ **Hôm nay bạn đã duy trì chuỗi thành công!**"
-        embed = discord.Embed(
-            title=f"🔥 Hồ Sơ Học Thuật & Chuỗi Ngày Học — {interaction.user.display_name}",
-            description=(
-                f"{status_line}\n\n"
-                f"• 🔥 **Chuỗi hiện tại:** `{c_streak} ngày liên tiếp` (Kỷ lục: `{m_streak} ngày`)\n"
-                f"• ⚡ **Điểm Kinh Nghiệm:** `{s_xp} XP`\n"
-                f"• 📝 **Đề đã luyện:** `{exams} đề` • **Pomodoro:** `{pomo} phiên ({mins} phút)`\n"
-                f"• 📚 **Đề đóng góp cho kho:** `{docs_contrib} đề`\n"
-                + (f"• 🎯 **Mục tiêu NV1:** `{dream}`\n" if dream else "")
-            ),
-            color=0xFF4FCB,
-        )
-        embed.set_footer(text="Đồng bộ 100% với Orbit Web Hub (orbit-psi-black.vercel.app/hub)")
-        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

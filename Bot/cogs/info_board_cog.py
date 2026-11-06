@@ -199,7 +199,7 @@ class InfoBoardCog(commands.Cog, name="InfoBoard"):
                     "• 🌐 **Orbit Web Hub (`orbit-psi-black.vercel.app`)** — Trung tâm tra cứu kho đề, nộp đề vinh danh tác giả, diễn đàn học thuật và phòng tự học Pomodoro.\n"
                     "• 📚 **Kho Đề Thi Thực Chiến (Doc Vault)** — Hơn 184+ đề thi THPT/THCS/HSG/Chuyên chuẩn Bộ GD&ĐT 2025, đọc PDF và bấm giờ làm bài trực tiếp.\n"
                     "• 💡 **Diễn Đàn Học Thuật 2 Chiều** — Thảo luận bài tập, hỏi đáp & chia sẻ kiến thức đồng bộ tức thì giữa Web và <#1535557885721841744>.\n"
-                    "• ⏱️ **Phòng Tự Học & Bảng Xếp Hạng** — Duy trì chuỗi ngày học (Streak), tích lũy XP và vinh danh Học Giả đóng góp."
+                    "• ⏱️ **Phòng Tự Học & Vinh Danh Tác Giả** — Không gian tập trung Pomodoro 25/5 và vinh danh Học Giả đóng góp đề thi."
                 ),
                 color=0xA855F7,
             )
@@ -215,7 +215,7 @@ class InfoBoardCog(commands.Cog, name="InfoBoard"):
                     "• <#1534148289450741770> / <#1535557678615756903> — Thông báo & cập nhật mới nhất.\n\n"
                     "📚 **KHO ĐỀ THI & HỌC THUẬT**\n"
                     "• <#1567532842617937931> — Cổng tra cứu, xem trước & tải đề thi trên Web Hub.\n"
-                    "• <#1535278288828633138> — Đóng góp đề thi, nhận **Credit vĩnh viễn + 100 XP + Role ✍️ Tác giả**.\n"
+                    "• <#1535278288828633138> — Đóng góp đề thi, nhận **Credit vĩnh viễn + Role ✍️ Tác giả**.\n"
                     "• <#1544204803016630302> — Tổng hợp lộ trình ôn tập & tài liệu trọng tâm.\n\n"
                     "💬 **CỘNG ĐỒNG & TIỆN ÍCH**\n"
                     "• <#1532265332545425561> — Trò chuyện chung & giao lưu thành viên.\n"

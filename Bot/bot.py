@@ -123,7 +123,7 @@ COMMAND_ALLOWLIST = {
     "kick", "ban", "unban", "mute", "unmute", "reset",
     "warn", "deletewarn", "warntest",
     "timde", "layde", "timtailieu", "dongbokhode", "gothailieu",
-    "luyende", "chuoi",
+    "luyende",
     # Lệnh Thi Đấu Tin Học (HyperHub CP Arena & Ranked Duel 1:1)
     "profile", "search", "view", "setup_mode",
 }
