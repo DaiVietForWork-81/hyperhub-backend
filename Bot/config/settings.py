@@ -88,6 +88,10 @@ if HAS_PYDANTIC:
             default=1534148186942214226,
             description="Kênh #📄・info (Sổ tay hướng dẫn & bảng thông tin Orbit)",
         )
+        WEB_VERIFY_CHANNEL_ID: int = Field(
+            default=1568268605085454416,
+            description="Kênh #🔐・verify trong thư mục 1534145110642524250 để lấy mã xác minh đăng nhập Web (hiệu lực 5 phút)",
+        )
         DATABASE_ARCHIVE_CHANNEL_ID: int = Field(
             default=1548627763467128912,
             description="Kênh #database (Kho lưu trữ đề thi, lời giải và tài liệu)",
@@ -521,6 +525,9 @@ else:
             )
             self.INFO_CHANNEL_ID = int(
                 os.environ.get("INFO_CHANNEL_ID", "1534148186942214226") or "1534148186942214226"
+            )
+            self.WEB_VERIFY_CHANNEL_ID = int(
+                os.environ.get("WEB_VERIFY_CHANNEL_ID", "1568268605085454416") or "1568268605085454416"
             )
             self.DATABASE_ARCHIVE_CHANNEL_ID = int(
                 os.environ.get("DATABASE_ARCHIVE_CHANNEL_ID", "1548627763467128912") or "1548627763467128912"

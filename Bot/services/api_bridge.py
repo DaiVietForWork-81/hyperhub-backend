@@ -320,7 +320,7 @@ class BotAPIBridge:
         if request.method in ("POST", "DELETE", "PATCH", "PUT"):
             # Endpoint upload, import_gdrive, notify, account/link, study, forum, admin và system endpoints sẽ tự kiểm tra xác thực bên trong handler
             if (
-                request.path in ("/api/documents/upload", "/api/documents/import_gdrive", "/api/notify", "/api/account/link", "/api/account/verify-member", "/api/study/checkin")
+                request.path in ("/api/documents/upload", "/api/documents/import_gdrive", "/api/notify", "/api/account/link", "/api/account/verify-member", "/api/account/verify-code", "/api/study/checkin")
                 or request.path.startswith("/api/study/")
                 or request.path.startswith("/api/forum/")
                 or request.path.startswith("/api/admin/")
@@ -352,6 +352,7 @@ class BotAPIBridge:
         self.app.router.add_post("/api/notify", self.handle_notify)
         self.app.router.add_post("/api/account/link", self.handle_account_link)
         self.app.router.add_post("/api/account/verify-member", self.handle_verify_member)
+        self.app.router.add_post("/api/account/verify-code", self.handle_verify_code)
         self.app.router.add_get("/api/account/me", self.handle_account_me)
         self.app.router.add_get("/api/skills", self.handle_get_skills)
         # Endpoints Diễn Đàn Orbit (Đồng bộ 2 chiều Web <-> Discord #💡・diễn-đàn)
@@ -4559,6 +4560,9 @@ class BotAPIBridge:
         return web.json_response(
             {
                 "success": True,
+                "require_code": True,
+                "verify_channel_id": str(getattr(settings, "WEB_VERIFY_CHANNEL_ID", 1568268605085454416)),
+                "verify_channel_url": f"https://discord.com/channels/{DISCORD_GUILD_ID}/{getattr(settings, 'WEB_VERIFY_CHANNEL_ID', 1568268605085454416)}",
                 "user": {
                     "id": str(member.id),
                     "username": member.name,
@@ -4567,6 +4571,131 @@ class BotAPIBridge:
                     "email": f"{member.name}@discord.orbit.vn",
                     "verified": True,
                     "roles": roles,
+                    "connectedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                },
+            }
+        )
+
+    async def handle_verify_code(self, request: web.Request) -> web.Response:
+        """POST /api/account/verify-code: Xác thực mã OTP 6 số (hiệu lực 5 phút) lấy từ kênh #🔐・verify."""
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+        discord_id = str(body.get("discord_id") or "").strip()
+        clean_code = str(body.get("code") or "").strip().replace(" ", "")
+
+        if not discord_id or not clean_code:
+            return web.json_response(
+                {
+                    "error": "Missing parameters",
+                    "message": "Vui lòng nhập đầy đủ mã xác minh 6 số từ kênh #🔐・verify.",
+                },
+                status=400,
+            )
+
+        row_code = None
+        row_expires = 0
+        row_username = ""
+        row_display = ""
+        row_avatar = ""
+
+        # 1. Kiểm tra trên SQLite local
+        try:
+            if hasattr(self.bot, "db") and self.bot.db:
+                row = await self.bot.db.fetchone(
+                    "SELECT code, expires_at, username, display_name, avatar_url FROM web_verify_codes WHERE discord_id = ? LIMIT 1",
+                    discord_id,
+                )
+                if row:
+                    row_code = str(row[0]).strip()
+                    row_expires = int(row[1] or 0)
+                    row_username = str(row[2] or "")
+                    row_display = str(row[3] or "")
+                    row_avatar = str(row[4] or "")
+        except Exception as e_sql:
+            logger.debug(f"SQLite verify_code query error: {e_sql}")
+
+        # 2. Fallback kiểm tra trên Turso Cloud nếu chưa thấy
+        if not row_code:
+            try:
+                from database.turso_client import turso_db
+                if turso_db.is_configured:
+                    t_rows = await turso_db.fetchall(
+                        "SELECT code, expires_at, username, display_name, avatar_url FROM web_verify_codes WHERE discord_id = ? LIMIT 1",
+                        discord_id,
+                    )
+                    if t_rows:
+                        tr = t_rows[0]
+                        row_code = str(tr.get("code") or "").strip()
+                        row_expires = int(tr.get("expires_at") or 0)
+                        row_username = str(tr.get("username") or "")
+                        row_display = str(tr.get("display_name") or "")
+                        row_avatar = str(tr.get("avatar_url") or "")
+            except Exception as e_turso:
+                logger.debug(f"Turso verify_code query error: {e_turso}")
+
+        if not row_code:
+            return web.json_response(
+                {
+                    "error": "No active code",
+                    "message": "Bạn chưa lấy mã xác minh hoặc mã đã được sử dụng. Hãy vào kênh #🔐・verify trên Discord và bấm nút 'Lấy Mã Đăng Nhập Web (5 Phút) 🔑'!",
+                },
+                status=400,
+            )
+
+        now_sec = int(time.time())
+        if now_sec > row_expires:
+            try:
+                if hasattr(self.bot, "db") and self.bot.db:
+                    await self.bot.db.execute("DELETE FROM web_verify_codes WHERE discord_id = ?", discord_id)
+                from database.turso_client import turso_db
+                if turso_db.is_configured:
+                    await turso_db.execute("DELETE FROM web_verify_codes WHERE discord_id = ?", discord_id)
+            except Exception:
+                pass
+            return web.json_response(
+                {
+                    "error": "Code expired",
+                    "message": "Mã xác minh đã hết hạn (quá 5 phút). Vui lòng bấm nút lấy mã mới trong kênh #🔐・verify!",
+                },
+                status=400,
+            )
+
+        if row_code != clean_code:
+            return web.json_response(
+                {
+                    "error": "Invalid code",
+                    "message": "Mã xác minh không chính xác (hoặc đã bị hủy do bạn vừa ấn tạo mã mới). Vui lòng nhập mã 6 số mới nhất!",
+                },
+                status=400,
+            )
+
+        # Mã hợp lệ -> Xóa mã ngay sau khi sử dụng (One-Time Code)
+        try:
+            if hasattr(self.bot, "db") and self.bot.db:
+                await self.bot.db.execute("DELETE FROM web_verify_codes WHERE discord_id = ?", discord_id)
+        except Exception:
+            pass
+        try:
+            from database.turso_client import turso_db
+            if turso_db.is_configured:
+                await turso_db.execute("DELETE FROM web_verify_codes WHERE discord_id = ?", discord_id)
+        except Exception:
+            pass
+
+        return web.json_response(
+            {
+                "success": True,
+                "verified_code": True,
+                "user": {
+                    "id": discord_id,
+                    "username": row_username or discord_id,
+                    "global_name": row_display or row_username or discord_id,
+                    "avatar": row_avatar or "https://orbit-psi-black.vercel.app/server_icon.png",
+                    "email": f"{row_username or discord_id}@discord.orbit.vn",
+                    "verified": True,
                     "connectedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 },
             }

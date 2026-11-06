@@ -102,6 +102,7 @@ INITIAL_EXTENSIONS = [
     "cogs.lists",               # Danh sách lệnh
     # "cogs.exam_generator_cog",  # Tạo đề thi AI (Đã ngừng sử dụng)
     "cogs.info_board_cog",      # Bảng thông tin & Role Info
+    "cogs.web_verify_cog",      # 🔐 Kênh #verify (Cấp mã xác minh đăng nhập Web 5 phút)
     "cogs.study_practice_cog",  # 🎯 Tính năng Học Tập & Luyện Đề
     # === HYPERHUB (ORBIT | TIN HỌC) — ĐẤU TRƯỜNG THI ĐẤU TIN HỌC (CP ARENA & DUEL 1:1) ===
     "cogs.codeforces",          # Liên kết tài khoản Codeforces tự động (#✅・accounts)
@@ -308,11 +309,13 @@ class CompetitiveProgrammingBot(commands.Bot):
         from cogs.doc_intake import DocumentIntakeControlView
         from cogs.link_scanner import LinkScannerControlView
         from cogs.info_board_cog import InfoBoardRefreshView
+        from cogs.web_verify_cog import WebVerifyControlView
         from services.system_sync_service import SystemControlView, SystemUpdateView
 
         self.add_view(DocumentIntakeControlView())
         self.add_view(LinkScannerControlView())
         self.add_view(InfoBoardRefreshView())
+        self.add_view(WebVerifyControlView())
         self.add_view(SystemControlView())
         self.add_view(SystemUpdateView())
 
@@ -386,6 +389,11 @@ class CompetitiveProgrammingBot(commands.Bot):
         help_cog = self.get_cog("Help")
         if help_cog and hasattr(help_cog, "auto_setup_admin_guide"):
             setup_items.append(("#admin-guide", help_cog.auto_setup_admin_guide(purge=False)))
+
+        # 4b. Kênh #🔐・verify (Lấy mã xác minh đăng nhập Web 5 phút trong thư mục 1534145110642524250)
+        web_verify_cog = self.get_cog("WebVerify")
+        if web_verify_cog and hasattr(web_verify_cog, "auto_setup_verify_channel"):
+            setup_items.append(("#🔐・verify", web_verify_cog.auto_setup_verify_channel(purge=False)))
 
         # 5. Đấu Trường Thi Đấu Tin Học (HyperHub CP Arena — tự động kích hoạt khi có kênh)
         cf_cog = self.get_cog("Codeforces")
