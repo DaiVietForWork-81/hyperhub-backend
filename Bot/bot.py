@@ -559,8 +559,8 @@ class CompetitiveProgrammingBot(commands.Bot):
 
         roles_to_add = []
 
-        if member.guild.id == 1567904557076316250:
-            # CLB Orbit | Toán: gán role chính "🎓 Học Sinh"
+        if member.guild.id != 1532265330079174697:
+            # Các CLB chuyên môn Orbit (Orbit | Toán, Văn, Anh, ...): tự động gán role chính "🎓 Học Sinh"
             hs_role = discord.utils.find(
                 lambda r: "học sinh" in r.name.lower(),
                 member.guild.roles,

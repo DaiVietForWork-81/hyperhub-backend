@@ -2785,22 +2785,76 @@ class BotAPIBridge:
         row_id_res = await self.bot.db.fetchone("SELECT last_insert_rowid()")
         doc_id = row_id_res[0] if row_id_res else 0
 
-        # Tự động cấp role Tác giả (1534128847157461034) & cộng điểm XP trong study_profiles
+        # Liên thông tự động sang các CLB Chuyên Môn tương ứng (VD: Đề Toán -> Orbit | Toán #📥・kho-đề-toán)
+        try:
+            subj_lower = (detected_subject or "").lower()
+            club_keyword = ""
+            if "toán" in subj_lower:
+                club_keyword = "toán"
+            elif "văn" in subj_lower:
+                club_keyword = "văn"
+            elif "anh" in subj_lower:
+                club_keyword = "anh"
+            elif "lý" in subj_lower or "vật lí" in subj_lower:
+                club_keyword = "lý"
+            elif "hóa" in subj_lower:
+                club_keyword = "hóa"
+            elif "sinh" in subj_lower:
+                club_keyword = "sinh"
+            elif "sử" in subj_lower or "địa" in subj_lower:
+                club_keyword = "ls đl"
+            elif "tin" in subj_lower:
+                club_keyword = "tin"
+
+            if club_keyword:
+                for g in list(self.bot.guilds):
+                    if g.id == 1532265330079174697:
+                        continue
+                    if club_keyword in g.name.lower() or (club_keyword == "toán" and g.id == 1567904557076316250):
+                        vault_chan = discord.utils.find(
+                            lambda c: isinstance(c, discord.TextChannel) and "kho-đề" in c.name.lower(),
+                            g.channels,
+                        )
+                        if vault_chan:
+                            credit_str = f"**{uploader_name}** (<@{uploader_id}>)" if uploader_id > 0 else f"**{uploader_name}**"
+                            notify_embed = discord.Embed(
+                                title=f"🆕 ĐỀ {detected_subject.upper()} MỚI: {file_name}",
+                                description=(
+                                    f"• **Khối / Cấp độ:** `{detected_grade}` • **Phân loại:** `{exam_type_str}`
+"
+                                    f"• **Quy mô:** `{question_count} câu` • `{page_count} trang`
+"
+                                    f"• 👤 **Người đóng góp (Credit):** {credit_str}
+
+"
+                                    f"👉 **Xem PDF & Tải đề ngay:** **https://orbit-psi-black.vercel.app/#exam-{doc_id}**"
+                                ),
+                                color=0xA855F7,
+                            )
+                            notify_embed.set_footer(text=f"{g.name} • Đồng bộ tự động từ Kho Đề Orbit Web")
+                            await vault_chan.send(embed=notify_embed)
+        except Exception as ce:
+            logger.debug(f"Cross-post to subject club error: {ce}")
+
+        # Tự động cấp role Tác giả trên CẢ Server Chính (Orbit | Vietnam) và các CLB Chuyên Môn (Orbit | Toán, ...)
         if uploader_id > 0:
-            try:
-                guild = self.bot.get_guild(1532265330079174697)
-                if guild:
-                    author_role = guild.get_role(1534128847157461034)
-                    member = guild.get_member(uploader_id)
+            for g in list(self.bot.guilds):
+                try:
+                    author_role = g.get_role(1534128847157461034) if g.id == 1532265330079174697 else None
+                    if author_role is None:
+                        author_role = discord.utils.find(lambda r: "tác giả" in r.name.lower(), g.roles)
+                    if not author_role:
+                        continue
+                    member = g.get_member(uploader_id)
                     if member is None:
                         try:
-                            member = await guild.fetch_member(uploader_id)
+                            member = await g.fetch_member(uploader_id)
                         except Exception:
-                            pass
-                    if member and author_role and author_role not in member.roles:
+                            member = None
+                    if member and author_role not in member.roles:
                         await member.add_roles(author_role, reason="Đóng góp đề thi lên Kho Đề Orbit Web")
-            except Exception as re:
-                logger.debug(f"Auto-assign author role error: {re}")
+                except Exception as re:
+                    logger.debug(f"Auto-assign author role error on guild {g.id}: {re}")
 
             try:
                 today_str, _ = self._get_vn_today_str()
@@ -4385,40 +4439,51 @@ class BotAPIBridge:
                 status=400,
             )
 
-        guild = self.bot.get_guild(DISCORD_GUILD_ID) or (self.bot.guilds[0] if self.bot.guilds else None)
-        if not guild:
+        if not self.bot.guilds:
             return web.json_response(
                 {"error": "Guild unavailable", "message": "Bot đang kết nối tới máy chủ Discord, vui lòng thử lại sau vài giây."},
                 status=503,
             )
 
+        # Tìm thành viên trên cả Server chính (Orbit | Vietnam) và các CLB Chuyên Môn (Orbit | Toán, ...)
+        ordered_guilds = sorted(
+            list(self.bot.guilds),
+            key=lambda g: 0 if g.id == DISCORD_GUILD_ID else (1 if g.id == 1567904557076316250 else 2),
+        )
+
         member = None
         clean_id = identifier.lstrip("<@!").rstrip(">").strip()
         if clean_id.isdigit():
             uid = int(clean_id)
-            member = guild.get_member(uid)
-            if not member:
-                try:
-                    member = await guild.fetch_member(uid)
-                except Exception:
-                    member = None
+            for g in ordered_guilds:
+                member = g.get_member(uid)
+                if not member:
+                    try:
+                        member = await g.fetch_member(uid)
+                    except Exception:
+                        member = None
+                if member:
+                    break
         else:
             q_lower = identifier.lstrip("@").strip().lower()
-            for m in guild.members:
-                if (
-                    m.name.lower() == q_lower
-                    or (m.global_name and m.global_name.lower() == q_lower)
-                    or m.display_name.lower() == q_lower
-                ):
-                    member = m
+            for g in ordered_guilds:
+                for m in g.members:
+                    if (
+                        m.name.lower() == q_lower
+                        or (m.global_name and m.global_name.lower() == q_lower)
+                        or m.display_name.lower() == q_lower
+                    ):
+                        member = m
+                        break
+                if member:
                     break
-            if not member:
                 try:
-                    found = await guild.query_members(query=identifier.lstrip("@").strip(), limit=5)
+                    found = await g.query_members(query=identifier.lstrip("@").strip(), limit=5)
                     if found:
                         member = found[0]
+                        break
                 except Exception:
-                    member = None
+                    pass
 
         if not member or member.bot:
             return web.json_response(
