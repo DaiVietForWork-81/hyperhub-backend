@@ -199,7 +199,7 @@ def _build_payload_for_model(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "max_tokens": max(2048, base_tokens * 4) if is_deep_reasoning else base_tokens,
+        "max_tokens": 16384 if is_deep_reasoning else max(2048, base_tokens),
         "temperature": 0.0,
     }
     if is_deep_reasoning:
@@ -333,8 +333,15 @@ class CloudExamVerifier:
             return None
 
         clean_text = raw_text.strip()
-        if len(clean_text) > 4200:
-            snippet = clean_text[:3200] + "\n...\n" + clean_text[-900:]
+        if len(clean_text) > 36000:
+            mid = len(clean_text) // 2
+            snippet = (
+                clean_text[:18000]
+                + "\n...[PHẦN GIỮA ĐỀ]...\n"
+                + clean_text[mid - 5000 : mid + 5000]
+                + "\n...[PHẦN CUỐI ĐỀ & ĐÁP ÁN]...\n"
+                + clean_text[-8000:]
+            )
         else:
             snippet = clean_text
 
@@ -448,7 +455,11 @@ class CloudExamVerifier:
             for local_i, orig_idx in enumerate(chunk_indices):
                 fn = items[orig_idx].get("file_name", "")
                 rt = items[orig_idx].get("raw_text", "").strip()
-                snippet = rt[:1500] + ("\n...\n" + rt[-400:] if len(rt) > 1900 else "")
+                if len(rt) > 12000:
+                    mid = len(rt) // 2
+                    snippet = rt[:6000] + "\n...\n" + rt[mid - 1500 : mid + 1500] + "\n...\n" + rt[-3000:]
+                else:
+                    snippet = rt
                 blocks.append(f"--- ĐỀ SỐ {local_i} ---\nTên tệp: {fn}\nNội dung:\n{snippet}")
 
             batch_prompt = (
