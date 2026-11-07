@@ -531,8 +531,8 @@ def setup_orbit_math_guild(guild_id: str = MATH_GUILD_ID) -> dict:
             "description": (
                 "Chia sẻ đề thi thử Toán của trường/sở hoặc tài liệu chuyên đề lên hệ thống tại:\n\n"
                 "🌐 **Cổng nộp đề:** **https://orbit-psi-black.vercel.app/#submit_doc**\n\n"
-                "• **Điều kiện:** Chỉ cần liên kết tài khoản Discord (qua Username/ID hoặc OAuth2, **không cần xác minh email**).\n"
-                "• **Quyền lợi:** Hiển thị **Tên + Avatar Discord (Credit)** vĩnh viễn trên thẻ đề thi, cộng **+100 Study XP** và nhận role "
+                "• **Điều kiện:** Chỉ cần liên kết tài khoản Discord (xác thực 2 bước qua kênh `#🔐・verify`).\n"
+                "• **Quyền lợi:** Hiển thị **Tên + Avatar Discord (Credit)** vĩnh viễn trên thẻ đề thi và nhận role "
                 + _rm("author", "✍️ Tác Giả")
                 + "."
             ),
@@ -568,8 +568,7 @@ def setup_orbit_math_guild(guild_id: str = MATH_GUILD_ID) -> dict:
                 "Gõ trực tiếp các lệnh Slash (`/`) tại kênh này:\n\n"
                 "• `/timde <từ khóa>` — Tìm đề Toán (VD: `/timde Hàm số 12`, `/timde HSG Toán 9`).\n"
                 "• `/layde <id>` — Lấy file đề thi theo mã ID.\n"
-                "• `/luyende` — Bốc đề Toán ngẫu nhiên để luyện tập.\n"
-                "• `/chuoi` — Xem chuỗi ngày tự học (Streak) & điểm XP của bạn."
+                "• `/luyende` — Bốc đề Toán ngẫu nhiên để luyện tập."
             ),
             "color": 0x10B981,
             "footer": {"text": "Orbit | Toán • Đồng bộ trực tiếp với Orbit Web Hub"},

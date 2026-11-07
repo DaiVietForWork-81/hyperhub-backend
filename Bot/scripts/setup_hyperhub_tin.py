@@ -538,7 +538,7 @@ def setup_hyperhub_guild(guild_id: str) -> dict:
                 "description": (
                     "Chia sẻ đề thi HSG Tin Học, đề Chuyên Tin hoặc tài liệu Cấu trúc dữ liệu & Giải thuật tại:\n\n"
                     "🌐 **Cổng nộp đề:** **https://orbit-psi-black.vercel.app/#submit_doc**\n\n"
-                    "• Hiển thị **Tên + Avatar Discord (Credit)** vĩnh viễn trên thẻ đề, cộng **+100 Study XP** và tự động nhận role "
+                    "• Hiển thị **Tên + Avatar Discord (Credit)** vĩnh viễn trên thẻ đề và tự động nhận role "
                     + _rm("author", "✍️ Tác Giả")
                     + "."
                 ),
@@ -581,8 +581,7 @@ def setup_hyperhub_guild(guild_id: str) -> dict:
                     "**📚 LỆNH KHO ĐỀ & LUYỆN TẬP:**\n"
                     "• `/timde <từ khóa>` — Tìm đề thi Tin Học / HSG / Chuyên Tin.\n"
                     "• `/layde <id>` — Tải file đề thi theo mã ID.\n"
-                    "• `/luyende` — Bốc đề ngẫu nhiên rèn phản xạ.\n"
-                    "• `/chuoi` — Xem chuỗi ngày học tập (Streak) & Study XP."
+                    "• `/luyende` — Bốc đề ngẫu nhiên rèn phản xạ."
                 ),
                 "color": 0x10B981,
                 "footer": {"text": "HyperHub | Orbit Tin Học • Hệ thống chấm tự động 17 ngôn ngữ"},

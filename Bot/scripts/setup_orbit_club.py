@@ -622,10 +622,10 @@ def setup_orbit_club_guild(club_code: str, guild_id: str) -> dict:
                 "description": (
                     f"Chia sẻ đề thi thử môn **{club['full_subject']}** của trường/sở hoặc tài liệu chuyên đề lên hệ thống tại:\n\n"
                     "🌐 **Cổng nộp đề:** **https://orbit-psi-black.vercel.app/#submit_doc**\n\n"
-                    "• **Điều kiện:** Chỉ cần liên kết tài khoản Discord (qua Username/ID hoặc OAuth2, **không cần xác minh email**).\n"
+                    "• **Điều kiện:** Chỉ cần liên kết tài khoản Discord (xác thực 2 bước qua kênh `#🔐・verify`).\n"
                     "• **Quyền lợi:** Hiển thị **Tên + Avatar Discord (Credit)** vĩnh viễn trên thẻ đề thi, tự động vinh danh tại <#"
                     + chan_map.get("get_docs", "")
-                    + ">, cộng **+100 Study XP** và nhận role "
+                    + "> và nhận role "
                     + _rm("author", "✍️ Tác Giả")
                     + "."
                 ),
@@ -663,8 +663,7 @@ def setup_orbit_club_guild(club_code: str, guild_id: str) -> dict:
                     "Gõ trực tiếp các lệnh Slash (`/`) tại kênh này:\n\n"
                     f"• `/timde <từ khóa>` — Tìm đề {short} (VD: `/timde {short} 12`, `/timde HSG {short}`).\n"
                     "• `/layde <id>` — Lấy file đề thi theo mã ID.\n"
-                    "• `/luyende` — Bốc đề ngẫu nhiên để luyện tập.\n"
-                    "• `/chuoi` — Xem chuỗi ngày tự học (Streak) & điểm XP của bạn."
+                    "• `/luyende` — Bốc đề ngẫu nhiên để luyện tập."
                 ),
                 "color": 0x10B981,
                 "footer": {"text": f"{club['guild_name']} • Đồng bộ trực tiếp với Orbit Web Hub"},
