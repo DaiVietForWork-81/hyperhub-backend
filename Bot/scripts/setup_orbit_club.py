@@ -630,7 +630,7 @@ def setup_orbit_club_guild(club_code: str, guild_id: str) -> dict:
                     + "."
                 ),
                 "color": 0x9B5CFF,
-                "footer": {"text": f"{club['guild_name']} • Tự động kiểm tra trùng lặp SHA-256"},
+                "footer": {"text": f"{club['guild_name']} • Kho Đề Thi & Tài Liệu Học Tập Mở"},
             }
         ],
     )

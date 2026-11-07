@@ -1394,7 +1394,7 @@ class DocumentIntakeCog(commands.Cog):
             description=guide_desc,
             color=0x9B5CFF,
         )
-        embed_guide.set_footer(text="Orbit | Vietnam • Phân loại tự động chuẩn Bộ GD&ĐT 2025 & chống trùng lặp SHA-256")
+        embed_guide.set_footer(text="Orbit | Vietnam • Kho Đề Thi & Tài Liệu Học Tập Mở")
 
         return [embed_guide]
 
@@ -1660,8 +1660,7 @@ class DocumentIntakeCog(commands.Cog):
                         submission_reply_message=(
                             f"🔁 **TÀI LIỆU TRÙNG LẶP!**\n"
                             f"Tệp `{file_name or 'này'}` đã được nộp trước đó bởi **{dup_author}** vào `{dup_time}`.\n"
-                            f"🔗 **Bài đăng gốc:** {dup_jump}\n\n"
-                            f"*Hệ thống đã phát hiện trùng lặp bằng SHA-256 hash: `{file_hash[:16]}...`*"
+                            f"🔗 **Bài đăng gốc:** {dup_jump}"
                         ),
                     )
                     # Return a minimal dummy report for duplicates
@@ -1715,8 +1714,7 @@ class DocumentIntakeCog(commands.Cog):
                     routing.submission_reply_message = (
                         f"🔁 **TÀI LIỆU TRÙNG NỘI DUNG ĐỀ THI!**\n"
                         f"Nội dung văn bản đề này hoàn toàn trùng khớp với đề **{dup_title}** đã được nộp trước đó bởi **{dup_author}** vào `{dup_time}`.\n"
-                        f"🔗 **Bài đăng gốc:** {dup_jump}\n\n"
-                        f"*Hệ thống đã phát hiện trùng lặp bằng Layer 2 Semantic Content Hash: `{report.content_hash[:16]}...`*"
+                        f"🔗 **Bài đăng gốc:** {dup_jump}"
                     )
                     report.human_summary = f"Tài liệu trùng nội dung đề thi với bài đăng của {dup_author}"
                     return report, routing, None
@@ -1744,13 +1742,6 @@ class DocumentIntakeCog(commands.Cog):
 
                 post_content += format_rich_exam_metadata(report)
 
-                # Hiển thị kết quả Hội đồng Thẩm định 3+1
-                if hasattr(report, "quorum_arbitration") and report.quorum_arbitration:
-                    qa = report.quorum_arbitration
-                    if qa.get("is_unanimous"):
-                        post_content += "\n🏛️ **Hội đồng 3+1:** `🟢 Đồng thuận tuyệt đối (3/3)`"
-                    else:
-                        post_content += f"\n🏛️ **Hội đồng 3+1:** `⚖️ Trọng tài đối soát (Pass 4: {qa.get('final_subject_vi', 'Chung')})`"
 
                 try:
                     audit_view = DocInspectorAuditView(report)

@@ -537,7 +537,7 @@ def setup_orbit_math_guild(guild_id: str = MATH_GUILD_ID) -> dict:
                 + "."
             ),
             "color": 0x9B5CFF,
-            "footer": {"text": "Orbit | Toán • Tự động kiểm tra trùng lặp SHA-256"},
+            "footer": {"text": "Orbit | Toán • Kho Đề Thi & Tài Liệu Học Tập Mở"},
         }
     ]
     _sync_panel(chan_map.get("submit_docs"), submit_docs_embeds)

@@ -543,7 +543,7 @@ def setup_hyperhub_guild(guild_id: str) -> dict:
                     + "."
                 ),
                 "color": 0x9B5CFF,
-                "footer": {"text": "HyperHub | Orbit Tin Học • Tự động kiểm tra trùng lặp SHA-256"},
+                "footer": {"text": "HyperHub | Orbit Tin Học • Kho Đề Thi & Tài Liệu Học Tập Mở"},
             }
         ],
     )
