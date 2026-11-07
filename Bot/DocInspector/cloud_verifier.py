@@ -305,44 +305,8 @@ class CloudExamVerifier:
         local_confidence: float,
         has_conflict: bool = False,
     ) -> bool:
-        fp = _make_fingerprint(file_name, raw_text)
-        with _LOCK:
-            if fp in _VERIFICATION_CACHE:
-                return True
-
-        if has_conflict or local_confidence < 0.90:
-            return True
-        if local_subject in ("GENERAL", "UNKNOWN", "") or local_grade in (
-            "Không xác định",
-            "UNKNOWN",
-            "",
-        ):
-            return True
-
-        head_lower = f"{file_name} {(raw_text or '')[:1200]}".lower()
-        ambiguous_markers = (
-            "chuyên",
-            "chuyen",
-            "tuyển sinh",
-            "tuyen sinh",
-            "vào 10",
-            "vao 10",
-            "vào lớp 10",
-            "khtn",
-            "khoa học tự nhiên",
-            "lịch sử và địa",
-            "khảo sát",
-            "khao sat",
-            "kscl",
-        )
-        if any(m in head_lower for m in ambiguous_markers):
-            return True
-
-        stats = cls.get_quota_stats()
-        if stats["rpm_used"] < 20 and stats["rpd_used"] < 8000:
-            return True
-
-        return False
+        """Luôn bật quét 100% mọi tệp hợp lệ qua Model 550B (token không giới hạn, đã có bộ điều tốc 45s/RPM bảo vệ)."""
+        return bool(raw_text and len(raw_text.strip()) >= 25)
 
     @classmethod
     def verify_exam(
