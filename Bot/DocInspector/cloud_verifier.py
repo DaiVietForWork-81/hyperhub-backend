@@ -33,8 +33,8 @@ def _get_nvidia_credentials() -> tuple[str, str, str, str]:
 
     api_key = os.environ.get("NVIDIA_API_KEY", "").strip()
     base_url = os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1").strip().rstrip("/")
-    primary_model = os.environ.get("NVIDIA_PRIMARY_MODEL", "nvidia/nemotron-3.5-bolt-e4b").strip()
-    fallback_model = os.environ.get("NVIDIA_FALLBACK_MODEL", "mistralai/mistral-large-4-1t-a52b").strip()
+    primary_model = os.environ.get("NVIDIA_PRIMARY_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b").strip()
+    fallback_model = os.environ.get("NVIDIA_FALLBACK_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b").strip()
 
     if not api_key:
         try:
@@ -104,7 +104,7 @@ class CloudExamVerifier:
             "Chỉ trả về đúng 1 JSON theo quy định:"
         )
 
-        for model_name in (primary_model, fallback_model):
+        for model_name in (primary_model, fallback_model, "nvidia/nemotron-3.5-bolt-e4b"):
             if not model_name:
                 continue
             try:
@@ -118,6 +118,10 @@ class CloudExamVerifier:
                         ],
                         "max_tokens": 260,
                         "temperature": 0.0,
+                        "chat_template_kwargs": {
+                            "thinking": False,
+                            "enable_thinking": False,
+                        },
                     }).encode("utf-8"),
                     headers={
                         "Authorization": f"Bearer {api_key}",
