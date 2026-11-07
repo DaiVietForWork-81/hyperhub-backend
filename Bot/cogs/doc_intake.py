@@ -360,10 +360,9 @@ class DocumentIntakeCog(commands.Cog):
             try:
                 unverified_rows = await self.bot.db.fetchall(
                     """
-                    SELECT id, file_name, raw_text, subject, estimated_level
+                    SELECT id, file_name, COALESCE(raw_text, ''), subject, estimated_level
                     FROM documents_archive
-                    WHERE raw_text IS NOT NULL AND LENGTH(raw_text) > 30
-                      AND (quorum_status IS NULL OR quorum_status NOT IN ('CLOUD_DEEP_VERIFIED', 'UNANIMOUS_3_3'))
+                    WHERE (quorum_status IS NULL OR quorum_status NOT IN ('CLOUD_DEEP_VERIFIED', 'UNANIMOUS_3_3'))
                     ORDER BY id DESC
                     LIMIT 12
                     """
@@ -372,7 +371,7 @@ class DocumentIntakeCog(commands.Cog):
                     CloudExamVerifier.enqueue_for_45s_batch(
                         doc_id=r_id,
                         file_name=r_fname or f"doc_{r_id}.pdf",
-                        raw_text=r_text,
+                        raw_text=r_text or f"Tài liệu: {r_fname}",
                         metadata={"source": "sqlite", "old_subject": r_subj, "old_level": r_lvl},
                     )
             except Exception as e:
@@ -383,10 +382,9 @@ class DocumentIntakeCog(commands.Cog):
             try:
                 turso_rows = await turso_db.fetchall(
                     """
-                    SELECT id, file_name, raw_text, subject, estimated_level
+                    SELECT id, file_name, COALESCE(raw_text, '') AS raw_text, subject, estimated_level
                     FROM documents_archive
-                    WHERE raw_text IS NOT NULL AND LENGTH(raw_text) > 30
-                      AND (verdict IS NULL OR verdict != 'CLOUD_DEEP_VERIFIED')
+                    WHERE (verdict IS NULL OR verdict != 'CLOUD_DEEP_VERIFIED')
                     ORDER BY id DESC
                     LIMIT 12
                     """
@@ -394,8 +392,8 @@ class DocumentIntakeCog(commands.Cog):
                 for tr in turso_rows:
                     t_id = tr.get("id")
                     t_fname = tr.get("file_name") or f"doc_{t_id}.pdf"
-                    t_text = tr.get("raw_text") or ""
-                    if t_id and len(t_text) > 30:
+                    t_text = tr.get("raw_text") or f"Tài liệu: {t_fname}"
+                    if t_id:
                         CloudExamVerifier.enqueue_for_45s_batch(
                             doc_id=t_id,
                             file_name=t_fname,
@@ -406,7 +404,7 @@ class DocumentIntakeCog(commands.Cog):
                 log.debug("Bỏ qua quét Turso trong chu kỳ 45s: %s", e)
 
         # 3. Đẩy toàn bộ lô đã gom trong 45s qua lên Model 550B (timeout < 60s/file)
-        completed = await asyncio.to_thread(CloudExamVerifier.flush_45s_batch, 18)
+        completed = await asyncio.to_thread(CloudExamVerifier.flush_45s_batch, 16)
         if not completed:
             return 0
 
@@ -421,12 +419,11 @@ class DocumentIntakeCog(commands.Cog):
             new_school = v.get("school_or_department")
             new_year = v.get("academic_year")
 
-            if not new_subj or new_subj == "GENERAL":
-                continue
-
             est_level = new_grade
             if new_detailed and new_detailed not in est_level:
                 est_level = f"{new_grade} ({new_detailed})" if new_grade else new_detailed
+
+            subj_to_set = new_subj if (new_subj and new_subj != "GENERAL") else ""
 
             if isinstance(doc_id, int) or (isinstance(doc_id, str) and doc_id.isdigit()):
                 num_id = int(doc_id)
@@ -440,10 +437,11 @@ class DocumentIntakeCog(commands.Cog):
                                 exam_track = COALESCE(NULLIF(?, ''), exam_track),
                                 school_or_department = COALESCE(NULLIF(?, ''), school_or_department),
                                 academic_year = COALESCE(NULLIF(?, ''), academic_year),
-                                quorum_status = 'CLOUD_DEEP_VERIFIED'
+                                quorum_status = 'CLOUD_DEEP_VERIFIED',
+                                verdict = 'CLOUD_DEEP_VERIFIED'
                             WHERE id = ?
                             """,
-                            new_subj,
+                            subj_to_set,
                             est_level,
                             new_track,
                             new_school if (new_school and str(new_school).lower() != "null") else "",
@@ -466,7 +464,7 @@ class DocumentIntakeCog(commands.Cog):
                                 verdict = 'CLOUD_DEEP_VERIFIED'
                             WHERE id = ?
                             """,
-                            new_subj,
+                            subj_to_set,
                             est_level,
                             new_track,
                             new_school if (new_school and str(new_school).lower() != "null") else "",

@@ -537,9 +537,10 @@ class DocumentInspector:
         # ĐỐI CHIẾU SÂU QUA CLOUD VERIFIER (NVIDIA NIM) VỚI BẢO VỆ QUOTA 40 RPM / 10K RPD
         # -------------------------------------------------------------
         try:
-            from .cloud_verifier import CloudExamVerifier
+            from .cloud_verifier import CloudExamVerifier, _deterministic_post_audit
 
             has_subj_conflict = bool(getattr(pass3, "filename_spoofed", False))
+            cloud_res = None
             if CloudExamVerifier.should_invoke_cloud(
                 file_name=name,
                 raw_text=_raw_text,
@@ -550,14 +551,24 @@ class DocumentInspector:
                 has_conflict=has_subj_conflict,
             ):
                 cloud_res = CloudExamVerifier.verify_exam(file_name=name, raw_text=_raw_text)
-                if cloud_res:
-                    if cloud_res.get("is_valid_exam") is False and pass2.total_question_markers == 0:
-                        verdict = InspectionVerdict.REJECTED_NOT_EXAM
 
-                    c_subj = str(cloud_res.get("subject") or "").upper()
-                    if c_subj in Subject.__members__ and c_subj != "GENERAL":
-                        subject = Subject[c_subj]
-                        conf = max(conf, float(cloud_res.get("confidence") or 0.96))
+            if not cloud_res:
+                cloud_res = _deterministic_post_audit(
+                    name,
+                    _raw_text,
+                    {
+                        "subject": subject.name,
+                        "grade_level": pass2.grade_level.value,
+                        "exam_track": exam_track.value,
+                        "detailed_exam_track": detailed_track_str,
+                    },
+                )
+
+            if cloud_res:
+                c_subj = str(cloud_res.get("subject") or "").upper()
+                if c_subj in Subject.__members__ and c_subj != "GENERAL":
+                    subject = Subject[c_subj]
+                    conf = max(conf, float(cloud_res.get("confidence") or 0.96))
 
                     c_grade = cloud_res.get("grade_number")
                     c_grade_str = str(cloud_res.get("grade_level") or "")
@@ -936,6 +947,43 @@ class DocumentInspector:
             grade_level = GradeLevel.UNIVERSITY
         elif any(t in candidate_types for t in [ExamType.IELTS_TEST, ExamType.TOEIC_TEST, ExamType.JLPT_TEST, ExamType.HSK_TEST, ExamType.TOPIK_TEST, ExamType.TRKI_TEST]):
             grade_level = GradeLevel.GENERAL_ACADEMIC
+        else:
+            # Suy luận ngược Khối lớp từ Bản đồ Kiến thức Chương trình GDPT 2018 khi tiêu đề khuyết lớp
+            topic_lower = combined_grade_text.lower()
+            topic_grade_patterns = [
+                (
+                    GradeLevel.GRADE_12,
+                    r"\b(nguyên\s+hàm|tích\s+phân|tiệm\s+cận|cực\s+trị\s+của\s+hàm\s+số|oxyz|công\s+thức\s+bayes|ester|carbohydrate|saccharose|cellulose|polysaccharide|amino\s+acid|peptide|pin\s+điện|galvani|vật\s+lí\s+hạt\s+nhân|độ\s+hụt\s+khối|phóng\s+xạ|khí\s+lí\s+tưởng|cảm\s+ứng\s+từ|từ\s+thông|phiên\s+mã|dịch\s+mã|operon\s+lac|di\s+truyền\s+quần\s+thể|hardy[\s\-]*weinberg)\b",
+                ),
+                (
+                    GradeLevel.GRADE_11,
+                    r"\b(cấp\s+số\s+cộng|cấp\s+số\s+nhân|hàm\s+số\s+liên\s+tục|giới\s+hạn\s+của\s+dãy|dao\s+động\s+điều\s+hòa|con\s+lắc\s+lò\s+xo|con\s+lắc\s+đơn|sóng\s+cơ|giao\s+thoa\s+ánh\s+sáng|định\s+luật\s+coulomb|tụ\s+điện|cân\s+bằng\s+hóa\s+học|alkane|alkene|alkyne|arene|aldehyde|ketone|carboxylic\s+acid)\b",
+                ),
+                (
+                    GradeLevel.GRADE_10,
+                    r"\b(mệnh\s+đề\s+toán\s+học|hệ\s+thức\s+lượng\s+trong\s+tam\s+giác|rơi\s+tự\s+do|chuyển\s+động\s+thẳng\s+biến\s+đổi\s+đều|định\s+luật\s+newton|động\s+lượng|orbital\s+nguyên\s+tử|cấu\s+hình\s+electron|biến\s+thiên\s+enthalpy|nguyên\s+phân|giảm\s+phân|tế\s+bào\s+nhân\s+sơ)\b",
+                ),
+                (
+                    GradeLevel.GRADE_9,
+                    r"\b(căn\s+bậc\s+hai|căn\s+bậc\s+ba|hệ\s+thức\s+vi[\-\s]*ét|định\s+lý\s+vi[\-\s]*ét|tứ\s+giác\s+nội\s+tiếp|góc\s+nội\s+tiếp|thấu\s+kính\s+hội\s+tụ|thấu\s+kính\s+phân\s+kỳ|khúc\s+xạ\s+ánh\s+sáng)\b",
+                ),
+                (
+                    GradeLevel.GRADE_8,
+                    r"\b(hằng\s+đẳng\s+thức\s+đáng\s+nhớ|phân\s+thức\s+đại\s+số|định\s+lý\s+thal[eè]s|hình\s+chóp\s+tam\s+giác\s+đều|khối\s+lượng\s+riêng|áp\s+suất\s+chất\s+lỏng|lực\s+đẩy\s+archimedes)\b",
+                ),
+                (
+                    GradeLevel.GRADE_7,
+                    r"\b(số\s+hữu\s+tỉ|tỉ\s+lệ\s+thức|dãy\s+tỉ\s+số\s+bằng\s+nhau|hai\s+tam\s+giác\s+bằng\s+nhau|phản\s+xạ\s+âm)\b",
+                ),
+                (
+                    GradeLevel.GRADE_6,
+                    r"\b(ước\s+chung\s+lớn\s+nhất|bội\s+chung\s+nhỏ\s+nhất|ưcln|bcnn|số\s+nguyên\s+tố\s+cùng\s+nhau)\b",
+                ),
+            ]
+            for cand_grade, pat in topic_grade_patterns:
+                if len(re.findall(pat, topic_lower)) >= 1:
+                    grade_level = cand_grade
+                    break
 
         # 9. Detailed Question Itemization via QuestionParser
         questions, cog_breakdown = QuestionParser.parse_all_questions(text)

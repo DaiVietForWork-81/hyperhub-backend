@@ -24,6 +24,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import sqlite3
 import threading
 import time
 import urllib.error
@@ -33,7 +34,9 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger("DocInspector.CloudVerifier")
 
 _ENV_LOADED = False
+_DISK_CACHE_LOADED = False
 _LOCK = threading.Lock()
+_DISK_CACHE_PATH = Path(__file__).resolve().parent.parent / "data" / "cache" / "cloud_verifier_cache.db"
 
 MAX_REQUESTS_PER_MINUTE = 34
 MAX_REQUESTS_PER_DAY = 9500
@@ -45,9 +48,57 @@ _DAY_WINDOW: deque[float] = deque()
 _LAST_REQUEST_TS: float = 0.0
 
 _VERIFICATION_CACHE: OrderedDict[str, Dict[str, Any]] = OrderedDict()
-_MAX_CACHE_SIZE = 4000
+_MAX_CACHE_SIZE = 5000
 
 _PENDING_45S_QUEUE: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+
+
+def _ensure_disk_cache_loaded() -> None:
+    global _DISK_CACHE_LOADED
+    if _DISK_CACHE_LOADED:
+        return
+    _DISK_CACHE_LOADED = True
+    try:
+        _DISK_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(_DISK_CACHE_PATH, timeout=5.0) as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS verifier_cache (
+                    fp TEXT PRIMARY KEY,
+                    payload_json TEXT NOT NULL,
+                    updated_at REAL NOT NULL
+                )
+                """
+            )
+            cur = conn.execute(
+                "SELECT fp, payload_json FROM verifier_cache ORDER BY updated_at ASC LIMIT ?",
+                (_MAX_CACHE_SIZE,),
+            )
+            for fp_key, payload_str in cur.fetchall():
+                try:
+                    data = json.loads(payload_str)
+                    if isinstance(data, dict) and data.get("subject"):
+                        _VERIFICATION_CACHE[fp_key] = data
+                except Exception:
+                    continue
+    except Exception as e:
+        logger.debug("Không thể nạp disk cache CloudVerifier: %s", e)
+
+
+def _save_to_disk_cache(fp: str, payload: Dict[str, Any]) -> None:
+    try:
+        _DISK_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(_DISK_CACHE_PATH, timeout=5.0) as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO verifier_cache (fp, payload_json, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (fp, json.dumps(payload, ensure_ascii=False), time.time()),
+            )
+            conn.commit()
+    except Exception as e:
+        logger.debug("Không thể lưu disk cache CloudVerifier: %s", e)
 
 
 def _get_nvidia_credentials() -> tuple[str, str, str, str]:
@@ -294,16 +345,50 @@ def _deterministic_post_audit(
 
     # Kiểm toán Bẫy 2: Tuyển sinh vào lớp 10 LUÔN LUÔN là Khối 9
     if re.search(
-        r"(tuyển\s*sinh\s*(?:vào\s*)?lớp\s*10|thi\s*vào\s*(?:lớp\s*)?10|ôn\s*thi\s*vào\s*(?:lớp\s*)?10)",
+        r"(tuyển\s*sinh\s*(?:vào\s*)?(?:lớp\s*)?10|thi\s*vào\s*(?:lớp\s*)?10|ôn\s*thi\s*vào\s*(?:lớp\s*)?10|chuyên\s*(?:anh|toán|văn|lí|lý|hóa|sinh|tin|sử|địa)\s*(?:hà\s*nội\s*amsterdam|amsterdam|sư\s*phạm|khtn|ngoại\s*ngữ))",
         head_text,
-    ):
+    ) and not re.search(r"(lớp\s*11|lớp\s*12|tốt\s*nghiệp\s*thpt)", head_text):
         result["grade_level"] = "Khối 9"
-        if re.search(r"(chuyên|môn\s*chuyên|hệ\s*chuyên)", head_text):
+        if re.search(r"(chuyên|môn\s*chuyên|hệ\s*chuyên|amsterdam)", head_text):
             result["exam_track"] = "CHUYEN"
             result["detailed_exam_track"] = "Đề thi tuyển sinh vào lớp 10 Chuyên"
         else:
             result["exam_track"] = "THUONG"
             result["detailed_exam_track"] = "Đề thi tuyển sinh vào lớp 10"
+
+    # Kiểm toán tài liệu chuyên đề / cẩm nang / sách tham khảo từ tên file
+    fn_lower = (file_name or "").lower()
+    if any(
+        k in fn_lower
+        for k in (
+            "vách-ngăn-và-bó",
+            "vách ngăn và bó",
+            "kĩ-thuật-kế-hợp",
+            "bất đẳng thức",
+            "phương trình hàm",
+            "tổ hợp xác suất",
+        )
+    ):
+        result["subject"] = "MATHEMATICS"
+        if not result.get("detailed_exam_track") or "thi" in str(result.get("detailed_exam_track", "")).lower():
+            result["detailed_exam_track"] = "Đề cương / Tài liệu ôn tập"
+            result["exam_track"] = "THUONG"
+    elif any(
+        k in fn_lower
+        for k in ("điển-tích", "điển tích", "điển-cố", "nlxh", "nlvh", "nghị-luận", "nghị luận")
+    ):
+        result["subject"] = "LITERATURE"
+        if any(b in fn_lower for b in ("hành-trang", "hành trang", "200-", "cẩm-nang", "cẩm nang", "sổ-tay", "tổng-hợp")):
+            result["detailed_exam_track"] = "Đề cương / Tài liệu ôn tập"
+            result["exam_track"] = "THUONG"
+    elif any(
+        k in fn_lower
+        for k in ("ielts", "toeic", "idioms", "grammar", "vocabulary", "tieng anh", "tiếng anh", "chuyên-anh", "chuyên anh")
+    ):
+        result["subject"] = "ENGLISH"
+        if any(k in fn_lower for k in ("ielts", "toeic")):
+            result["exam_track"] = "QUOC_TE"
+            result["detailed_exam_track"] = "Đề luyện thi Chứng chỉ Quốc tế (IELTS/TOEIC/SAT)"
 
     # Kiểm toán Bẫy 1: Đề thi thử TN THPT / Giữa kỳ / Học kỳ của Trường THPT Chuyên -> THUONG
     det_lower = str(result.get("detailed_exam_track") or "").lower()
@@ -328,11 +413,11 @@ def _deterministic_post_audit(
             r"khoa\s*học\s*tự\s*nhiên\s*(?:6|7|8|9)", head_text
         ):
             # Nếu lỡ gán NATURAL_SCIENCE cho cấp 3 (do tên trường ĐH KHTN), suy luận lại môn thực
-            if re.search(r"(dao\s*động|sóng\s*cơ|điện\s*xoay\s*chiều|hạt\s*nhân|cảm\s*ứng\s*điện\s*từ)", raw_text.lower()):
+            if re.search(r"(dao\s*động|sóng\s*cơ|điện\s*xoay\s*chiều|hạt\s*nhân|cảm\s*ứng\s*điện\s*từ)", (raw_text or "").lower()):
                 result["subject"] = "PHYSICS"
-            elif re.search(r"(ester|carbohydrate|amino\s*acid|polymer|nguyên\s*tử|mol)", raw_text.lower()):
+            elif re.search(r"(ester|carbohydrate|amino\s*acid|polymer|nguyên\s*tử|mol)", (raw_text or "").lower()):
                 result["subject"] = "CHEMISTRY"
-            elif re.search(r"(phiên\s*mã|dịch\s*mã|nhiễm\s*sắc\s*thể|quần\s*thể|di\s*truyền)", raw_text.lower()):
+            elif re.search(r"(phiên\s*mã|dịch\s*mã|nhiễm\s*sắc\s*thể|quần\s*thể|di\s*truyền)", (raw_text or "").lower()):
                 result["subject"] = "BIOLOGY"
             else:
                 result["subject"] = "MATHEMATICS"
@@ -345,6 +430,7 @@ class CloudExamVerifier:
 
     @classmethod
     def get_quota_stats(cls) -> Dict[str, Any]:
+        _ensure_disk_cache_loaded()
         now = time.time()
         with _LOCK:
             while _MINUTE_WINDOW and now - _MINUTE_WINDOW[0] >= 60.0:
@@ -368,17 +454,17 @@ class CloudExamVerifier:
         raw_text: str,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        if not raw_text or len(raw_text.strip()) < 25:
+        _ensure_disk_cache_loaded()
+        effective_text = (raw_text or "").strip()
+        if len(effective_text) < 10 and len((file_name or "").strip()) < 4:
             return
-        fp = _make_fingerprint(file_name, raw_text)
+        fp = _make_fingerprint(file_name, effective_text)
         with _LOCK:
-            if fp in _VERIFICATION_CACHE:
-                return
             key = str(doc_id or fp)
             _PENDING_45S_QUEUE[key] = {
                 "doc_id": doc_id,
                 "file_name": file_name,
-                "raw_text": raw_text,
+                "raw_text": effective_text or f"Tài liệu: {file_name}",
                 "fingerprint": fp,
                 "metadata": metadata or {},
                 "enqueued_at": time.time(),
@@ -386,6 +472,7 @@ class CloudExamVerifier:
 
     @classmethod
     def flush_45s_batch(cls, max_items: int = 24) -> List[Dict[str, Any]]:
+        _ensure_disk_cache_loaded()
         with _LOCK:
             if not _PENDING_45S_QUEUE:
                 return []
@@ -423,7 +510,7 @@ class CloudExamVerifier:
         local_confidence: float,
         has_conflict: bool = False,
     ) -> bool:
-        return bool(raw_text and len(raw_text.strip()) >= 25)
+        return bool((raw_text and len(raw_text.strip()) >= 15) or (file_name and len(file_name.strip()) >= 5))
 
     @classmethod
     def _call_single_model(
@@ -482,22 +569,23 @@ class CloudExamVerifier:
         2. Trap Auditor Agent kiểm toán hậu kiểm 5 bẫy kinh điển.
         3. Arbiter Agent (120B / Gemma-4-31B) hội chẩn độc lập nếu kết quả còn mơ hồ (confidence < 0.90 hoặc GENERAL).
         """
+        _ensure_disk_cache_loaded()
         api_key, base_url, primary_model, fallback_model = _get_nvidia_credentials()
-        if not api_key or not raw_text or len(raw_text.strip()) < 25:
+        clean_text = (raw_text or "").strip()
+        if not api_key or (len(clean_text) < 10 and len((file_name or "").strip()) < 4):
             return None
 
-        fp = _make_fingerprint(file_name, raw_text)
+        fp = _make_fingerprint(file_name, clean_text)
         with _LOCK:
             cached = _VERIFICATION_CACHE.get(fp)
             if cached is not None:
                 _VERIFICATION_CACHE.move_to_end(fp)
-                return dict(cached)
+                return _deterministic_post_audit(file_name, clean_text, dict(cached))
 
         if not _acquire_rate_limit_slot(wait_if_needed=True, max_wait_sec=35.0):
-            cls.enqueue_for_45s_batch(doc_id=fp, file_name=file_name, raw_text=raw_text)
+            cls.enqueue_for_45s_batch(doc_id=fp, file_name=file_name, raw_text=clean_text)
             return None
 
-        clean_text = raw_text.strip()
         if len(clean_text) > 36000:
             mid = len(clean_text) // 2
             snippet = (
@@ -508,7 +596,7 @@ class CloudExamVerifier:
                 + clean_text[-8000:]
             )
         else:
-            snippet = clean_text
+            snippet = clean_text or f"(Tệp quét ảnh / dữ liệu bảng: {file_name})"
 
         user_prompt = (
             f"Tên tệp: {file_name}\n"
@@ -534,7 +622,7 @@ class CloudExamVerifier:
             return None
 
         # AGENT 2: Deterministic Trap Auditor
-        audited_result = _deterministic_post_audit(file_name, raw_text, primary_result)
+        audited_result = _deterministic_post_audit(file_name, clean_text, primary_result)
 
         # AGENT 3: Independent Arbiter (kích hoạt khi môn/khối còn mơ hồ hoặc confidence < 0.90)
         conf_val = float(audited_result.get("confidence") or 0.95)
@@ -563,12 +651,13 @@ class CloudExamVerifier:
                     timeout_sec=25.0,
                 )
                 if arb_res and arb_res.get("subject") not in ("GENERAL", None):
-                    audited_result = _deterministic_post_audit(file_name, raw_text, arb_res)
+                    audited_result = _deterministic_post_audit(file_name, clean_text, arb_res)
 
         with _LOCK:
             _VERIFICATION_CACHE[fp] = dict(audited_result)
             if len(_VERIFICATION_CACHE) > _MAX_CACHE_SIZE:
                 _VERIFICATION_CACHE.popitem(last=False)
+        _save_to_disk_cache(fp, audited_result)
 
         return audited_result
 
@@ -576,8 +665,9 @@ class CloudExamVerifier:
     def verify_batch(
         cls,
         items: List[Dict[str, str]],
-        timeout_sec: float = 50.0,
+        timeout_sec: float = 55.0,
     ) -> List[Optional[Dict[str, Any]]]:
+        _ensure_disk_cache_loaded()
         if not items:
             return []
 
@@ -592,14 +682,14 @@ class CloudExamVerifier:
         with _LOCK:
             for idx, item in enumerate(items):
                 fn = item.get("file_name", "")
-                rt = item.get("raw_text", "")
-                if not rt or len(rt.strip()) < 25:
+                rt = (item.get("raw_text", "") or "").strip()
+                if len(rt) < 10 and len(fn.strip()) < 4:
                     continue
                 fp = _make_fingerprint(fn, rt)
                 cached = _VERIFICATION_CACHE.get(fp)
                 if cached is not None:
                     _VERIFICATION_CACHE.move_to_end(fp)
-                    results[idx] = dict(cached)
+                    results[idx] = _deterministic_post_audit(fn, rt, dict(cached))
                 else:
                     uncached_indices.append(idx)
                     uncached_fps.append(fp)
@@ -617,7 +707,7 @@ class CloudExamVerifier:
             return results
 
         models_chain = _build_model_chain(primary_model, fallback_model)
-        batch_size = 6
+        batch_size = 4
 
         for start in range(0, len(uncached_indices), batch_size):
             chunk_indices = uncached_indices[start : start + batch_size]
@@ -629,18 +719,18 @@ class CloudExamVerifier:
             blocks = []
             for local_i, orig_idx in enumerate(chunk_indices):
                 fn = items[orig_idx].get("file_name", "")
-                rt = items[orig_idx].get("raw_text", "").strip()
-                if len(rt) > 12000:
+                rt = (items[orig_idx].get("raw_text", "") or "").strip()
+                if len(rt) > 6000:
                     mid = len(rt) // 2
                     snippet = (
-                        rt[:6000]
+                        rt[:3000]
                         + "\n...\n"
-                        + rt[mid - 1500 : mid + 1500]
+                        + rt[mid - 1000 : mid + 1000]
                         + "\n...\n"
-                        + rt[-3000:]
+                        + rt[-1500:]
                     )
                 else:
-                    snippet = rt
+                    snippet = rt or f"(Tài liệu: {fn})"
                 blocks.append(f"--- ĐỀ SỐ {local_i} ---\nTên tệp: {fn}\nNội dung:\n{snippet}")
 
             batch_prompt = (
@@ -657,7 +747,7 @@ class CloudExamVerifier:
                         model_name,
                         SYSTEM_PROMPT_VI,
                         batch_prompt,
-                        base_tokens=320 * len(chunk_indices),
+                        base_tokens=400 * len(chunk_indices),
                     )
                     req = urllib.request.Request(
                         f"{base_url}/chat/completions",
@@ -680,19 +770,20 @@ class CloudExamVerifier:
                             else None
                         )
                         if isinstance(arr, list) and len(arr) == len(chunk_indices):
-                            with _LOCK:
-                                for local_i, orig_idx in enumerate(chunk_indices):
-                                    item_res = arr[local_i]
-                                    if isinstance(item_res, dict) and item_res.get("subject"):
-                                        fn_i = items[orig_idx].get("file_name", "")
-                                        rt_i = items[orig_idx].get("raw_text", "")
-                                        audited_i = _deterministic_post_audit(
-                                            fn_i, rt_i, item_res
-                                        )
-                                        results[orig_idx] = audited_i
+                            for local_i, orig_idx in enumerate(chunk_indices):
+                                item_res = arr[local_i]
+                                if isinstance(item_res, dict) and item_res.get("subject"):
+                                    fn_i = items[orig_idx].get("file_name", "")
+                                    rt_i = items[orig_idx].get("raw_text", "")
+                                    audited_i = _deterministic_post_audit(
+                                        fn_i, rt_i, item_res
+                                    )
+                                    results[orig_idx] = audited_i
+                                    with _LOCK:
                                         _VERIFICATION_CACHE[chunk_fps[local_i]] = dict(
                                             audited_i
                                         )
+                                    _save_to_disk_cache(chunk_fps[local_i], audited_i)
                             batch_succeeded = True
                             break
                 except Exception as e:

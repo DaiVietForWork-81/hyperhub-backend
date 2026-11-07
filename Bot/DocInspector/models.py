@@ -68,8 +68,12 @@ class Subject(str, Enum):
     FRENCH = "FRENCH"                           # Tiếng Pháp
     HISTORY = "HISTORY"                         # Lịch sử
     GEOGRAPHY = "GEOGRAPHY"                     # Địa lý
-    CIVIC_EDUCATION = "CIVIC_EDUCATION"         # GDCD / Kinh tế & Pháp luật
-    NATURAL_SCIENCE = "NATURAL_SCIENCE"         # Khoa học tự nhiên
+    HISTORY_GEOGRAPHY = "HISTORY_GEOGRAPHY"     # Lịch sử và Địa lý (Cấp 2)
+    CIVIC_EDUCATION = "CIVIC_EDUCATION"         # Giáo dục công dân (Cấp 2)
+    ECONOMIC_LEGAL_EDU = "ECONOMIC_LEGAL_EDU"   # Giáo dục kinh tế và pháp luật (Cấp 3)
+    NATURAL_SCIENCE = "NATURAL_SCIENCE"         # Khoa học tự nhiên (Cấp 2)
+    TECHNOLOGY = "TECHNOLOGY"                   # Công nghệ
+    DEFENSE_SECURITY_EDU = "DEFENSE_SECURITY_EDU" # Giáo dục quốc phòng và an ninh
     GENERAL = "GENERAL"                         # Đa môn / Chung
     NON_ACADEMIC = "NON_ACADEMIC"               # Phi học thuật / Khác
 
@@ -77,7 +81,7 @@ class Subject(str, Enum):
 class GradeLevel(str, Enum):
     GRADE_12 = "GRADE_12"                       # Lớp 12 / Ôn thi THPT Quốc Gia
     GRADE_11 = "GRADE_11"                       # Lớp 11
-    GRADE_10 = "GRADE_10"                       # Lớp 10 / Tuyển sinh vào 10
+    GRADE_10 = "GRADE_10"                       # Lớp 10 THPT
     GRADE_9 = "GRADE_9"                         # Lớp 9 / Ôn thi vào 10
     GRADE_8 = "GRADE_8"                         # Lớp 8
     GRADE_7 = "GRADE_7"                         # Lớp 7
@@ -94,7 +98,7 @@ class GradeLevel(str, Enum):
 GRADE_LEVEL_VI_NAMES: Dict[GradeLevel, str] = {
     GradeLevel.GRADE_12: "Lớp 12 (THPT / Ôn thi ĐH)",
     GradeLevel.GRADE_11: "Lớp 11 (THPT)",
-    GradeLevel.GRADE_10: "Lớp 10 (THPT / Tuyển sinh 10)",
+    GradeLevel.GRADE_10: "Lớp 10 (THPT)",
     GradeLevel.GRADE_9: "Lớp 9 (THCS / Ôn thi vào 10)",
     GradeLevel.GRADE_8: "Lớp 8 (THCS)",
     GradeLevel.GRADE_7: "Lớp 7 (THCS)",
