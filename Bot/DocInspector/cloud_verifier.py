@@ -1,14 +1,18 @@
 """
-DocInspector - Cloud Deep Semantic Verifier & 45s Batch Aggregator (NVIDIA NIM API).
-Sử dụng dàn Model mạnh nhất trên build.nvidia.com (timeout < 60s / file):
-1. Primary: nvidia/nemotron-3-ultra-550b-a55b (550 tỷ tham số - Deep Reasoning + JSON, ~5-8s/file)
-2. Fallback 1: nvidia/nemotron-3.5-super-vl-120b-a12b (120 tỷ tham số)
-3. Fallback 2: google/gemma-4-31b-it (31 tỷ tham số)
-4. Fallback 3: z-ai/glm-5.3-flash & nvidia/nemotron-3.5-bolt-e4b
+DocInspector - Multi-Agent Academic Examiner & Deep Reasoning Verifier (NVIDIA NIM API).
 
-Cơ chế gom lô 45 giây (45s Batch Aggregator):
-- Cứ mỗi 45 giây, toàn bộ các tệp mà Bot đã list/tổng hợp được sẽ được gom lại và gửi về Cloud Model để đọc hiểu & phân tích sâu.
-- Kết hợp Fingerprint Cache (SHA-256) và Rate Guard (<= 34 req/phút, <= 9.500 req/ngày).
+Kiến trúc Agent Thẩm Định Đề Thi 3 Tầng (Multi-Agent Academic Verification Pipeline):
+1. Agent 1 — Reader & Curriculum Analyst (nvidia/nemotron-3-ultra-550b-a55b với thinking=True):
+   - Áp dụng Quy trình Tư duy Đọc Đề 6 Bước (6-Stage Examiner Reasoning Protocol).
+   - Đối chiếu Bản đồ Kiến thức Chương trình GDPT 2018 (Lớp 6 -> Lớp 12) để suy luận chính xác Khối lớp & Môn học ngay cả khi tiêu đề bị khuyết hoặc đặt tên sai.
+2. Agent 2 — Trap Auditor (Kiểm toán viên chống 5 bẫy phân loại kinh điển):
+   - Bẫy 1: Tên "Trường THPT Chuyên / ĐH KHTN" nhưng đề là "Thi thử TN THPT / Giữa kỳ / Học kỳ / KSCL".
+   - Bẫy 2: "Tuyển sinh vào lớp 10" là học sinh Khối 9 (THCS), không phải Khối 10.
+   - Bẫy 3: Tổ hợp "Khoa học tự nhiên / Lịch sử & Địa lí" Cấp 2 vs. Môn đơn Cấp 3; GDCD Cấp 2 vs. GDKT&PL Cấp 3.
+   - Bẫy 4: Đề Vật lí / Hóa học / Sinh học chứa nhiều phép tính Toán học.
+   - Bẫy 5: Đề không ghi lớp ở tiêu đề -> phải suy luận từ chuyên đề câu hỏi (Oxyz/Tích phân/Ester/Vật lí hạt nhân -> Lớp 12; Lượng giác/Dãy số/Dao động cơ/Hydrocarbon -> Lớp 11; Mệnh đề/Vectơ Oxy/Động học/Cấu tạo nguyên tử -> Lớp 10; Vi-ét/Căn bậc hai/Tứ giác nội tiếp -> Lớp 9...).
+3. Agent 3 — Independent Arbiter (nvidia/nemotron-3.5-super-vl-120b-a12b / google/gemma-4-31b-it):
+   - Khi đề có độ mơ hồ cao (confidence < 0.92 hoặc xung đột giữa các phần), tự động triệu tập Agent độc lập thứ 2 để hội chẩn chéo (Second-Opinion Consensus) trước khi chốt kết quả.
 """
 
 from __future__ import annotations
@@ -24,28 +28,25 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("DocInspector.CloudVerifier")
 
 _ENV_LOADED = False
 _LOCK = threading.Lock()
 
-# Giới hạn an toàn dưới mức trần 40 RPM & 10.000 RPD của NVIDIA NIM
 MAX_REQUESTS_PER_MINUTE = 34
 MAX_REQUESTS_PER_DAY = 9500
 MIN_INTERVAL_SECONDS = 1.6
-BATCH_FLUSH_INTERVAL_SECONDS = 45.0  # Chu kỳ 45 giây gom và phân tích toàn bộ file đã list
+BATCH_FLUSH_INTERVAL_SECONDS = 45.0
 
 _MINUTE_WINDOW: deque[float] = deque()
 _DAY_WINDOW: deque[float] = deque()
 _LAST_REQUEST_TS: float = 0.0
 
-# LRU Cache lưu tới 4.000 kết quả thẩm định đề thi trong RAM
 _VERIFICATION_CACHE: OrderedDict[str, Dict[str, Any]] = OrderedDict()
 _MAX_CACHE_SIZE = 4000
 
-# Hàng đợi gom các file mà Bot đã list/tổng hợp để phân tích định kỳ mỗi 45 giây
 _PENDING_45S_QUEUE: OrderedDict[str, Dict[str, Any]] = OrderedDict()
 
 
@@ -102,7 +103,6 @@ def _make_fingerprint(file_name: str, raw_text: str) -> str:
 
 
 def _acquire_rate_limit_slot(wait_if_needed: bool = True, max_wait_sec: float = 45.0) -> bool:
-    """Đảm bảo không bao giờ vượt 34 req/phút và 9.500 req/ngày."""
     global _LAST_REQUEST_TS
     deadline = time.time() + max_wait_sec
 
@@ -140,34 +140,101 @@ def _acquire_rate_limit_slot(wait_if_needed: bool = True, max_wait_sec: float = 
         time.sleep(min(wait_sec, 2.0))
 
 
-SYSTEM_PROMPT_VI = """Bạn là hệ thống thẩm định và phân loại đề thi chương trình giáo dục phổ thông Việt Nam (GDPT 2018).
-Nhiệm vụ của bạn là đọc tên tệp và nội dung trích xuất của đề thi, thực hiện đối chiếu 4 bước và trả về DUY NHẤT kết quả JSON hợp lệ (không giải thích ngoài khối JSON):
+# ==============================================================================
+# HUẤN LUYỆN TƯ DUY ĐỌC ĐỀ 6 BƯỚC & BẢN ĐỒ KIẾN THỨC CHƯƠNG TRÌNH GDPT 2018
+# ==============================================================================
+SYSTEM_PROMPT_VI = """Bạn là Hội đồng Thẩm định Học liệu & Phân loại Đề thi Quốc gia theo Chương trình Giáo dục Phổ thông 2018 (GDPT 2018) của Việt Nam.
+Khi đọc một đề thi hoặc tài liệu học tập, bạn PHẢI vận hành QUY TRÌNH TƯ DUY ĐỌC ĐỀ 6 BƯỚC dưới đây trước khi kết luận:
 
-QUY TẮC BẮT BUỘC TRÁNH NHẦM LẪN:
-1. Tách biệt "Trường THPT Chuyên" và "Đề thi Chuyên / HSG":
-   - Nếu đầu đề ghi "Trường THPT Chuyên ..." nhưng tiêu đề kỳ thi là "Thi thử Tốt nghiệp THPT", "Khảo sát chất lượng", "Giữa kỳ", "Học kỳ" thì exam_track PHẢI LÀ "THUONG" (tuyệt đối KHÔNG xếp vào "CHUYEN" hay "HSG").
-   - Chỉ xếp "HSG" khi đề ghi rõ "Kỳ thi chọn học sinh giỏi", "Đề thi HSG", "Olympic".
-   - Chỉ xếp "CHUYEN" khi đề ghi rõ "Đề thi tuyển sinh vào lớp 10 THPT Chuyên", "Đề thi Chuyên", "Khối Chuyên".
-2. Phân biệt "Tuyển sinh vào lớp 10" và "Lớp 10 THPT":
-   - Đề ghi "Kỳ thi tuyển sinh vào lớp 10 THPT", "Thi vào lớp 10", "Ôn thi vào 10" là dành cho học sinh Lớp 9 (THCS) -> grade_level PHẢI LÀ "Khối 9" và detailed_exam_track = "Đề thi tuyển sinh vào lớp 10".
-   - Chỉ xếp "Khối 10" khi là đề kiểm tra/thi của học sinh đang học Lớp 10 THPT.
-3. Phân biệt môn học chuẩn GDPT 2018:
-   - Cấp 2 (Lớp 6, 7, 8, 9): Khoa học tự nhiên (tổ hợp Lý-Hóa-Sinh) -> "NATURAL_SCIENCE"; Lịch sử và Địa lí -> "HISTORY_GEOGRAPHY"; Giáo dục công dân -> "CIVIC_EDUCATION".
-   - Cấp 3 (Lớp 10, 11, 12): Vật lí -> "PHYSICS", Hóa học -> "CHEMISTRY", Sinh học -> "BIOLOGY", Lịch sử -> "HISTORY", Địa lí -> "GEOGRAPHY", Giáo dục kinh tế và pháp luật -> "ECONOMIC_LEGAL_EDU".
-   - Cả 2 cấp: Toán -> "MATHEMATICS", Ngữ văn -> "LITERATURE", Tiếng Anh -> "ENGLISH", Tin học -> "INFORMATICS", Công nghệ -> "TECHNOLOGY".
-4. Nếu văn bản hoàn toàn KHÔNG PHẢI đề thi, bài tập, đề cương hay tài liệu học tập (ví dụ: hóa đơn, văn bản hành chính, tin nhắn rác) -> đặt "is_valid_exam": false.
+=== BƯỚC 1: TÁCH BIỆT "ĐƠN VỊ RA ĐỀ" VÀ "TÍNH CHẤT KỲ THI" (CHỐNG BẪY TRƯỜNG CHUYÊN) ===
+- Đầu trang đề thi thường có Quốc hiệu và Tên đơn vị (Sở GD&ĐT / Phòng GD&ĐT / Trường THPT / Trường THCS / Trường ĐH).
+- CẢNH BÁO BẪY SỐ 1: Nhiều trường có tên là "Trường THPT Chuyên ..." (ví dụ: THPT Chuyên Hà Nội - Amsterdam, THPT Chuyên Vĩnh Phúc, THPT Chuyên KHTN, THPT Chuyên Lam Sơn) nhưng họ ra đề "Thi thử Tốt nghiệp THPT", "Khảo sát chất lượng (KSCL)", "Kiểm tra Giữa kỳ / Học kỳ".
+  -> Những đề này thuộc hệ Chuẩn phổ thông: exam_track PHẢI LÀ "THUONG" (Tuyệt đối KHÔNG được gán là "CHUYEN" hay "HSG" chỉ vì tên trường có chữ Chuyên!).
+  -> Tương tự, "Trường THPT Chuyên Khoa học Tự nhiên" là TÊN TRƯỜNG, không phải môn Khoa học tự nhiên!
+- Chỉ gán exam_track = "HSG" khi tên kỳ thi ghi rõ: "Kỳ thi chọn Học sinh giỏi", "Đề thi HSG", "Chọn đội tuyển Olympic", "Olympic truyền thống".
+- Chỉ gán exam_track = "CHUYEN" khi tên kỳ thi ghi rõ: "Đề thi tuyển sinh vào lớp 10 THPT Chuyên (Môn Chuyên)", "Đề thi khảo sát đội tuyển Chuyên", "Đề thi Chuyên sâu".
+- Chỉ gán exam_track = "QUOC_TE" khi là đề thi quốc tế: IMO, IPhO, IChO, IBO, IOI, SAT, AP, A-Level, IB, Kangaroo (IKMC), AMC, SASMO, TIMO, HKIMO.
 
-Định dạng JSON trả về cho 1 đề:
+=== BƯỚC 2: PHÂN ĐỊNH "TUYỂN SINH VÀO LỚP 10" VS. "HỌC SINH LỚP 10" (CHỐNG BẪY CHUYỂN CẤP) ===
+- CẢNH BÁO BẪY SỐ 2: Đề ghi "Kỳ thi tuyển sinh vào lớp 10 THPT", "Thi thử vào lớp 10", "Đề ôn thi vào 10" là kỳ thi chuyển cấp dành cho HỌC SINH LỚP 9 (Cấp 2 - THCS).
+  -> BẮT BUỘC gán: grade_level = "Khối 9" (TUYỆT ĐỐI KHÔNG gán "Khối 10").
+  -> Nếu là đề vào 10 đại trà/công lập -> exam_track = "THUONG", detailed_exam_track = "Đề thi tuyển sinh vào lớp 10".
+  -> Nếu là đề vào 10 hệ Chuyên / Môn Chuyên -> exam_track = "CHUYEN", detailed_exam_track = "Đề thi tuyển sinh vào lớp 10 Chuyên".
+- Chỉ gán grade_level = "Khối 10" khi đề dành cho học sinh ĐANG HỌC LỚP 10 THPT (kiểm tra Giữa kỳ/Học kỳ Lớp 10, HSG Lớp 10).
+
+=== BƯỚC 3: XÁC ĐỊNH MÔN HỌC TỪ BẢN CHẤT CÂU HỎI (CHỐNG BẪY CÔNG THỨC TOÁN & MÔN TÍCH HỢP) ===
+- CẢNH BÁO BẪY SỐ 3: Đề Vật lí, Hóa học, Sinh học, Địa lí, Kinh tế có rất nhiều số liệu, phương trình, đạo hàm, xác suất, đồ thị. Không bao giờ thấy ký hiệu toán học mà vội kết luận môn Toán! Hãy đọc ĐỐI TƯỢNG HỎI trong câu:
+  * Hỏi về dao động, sóng, dòng điện, từ trường, nhiệt học, khí lí tưởng, hạt nhân, quang học -> "PHYSICS" (Vật lí).
+  * Hỏi về nguyên tử, bảng tuần hoàn, liên kết hóa học, pH, tốc độ phản ứng, ester, carbohydrate, amine, polymer, kim loại, số mol -> "CHEMISTRY" (Hóa học).
+  * Hỏi về tế bào, quang hợp, hô hấp, ADN/ARN, phiên mã, dịch mã, đột biến, quy luật di truyền Mendel/Morgan, quần thể, hệ sinh thái -> "BIOLOGY" (Sinh học).
+  * Hỏi về thuật toán, độ phức tạp, C++/Python/Pascal, SQL, HTML/CSS, mạng máy tính, cơ sở dữ liệu -> "INFORMATICS" (Tin học).
+- CẢNH BÁO MÔN TÍCH HỢP CẤP 2 (LỚP 6, 7, 8, 9) THEO GDPT 2018:
+  * Ở THCS (Lớp 6–9), Lý - Hóa - Sinh tích hợp thành môn "Khoa học tự nhiên" -> nếu đề ghi "Môn: Khoa học tự nhiên (KHTN)" hoặc kiểm tra định kỳ Cấp 2 tích hợp -> gán "NATURAL_SCIENCE".
+  * Ở THCS (Lớp 6–9), Sử - Địa tích hợp thành "Lịch sử và Địa lí" -> gán "HISTORY_GEOGRAPHY".
+  * Ở THCS (Lớp 6–9), Giáo dục công dân -> gán "CIVIC_EDUCATION".
+  * Ở THPT (Lớp 10–12), Giáo dục kinh tế và pháp luật -> gán "ECONOMIC_LEGAL_EDU".
+
+=== BƯỚC 4: SUY LUẬN KHỐI LỚP TỪ BẢN ĐỒ KIẾN THỨC CHƯƠNG TRÌNH (KHI ĐỀ KHÔNG GHI RÕ LỚP) ===
+Nếu tên tệp và tiêu đề không ghi rõ khối lớp (hoặc chỉ ghi "Đề thi thử THPT", "Chuyên đề ôn tập"), hãy đọc nội dung câu hỏi và đối chiếu Bản đồ Kiến thức GDPT 2018:
+1. MÔN TOÁN:
+   - Khối 12: Khảo sát hàm số & tiệm cận đứng/xiên; Nguyên hàm - Tích phân; Vectơ & Tọa độ không gian Oxyz (mặt phẳng, mặt cầu, đường thẳng); Xác suất có điều kiện & Công thức Bayes; Đề thi thử Tốt nghiệp THPT.
+   - Khối 11: Phương trình lượng giác; Dãy số - Cấp số cộng - Cấp số nhân; Giới hạn & Hàm số liên tục; Hàm số mũ & Lôgarit; Đạo hàm cơ bản; Quan hệ vuông góc trong không gian (góc nhị diện, khoảng cách).
+   - Khối 10: Mệnh đề - Tập hợp; Hệ bất phương trình bậc nhất hai ẩn; Hệ thức lượng trong tam giác; Vectơ trong mặt phẳng Oxy; Đường tròn & Ba đường conic (Elip, Hypebol, Parabol).
+   - Khối 9: Căn bậc hai/ba; Hệ phương trình bậc nhất hai ẩn; Phương trình bậc hai & Định lý Vi-ét; Góc với đường tròn & Tứ giác nội tiếp; Hình trụ - nón - cầu.
+   - Khối 8: Đa thức nhiều biến; 7 hằng đẳng thức đáng nhớ; Phân thức đại số; Định lý Thalès; Tam giác đồng dạng; Hình chóp đều.
+   - Khối 7: Số hữu tỉ - Số thực; Tỉ lệ thức - Dãy tỉ số bằng nhau; Hai tam giác bằng nhau; Các đường đồng quy trong tam giác.
+   - Khối 6: Tập hợp số tự nhiên; Số nguyên; ƯCLN - BCNN; Phân số cơ bản; Hình có trục/tâm đối xứng.
+2. MÔN VẬT LÍ:
+   - Khối 12: Vật lí nhiệt (nội năng, nhiệt nóng chảy/hóa hơi); Khí lí tưởng (pV=nRT); Từ trường & Cảm ứng điện từ; Vật lí hạt nhân (độ hụt khối, phóng xạ).
+   - Khối 11: Dao động điều hòa (con lắc lò xo/đơn); Sóng cơ & Giao thoa sóng; Điện trường (định luật Coulomb, tụ điện); Dòng điện không đổi (suất điện động, định luật Ohm).
+   - Khối 10: Động học (chuyển động biến đổi đều, ném xiên); 3 định luật Newton; Công - Năng lượng - Động lượng; Chuyển động tròn đều.
+3. MÔN HÓA HỌC:
+   - Khối 12: Ester - Lipid; Carbohydrate (Glucose, Saccharose, Tinh bột); Amine - Amino acid - Peptide - Protein; Polymer; Pin điện & Điện phân; Đại cương Kim loại & Phức chất.
+   - Khối 11: Cân bằng hóa học & pH; Nitrogen - Sulfur; Đại cương Hóa hữu cơ (phổ IR); Hydrocarbon (Alkane, Alkene, Alkyne, Arene); Alcohol - Phenol - Aldehyde - Carboxylic acid.
+   - Khối 10: Cấu tạo nguyên tử (Orbital, cấu hình e); Bảng tuần hoàn; Liên kết hóa học; Phản ứng oxi hóa - khử; Enthalpy tạo thành; Tốc độ phản ứng; Nhóm Halogen.
+4. MÔN SINH HỌC:
+   - Khối 12: Cơ chế di truyền & biến dị (ADN, phiên mã, dịch mã, điều hòa hoạt động gen Operon Lac); Quy luật di truyền; Di truyền quần thể & Di truyền người; Tiến hóa & Sinh thái học.
+   - Khối 11: Trao đổi chất & Chuyển hóa năng lượng ở thực vật/động vật (quang hợp, hô hấp, tuần hoàn, bài tiết); Cảm ứng; Sinh trưởng & Sinh sản.
+   - Khối 10: Thành phần hóa học của tế bào; Cấu trúc tế bào nhân sơ/nhân thực; Chu kỳ tế bào & Nguyên phân - Giảm phân; Vi sinh vật & Virus.
+
+=== BƯỚC 5: KIỂM TRA CẤU TRÚC ĐỀ CHUẨN BỘ GD&ĐT 2025 & PHỤ LỤC ===
+- Kiểm tra xem đề có cấu trúc 3 phần mới (Phần I: Trắc nghiệm nhiều phương án lựa chọn; Phần II: Trắc nghiệm đúng sai; Phần III: Trắc nghiệm trả lời ngắn) hay không -> "moet_2025_compliant": true/false.
+- Kiểm tra cuối văn bản có Bảng đáp án ("has_answer_keys": true/false) và Hướng dẫn giải chi tiết ("has_detailed_solutions": true/false) hay không.
+
+=== BƯỚC 6: CÁC VÍ DỤ MẪU CHUẨN (FEW-SHOT GOLDEN EXEMPLARS) ===
+- Ví dụ 1: "TRƯỜNG ĐH KHTN - TRƯỜNG THPT CHUYÊN KHTN | ĐỀ THI THỬ TỐT NGHIỆP THPT NĂM 2025 - MÔN: TOÁN"
+  -> {"is_valid_exam": true, "subject": "MATHEMATICS", "grade_level": "Khối 12", "exam_track": "THUONG", "detailed_exam_track": "Đề thi thử tốt nghiệp THPT", "school_or_department": "Trường THPT Chuyên KHTN", "academic_year": "2024-2025", "confidence": 0.99}
+- Ví dụ 2: "SỞ GD&ĐT HÀ NỘI | KỲ THI TUYỂN SINH VÀO LỚP 10 THPT NĂM HỌC 2025-2026 | MÔN THI: TIẾNG ANH (Đại trà)"
+  -> {"is_valid_exam": true, "subject": "ENGLISH", "grade_level": "Khối 9", "exam_track": "THUONG", "detailed_exam_track": "Đề thi tuyển sinh vào lớp 10", "school_or_department": "Sở GD&ĐT Hà Nội", "academic_year": "2025-2026", "confidence": 0.99}
+- Ví dụ 3: "SỞ GD&ĐT NGHỆ AN | KỲ THI TUYỂN SINH VÀO LỚP 10 THPT CHUYÊN PHAN BỘI CHÂU | MÔN THI: HÓA HỌC (Đề chuyên)"
+  -> {"is_valid_exam": true, "subject": "CHEMISTRY", "grade_level": "Khối 9", "exam_track": "CHUYEN", "detailed_exam_track": "Đề thi tuyển sinh vào lớp 10 Chuyên", "school_or_department": "THPT Chuyên Phan Bội Châu - Nghệ An", "academic_year": null, "confidence": 0.99}
+- Ví dụ 4: "PHÒNG GD&ĐT QUẬN CẦU GIẤY | ĐỀ KIỂM TRA HỌC KỲ I LỚP 8 | MÔN: KHOA HỌC TỰ NHIÊN"
+  -> {"is_valid_exam": true, "subject": "NATURAL_SCIENCE", "grade_level": "Khối 8", "exam_track": "THUONG", "detailed_exam_track": "Đề thi Học kỳ 1", "school_or_department": "Phòng GD&ĐT Quận Cầu Giấy", "academic_year": null, "confidence": 0.99}
+
+Định dạng JSON trả về cho 1 đề (CHỈ TRẢ VỀ KHỐI JSON HỢP LỆ):
 {
   "is_valid_exam": true,
   "subject": "MATHEMATICS | PHYSICS | CHEMISTRY | BIOLOGY | INFORMATICS | LITERATURE | ENGLISH | HISTORY | GEOGRAPHY | NATURAL_SCIENCE | HISTORY_GEOGRAPHY | CIVIC_EDUCATION | ECONOMIC_LEGAL_EDU | TECHNOLOGY | DEFENSE_SECURITY_EDU | GENERAL",
   "grade_level": "Khối 6 | Khối 7 | Khối 8 | Khối 9 | Khối 10 | Khối 11 | Khối 12 | Đại học / Cao đẳng | Không xác định",
   "exam_track": "THUONG | CHUYEN | HSG | QUOC_TE | CHUNG",
   "detailed_exam_track": "Đề thi thử tốt nghiệp THPT | Đề thi chính thức tốt nghiệp THPT | Đề thi Học kỳ 1 | Đề thi Học kỳ 2 | Đề thi Giữa học kỳ 1 | Đề thi Giữa học kỳ 2 | Đề thi khảo sát chất lượng | Đề thi tuyển sinh vào lớp 10 | Đề thi tuyển sinh vào lớp 10 Chuyên | Đề thi Học sinh giỏi | Đề cương / Tài liệu ôn tập",
-  "school_or_department": "Tên Trường hoặc Sở GD&ĐT nếu có trong đầu đề, hoặc null",
+  "school_or_department": "Tên Trường hoặc Sở/Phòng GD&ĐT nếu có trong đầu đề, hoặc null",
   "academic_year": "YYYY-YYYY nếu có, hoặc null",
-  "confidence": 0.98
+  "moet_2025_compliant": true,
+  "has_answer_keys": true,
+  "has_detailed_solutions": false,
+  "curriculum_topic_detected": "Chuyên đề kiến thức trọng tâm nhận diện được (ví dụ: Hàm số & Tọa độ Oxyz Toán 12)",
+  "confidence": 0.99
 }"""
+
+ARBITER_PROMPT_VI = """Bạn là Trọng tài Kiểm định Độc lập Cấp cao (Final Arbiter Agent).
+Một đề thi vừa được phân tích sơ bộ nhưng có dấu hiệu dễ gây nhầm lẫn.
+Hãy đọc lại văn bản đề, kết quả phân tích của Agent 1, và kiểm tra thật kỹ 5 bẫy:
+1. Trường THPT Chuyên ra đề Thi thử / Học kỳ / KSCL -> exam_track PHẢI LÀ "THUONG".
+2. Đề thi Tuyển sinh vào lớp 10 -> grade_level PHẢI LÀ "Khối 9".
+3. Đề Cấp 2 (Lớp 6-9) môn KHTN -> "NATURAL_SCIENCE"; Lịch sử & Địa lí -> "HISTORY_GEOGRAPHY".
+4. Nếu đề không ghi rõ lớp ở tiêu đề -> suy luận Khối lớp từ chuyên đề câu hỏi theo chương trình GDPT 2018.
+5. Trả về DUY NHẤT 1 đối tượng JSON chuẩn xác nhất."""
 
 
 def _build_model_chain(primary_model: str, fallback_model: str) -> List[str]:
@@ -187,9 +254,8 @@ def _build_model_chain(primary_model: str, fallback_model: str) -> List[str]:
 
 
 def _build_payload_for_model(
-    model_name: str, system_prompt: str, user_prompt: str, base_tokens: int = 320
+    model_name: str, system_prompt: str, user_prompt: str, base_tokens: int = 400
 ) -> Dict[str, Any]:
-    """Tối ưu tham số riêng cho từng dòng model (550B Ultra / GLM dùng reasoning sâu; 120B / Gemma trả thẳng JSON)."""
     is_deep_reasoning = any(
         k in model_name for k in ("ultra-550b", "glm-5.3", "kimi", "deepseek")
     )
@@ -215,8 +281,67 @@ def _build_payload_for_model(
     return payload
 
 
+def _deterministic_post_audit(
+    file_name: str, raw_text: str, parsed: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Agent 2 (Deterministic Trap Auditor):
+    Kiểm toán hậu kiểm bằng luật cứng sau khi Agent 1 (550B) trả kết quả,
+    đảm bảo không bao giờ lọt bẫy Tuyển sinh vào 10 hay Trường Chuyên thi thử.
+    """
+    result = dict(parsed)
+    head_text = f"{file_name}\n{(raw_text or '')[:1500]}".lower()
+
+    # Kiểm toán Bẫy 2: Tuyển sinh vào lớp 10 LUÔN LUÔN là Khối 9
+    if re.search(
+        r"(tuyển\s*sinh\s*(?:vào\s*)?lớp\s*10|thi\s*vào\s*(?:lớp\s*)?10|ôn\s*thi\s*vào\s*(?:lớp\s*)?10)",
+        head_text,
+    ):
+        result["grade_level"] = "Khối 9"
+        if re.search(r"(chuyên|môn\s*chuyên|hệ\s*chuyên)", head_text):
+            result["exam_track"] = "CHUYEN"
+            result["detailed_exam_track"] = "Đề thi tuyển sinh vào lớp 10 Chuyên"
+        else:
+            result["exam_track"] = "THUONG"
+            result["detailed_exam_track"] = "Đề thi tuyển sinh vào lớp 10"
+
+    # Kiểm toán Bẫy 1: Đề thi thử TN THPT / Giữa kỳ / Học kỳ của Trường THPT Chuyên -> THUONG
+    det_lower = str(result.get("detailed_exam_track") or "").lower()
+    if any(
+        kw in det_lower
+        for kw in ("thi thử", "tốt nghiệp", "học kỳ", "giữa học kỳ", "giữa kỳ", "khảo sát")
+    ):
+        if str(result.get("exam_track") or "").upper() in ("CHUYEN", "HSG"):
+            if not re.search(
+                r"(chọn\s*học\s*sinh\s*giỏi|đề\s*thi\s*hsg|chọn\s*đội\s*tuyển|olympic)",
+                head_text,
+            ):
+                result["exam_track"] = "THUONG"
+
+    # Kiểm toán Bẫy 3: Khối 6, 7, 8, 9 không có môn ECONOMIC_LEGAL_EDU (đó là CIVIC_EDUCATION)
+    grade_str = str(result.get("grade_level") or "")
+    if any(g in grade_str for g in ("Khối 6", "Khối 7", "Khối 8", "Khối 9")):
+        if result.get("subject") == "ECONOMIC_LEGAL_EDU":
+            result["subject"] = "CIVIC_EDUCATION"
+    elif any(g in grade_str for g in ("Khối 10", "Khối 11", "Khối 12")):
+        if result.get("subject") == "NATURAL_SCIENCE" and not re.search(
+            r"khoa\s*học\s*tự\s*nhiên\s*(?:6|7|8|9)", head_text
+        ):
+            # Nếu lỡ gán NATURAL_SCIENCE cho cấp 3 (do tên trường ĐH KHTN), suy luận lại môn thực
+            if re.search(r"(dao\s*động|sóng\s*cơ|điện\s*xoay\s*chiều|hạt\s*nhân|cảm\s*ứng\s*điện\s*từ)", raw_text.lower()):
+                result["subject"] = "PHYSICS"
+            elif re.search(r"(ester|carbohydrate|amino\s*acid|polymer|nguyên\s*tử|mol)", raw_text.lower()):
+                result["subject"] = "CHEMISTRY"
+            elif re.search(r"(phiên\s*mã|dịch\s*mã|nhiễm\s*sắc\s*thể|quần\s*thể|di\s*truyền)", raw_text.lower()):
+                result["subject"] = "BIOLOGY"
+            else:
+                result["subject"] = "MATHEMATICS"
+
+    return result
+
+
 class CloudExamVerifier:
-    """Bộ đối chiếu đề thi qua NVIDIA NIM API (Model 550B + Chu kỳ gom lô 45 giây)."""
+    """Hệ thống Multi-Agent Thẩm Định Đề Thi (Reader 550B -> Trap Auditor -> Arbiter 120B)."""
 
     @classmethod
     def get_quota_stats(cls) -> Dict[str, Any]:
@@ -243,7 +368,6 @@ class CloudExamVerifier:
         raw_text: str,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Đưa tệp vừa được Bot list/tổng hợp vào hàng đợi để chu kỳ 45s gom gửi phân tích."""
         if not raw_text or len(raw_text.strip()) < 25:
             return
         fp = _make_fingerprint(file_name, raw_text)
@@ -262,12 +386,6 @@ class CloudExamVerifier:
 
     @classmethod
     def flush_45s_batch(cls, max_items: int = 24) -> List[Dict[str, Any]]:
-        """
-        Được gọi định kỳ mỗi 45 giây bởi Bot:
-        Lấy toàn bộ các file đã được list/tổng hợp trong 45s qua, gom thành các lô (batch)
-        và gửi tới Model 550B để đọc hiểu & phân loại sâu.
-        Trả về danh sách kết quả [{"doc_id": ..., "file_name": ..., "verified": {...}, "metadata": {...}}].
-        """
         with _LOCK:
             if not _PENDING_45S_QUEUE:
                 return []
@@ -305,8 +423,51 @@ class CloudExamVerifier:
         local_confidence: float,
         has_conflict: bool = False,
     ) -> bool:
-        """Luôn bật quét 100% mọi tệp hợp lệ qua Model 550B (token không giới hạn, đã có bộ điều tốc 45s/RPM bảo vệ)."""
         return bool(raw_text and len(raw_text.strip()) >= 25)
+
+    @classmethod
+    def _call_single_model(
+        cls,
+        base_url: str,
+        api_key: str,
+        model_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        timeout_sec: float,
+    ) -> Optional[Dict[str, Any]]:
+        for attempt in range(2):
+            try:
+                payload = _build_payload_for_model(
+                    model_name, system_prompt, user_prompt, base_tokens=450
+                )
+                req = urllib.request.Request(
+                    f"{base_url}/chat/completions",
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+                    body = json.loads(resp.read().decode("utf-8"))
+                    msg = body.get("choices", [{}])[0].get("message", {})
+                    content = (msg.get("content") or "").strip()
+                    if not content:
+                        content = (msg.get("reasoning_content") or "").strip()
+                    parsed = cls._extract_json(content)
+                    if parsed and parsed.get("subject"):
+                        return parsed
+                break
+            except urllib.error.HTTPError as he:
+                if he.code == 429 and attempt == 0:
+                    time.sleep(2.5)
+                    continue
+                logger.debug("CloudExamVerifier HTTP %s (%s)", he.code, model_name)
+                break
+            except Exception as e:
+                logger.debug("CloudExamVerifier (%s) bỏ qua: %s", model_name, e)
+                break
+        return None
 
     @classmethod
     def verify_exam(
@@ -315,7 +476,12 @@ class CloudExamVerifier:
         raw_text: str,
         timeout_sec: float = 45.0,
     ) -> Optional[Dict[str, Any]]:
-        """Phân tích sâu 1 đề thi (timeout mặc định 45s < 1 phút/file để model 550B suy luận kỹ nhất)."""
+        """
+        Thực thi Pipeline 3-Agent:
+        1. Reader Agent (550B Ultra Thinking) đọc sâu toàn bộ đề (Đầu + Giữa + Cuối).
+        2. Trap Auditor Agent kiểm toán hậu kiểm 5 bẫy kinh điển.
+        3. Arbiter Agent (120B / Gemma-4-31B) hội chẩn độc lập nếu kết quả còn mơ hồ (confidence < 0.90 hoặc GENERAL).
+        """
         api_key, base_url, primary_model, fallback_model = _get_nvidia_credentials()
         if not api_key or not raw_text or len(raw_text.strip()) < 25:
             return None
@@ -328,7 +494,6 @@ class CloudExamVerifier:
                 return dict(cached)
 
         if not _acquire_rate_limit_slot(wait_if_needed=True, max_wait_sec=35.0):
-            logger.info("CloudExamVerifier đưa file '%s' vào hàng đợi 45s để bảo vệ trần 40 RPM.", file_name)
             cls.enqueue_for_45s_batch(doc_id=fp, file_name=file_name, raw_text=raw_text)
             return None
 
@@ -347,51 +512,65 @@ class CloudExamVerifier:
 
         user_prompt = (
             f"Tên tệp: {file_name}\n"
-            f"Nội dung trích xuất:\n{snippet}\n\n"
-            "Chỉ trả về đúng 1 JSON theo quy định:"
+            f"Nội dung trích xuất đề thi:\n{snippet}\n\n"
+            "Hãy vận dụng Quy trình Tư duy Đọc Đề 6 Bước và trả về đúng 1 JSON:"
         )
 
         models_chain = _build_model_chain(primary_model, fallback_model)
+        primary_result: Optional[Dict[str, Any]] = None
+        used_model: Optional[str] = None
 
+        # AGENT 1: Reader & Curriculum Analyst
         for model_name in models_chain:
-            for attempt in range(2):
-                try:
-                    payload = _build_payload_for_model(
-                        model_name, SYSTEM_PROMPT_VI, user_prompt, base_tokens=320
-                    )
-                    req = urllib.request.Request(
-                        f"{base_url}/chat/completions",
-                        data=json.dumps(payload).encode("utf-8"),
-                        headers={
-                            "Authorization": f"Bearer {api_key}",
-                            "Content-Type": "application/json",
-                        },
-                    )
-                    with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
-                        body = json.loads(resp.read().decode("utf-8"))
-                        msg = body.get("choices", [{}])[0].get("message", {})
-                        content = (msg.get("content") or "").strip()
-                        if not content:
-                            content = (msg.get("reasoning_content") or "").strip()
-                        parsed = cls._extract_json(content)
-                        if parsed and parsed.get("subject"):
-                            with _LOCK:
-                                _VERIFICATION_CACHE[fp] = dict(parsed)
-                                if len(_VERIFICATION_CACHE) > _MAX_CACHE_SIZE:
-                                    _VERIFICATION_CACHE.popitem(last=False)
-                            return parsed
-                    break
-                except urllib.error.HTTPError as he:
-                    if he.code == 429 and attempt == 0:
-                        time.sleep(2.5)
-                        continue
-                    logger.debug("CloudExamVerifier HTTP %s (%s)", he.code, model_name)
-                    break
-                except Exception as e:
-                    logger.debug("CloudExamVerifier (%s) bỏ qua: %s", model_name, e)
-                    break
+            res = cls._call_single_model(
+                base_url, api_key, model_name, SYSTEM_PROMPT_VI, user_prompt, timeout_sec
+            )
+            if res:
+                primary_result = res
+                used_model = model_name
+                break
 
-        return None
+        if not primary_result:
+            return None
+
+        # AGENT 2: Deterministic Trap Auditor
+        audited_result = _deterministic_post_audit(file_name, raw_text, primary_result)
+
+        # AGENT 3: Independent Arbiter (kích hoạt khi môn/khối còn mơ hồ hoặc confidence < 0.90)
+        conf_val = float(audited_result.get("confidence") or 0.95)
+        needs_arbiter = (
+            conf_val < 0.90
+            or audited_result.get("subject") in ("GENERAL", "UNKNOWN", None)
+            or audited_result.get("grade_level") in ("Không xác định", "UNKNOWN", None)
+        )
+        if needs_arbiter:
+            arbiter_candidates = [m for m in models_chain if m != used_model]
+            if arbiter_candidates and _acquire_rate_limit_slot(
+                wait_if_needed=False, max_wait_sec=2.0
+            ):
+                arbiter_prompt = (
+                    f"Tên tệp: {file_name}\n"
+                    f"Kết quả sơ bộ của Agent 1: {json.dumps(audited_result, ensure_ascii=False)}\n"
+                    f"Nội dung trích xuất:\n{snippet[:16000]}\n\n"
+                    "Hãy kiểm định độc lập và trả về JSON chính xác nhất:"
+                )
+                arb_res = cls._call_single_model(
+                    base_url,
+                    api_key,
+                    arbiter_candidates[0],
+                    ARBITER_PROMPT_VI,
+                    arbiter_prompt,
+                    timeout_sec=25.0,
+                )
+                if arb_res and arb_res.get("subject") not in ("GENERAL", None):
+                    audited_result = _deterministic_post_audit(file_name, raw_text, arb_res)
+
+        with _LOCK:
+            _VERIFICATION_CACHE[fp] = dict(audited_result)
+            if len(_VERIFICATION_CACHE) > _MAX_CACHE_SIZE:
+                _VERIFICATION_CACHE.popitem(last=False)
+
+        return audited_result
 
     @classmethod
     def verify_batch(
@@ -399,10 +578,6 @@ class CloudExamVerifier:
         items: List[Dict[str, str]],
         timeout_sec: float = 50.0,
     ) -> List[Optional[Dict[str, Any]]]:
-        """
-        Gộp tối đa 6 đề thi vào 1 request duy nhất để phân tích sâu trong chu kỳ 45s.
-        Mỗi phần tử trong items gồm: {"file_name": str, "raw_text": str}.
-        """
         if not items:
             return []
 
@@ -457,13 +632,19 @@ class CloudExamVerifier:
                 rt = items[orig_idx].get("raw_text", "").strip()
                 if len(rt) > 12000:
                     mid = len(rt) // 2
-                    snippet = rt[:6000] + "\n...\n" + rt[mid - 1500 : mid + 1500] + "\n...\n" + rt[-3000:]
+                    snippet = (
+                        rt[:6000]
+                        + "\n...\n"
+                        + rt[mid - 1500 : mid + 1500]
+                        + "\n...\n"
+                        + rt[-3000:]
+                    )
                 else:
                     snippet = rt
                 blocks.append(f"--- ĐỀ SỐ {local_i} ---\nTên tệp: {fn}\nNội dung:\n{snippet}")
 
             batch_prompt = (
-                "Phân loại danh sách các đề thi dưới đây. "
+                "Vận dụng Quy trình Tư duy Đọc Đề 6 Bước để phân loại danh sách các đề thi dưới đây. "
                 'Trả về DUY NHẤT 1 đối tượng JSON có dạng {"items": [ ... ]} '
                 f"gồm đúng {len(chunk_indices)} phần tử theo đúng thứ tự ĐỀ SỐ 0 đến ĐỀ SỐ {len(chunk_indices) - 1}.\n\n"
                 + "\n\n".join(blocks)
@@ -476,7 +657,7 @@ class CloudExamVerifier:
                         model_name,
                         SYSTEM_PROMPT_VI,
                         batch_prompt,
-                        base_tokens=260 * len(chunk_indices),
+                        base_tokens=320 * len(chunk_indices),
                     )
                     req = urllib.request.Request(
                         f"{base_url}/chat/completions",
@@ -503,15 +684,21 @@ class CloudExamVerifier:
                                 for local_i, orig_idx in enumerate(chunk_indices):
                                     item_res = arr[local_i]
                                     if isinstance(item_res, dict) and item_res.get("subject"):
-                                        results[orig_idx] = item_res
-                                        _VERIFICATION_CACHE[chunk_fps[local_i]] = dict(item_res)
+                                        fn_i = items[orig_idx].get("file_name", "")
+                                        rt_i = items[orig_idx].get("raw_text", "")
+                                        audited_i = _deterministic_post_audit(
+                                            fn_i, rt_i, item_res
+                                        )
+                                        results[orig_idx] = audited_i
+                                        _VERIFICATION_CACHE[chunk_fps[local_i]] = dict(
+                                            audited_i
+                                        )
                             batch_succeeded = True
                             break
                 except Exception as e:
                     logger.debug("CloudExamVerifier batch (%s) bỏ qua: %s", model_name, e)
                     continue
 
-            # Nếu batch gộp bị lệch định dạng, fallback sang quét từng đề trong lô
             if not batch_succeeded:
                 for orig_idx in chunk_indices:
                     results[orig_idx] = cls.verify_exam(
@@ -526,7 +713,6 @@ class CloudExamVerifier:
     def _extract_json(text: str) -> Optional[Dict[str, Any]]:
         if not text:
             return None
-        # Nếu có nhiều cặp {...}, ưu tiên khối JSON cuối cùng (sau khi reasoning xong)
         matches = list(re.finditer(r"\{[\s\S]*\}", text))
         if not matches:
             return None
@@ -535,7 +721,6 @@ class CloudExamVerifier:
             obj = json.loads(raw_block)
             return obj if isinstance(obj, dict) else None
         except Exception:
-            # Thử tìm khối JSON khép kín cuối cùng
             sub_matches = re.findall(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text)
             for candidate in reversed(sub_matches):
                 try:

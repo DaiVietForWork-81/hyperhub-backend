@@ -539,11 +539,7 @@ class DocumentInspector:
         try:
             from .cloud_verifier import CloudExamVerifier
 
-            has_subj_conflict = bool(
-                pass1.subject_hint != Subject.GENERAL
-                and pass2.detected_subject != Subject.GENERAL
-                and pass1.subject_hint != pass2.detected_subject
-            )
+            has_subj_conflict = bool(getattr(pass3, "filename_spoofed", False))
             if CloudExamVerifier.should_invoke_cloud(
                 file_name=name,
                 raw_text=_raw_text,
@@ -613,6 +609,14 @@ class DocumentInspector:
                         and re.search(r"20\d{2}", c_year)
                     ):
                         academic_year_str = c_year.strip()
+
+                    if cloud_res.get("moet_2025_compliant") is True:
+                        pass2.curriculum.moet_2025_compliant = True
+                    if cloud_res.get("has_answer_keys") is True:
+                        deep_metadata.has_answer_keys = True
+                        pass2.has_answer_key = True
+                    if cloud_res.get("has_detailed_solutions") is True:
+                        deep_metadata.has_detailed_solutions = True
         except Exception:
             pass
 
