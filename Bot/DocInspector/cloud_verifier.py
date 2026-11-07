@@ -199,10 +199,15 @@ def _build_payload_for_model(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "max_tokens": max(1300, base_tokens * 3) if is_deep_reasoning else base_tokens,
+        "max_tokens": max(2048, base_tokens * 4) if is_deep_reasoning else base_tokens,
         "temperature": 0.0,
     }
-    if not is_deep_reasoning:
+    if is_deep_reasoning:
+        payload["chat_template_kwargs"] = {
+            "thinking": True,
+            "enable_thinking": True,
+        }
+    else:
         payload["chat_template_kwargs"] = {
             "thinking": False,
             "enable_thinking": False,
