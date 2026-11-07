@@ -310,6 +310,22 @@ if HAS_PYDANTIC:
             default="",
             description="Google Safe Browsing API Key (tùy chọn)",
         )
+        NVIDIA_API_KEY: str = Field(
+            default="",
+            description="NVIDIA NIM API Key (https://build.nvidia.com/)",
+        )
+        NVIDIA_BASE_URL: str = Field(
+            default="https://integrate.api.nvidia.com/v1",
+            description="NVIDIA NIM API Base URL",
+        )
+        NVIDIA_PRIMARY_MODEL: str = Field(
+            default="nvidia/nemotron-3.5-bolt-e4b",
+            description="Model chính tốc độ cao trên NVIDIA NIM (< 1s)",
+        )
+        NVIDIA_FALLBACK_MODEL: str = Field(
+            default="mistralai/mistral-large-4-1t-a52b",
+            description="Model dự phòng trên NVIDIA NIM",
+        )
         CONFLICT_MONITOR_CATEGORY_ID: int = Field(
             default=1534147161091211414,
             description="ID Thư mục (Category ID) giám sát xung đột",

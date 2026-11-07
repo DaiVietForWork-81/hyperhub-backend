@@ -533,6 +533,56 @@ class DocumentInspector:
             doc_cat=category,
         )
 
+        # -------------------------------------------------------------
+        # ĐỐI CHIẾU SÂU QUA CLOUD VERIFIER (NVIDIA NIM) NẾU ĐÃ CẤU HÌNH
+        # -------------------------------------------------------------
+        try:
+            from .cloud_verifier import CloudExamVerifier
+            cloud_res = CloudExamVerifier.verify_exam(file_name=name, raw_text=_raw_text)
+            if cloud_res:
+                c_subj = str(cloud_res.get("subject") or "").upper()
+                if c_subj in Subject.__members__ and c_subj != "GENERAL":
+                    subject = Subject[c_subj]
+                    conf = max(conf, float(cloud_res.get("confidence") or 0.96))
+
+                c_grade = cloud_res.get("grade_number")
+                grade_map = {
+                    6: GradeLevel.GRADE_6,
+                    7: GradeLevel.GRADE_7,
+                    8: GradeLevel.GRADE_8,
+                    9: GradeLevel.GRADE_9,
+                    10: GradeLevel.GRADE_10,
+                    11: GradeLevel.GRADE_11,
+                    12: GradeLevel.GRADE_12,
+                }
+                if isinstance(c_grade, int) and c_grade in grade_map:
+                    pass2.grade_level = grade_map[c_grade]
+
+                c_track = str(cloud_res.get("exam_track") or "").lower()
+                track_map = {
+                    "thuong": (ExamTrackTier.THUONG, "thường"),
+                    "hsg": (ExamTrackTier.HSG, "hsg"),
+                    "chuyen": (ExamTrackTier.CHUYEN, "chuyên"),
+                    "quoc_te": (ExamTrackTier.QUOC_TE, "quốc tế"),
+                    "chung": (ExamTrackTier.CHUNG, "chung"),
+                }
+                if c_track in track_map:
+                    exam_track, track_label = track_map[c_track]
+
+                c_detailed = cloud_res.get("detailed_exam_track")
+                if isinstance(c_detailed, str) and len(c_detailed.strip()) > 3:
+                    detailed_track_str = c_detailed.strip()
+
+                c_school = cloud_res.get("school_or_department")
+                if not school_str and isinstance(c_school, str) and len(c_school.strip()) > 2 and c_school.lower() != "null":
+                    school_str = c_school.strip()
+
+                c_year = cloud_res.get("academic_year")
+                if not academic_year_str and isinstance(c_year, str) and re.search(r"20\d{2}", c_year):
+                    academic_year_str = c_year.strip()
+        except Exception:
+            pass
+
         is_moet_2025 = (subject != Subject.LITERATURE) and (
             pass2.curriculum.moet_2025_compliant or (
                 deep_metadata.moet_part1_count > 0 and (deep_metadata.moet_part2_count > 0 or deep_metadata.moet_part3_count > 0)
