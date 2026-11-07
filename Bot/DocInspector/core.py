@@ -193,6 +193,18 @@ def detect_detailed_exam_track(
     if doc_cat == DocumentCategory.LESSON_PLAN or any(k in combined for k in ["giáo án", "giao an", "khbd", "kế hoạch bài dạy", "ke hoach bai day", "5512"]):
         return "Giáo án / Kế hoạch bài dạy (KHBD)"
 
+    # Khử cụm dễ gây hiểu lầm: "trường thpt chuyên ..." và "chuyên đề ..."
+    combined_no_school_topic = re.sub(
+        r"(?:trường\s*)?thpt\s*chuyên\s+[a-zA-Zà-ỹ0-9\s\-–]{2,35}",
+        " ",
+        combined,
+    )
+    combined_no_school_topic = re.sub(
+        r"\bchuyên\s*(?:đề|ngành|mục|cần|sâu|viên|môn)\b",
+        " ",
+        combined_no_school_topic,
+    )
+
     # 2. Tuyển sinh vào 10
     is_vao_10 = any(k in combined for k in [
         "vào 10", "vao 10", "vào lớp 10", "vao lop 10",
@@ -200,7 +212,10 @@ def detect_detailed_exam_track(
         "tuyen sinh vao 10", "tuyển sinh lớp 10", "thi vào 10", "thi vao 10"
     ])
     if is_vao_10:
-        if base_track == ExamTrackTier.CHUYEN or any(k in combined for k in ["chuyên", "chuyen", "thpt chuyên"]):
+        if base_track == ExamTrackTier.CHUYEN or any(
+            k in combined_no_school_topic
+            for k in ["vào 10 chuyên", "lớp 10 chuyên", "thi chuyên", "chuyên toán", "chuyên văn", "chuyên anh", "chuyên lý", "chuyên hóa", "chuyên sinh", "chuyên tin"]
+        ):
             return "Đề thi tuyển sinh vào 10 Chuyên"
         return "Đề thi tuyển sinh vào lớp 10"
 
@@ -220,24 +235,17 @@ def detect_detailed_exam_track(
         return "Đề thi tốt nghiệp THPT"
 
     # 5. Học sinh giỏi (HSG)
-    is_hsg = (base_track == ExamTrackTier.HSG) or any(k in combined for k in [
+    is_hsg = (base_track == ExamTrackTier.HSG) or any(k in combined_no_school_topic for k in [
         "học sinh giỏi", "hoc sinh gioi", "hsg", "chọn đội tuyển", "chon doi tuyen", "hsgqg"
     ])
     if is_hsg:
-        if any(k in combined for k in ["quốc gia", "quoc gia", "qg"]):
+        if any(k in combined_no_school_topic for k in ["quốc gia", "quoc gia", "qg"]):
             return "Đề thi Học sinh giỏi Quốc gia (HSGQG)"
-        elif any(k in combined for k in ["tỉnh", "tinh", "thành phố", "thanh pho", "tp"]):
+        elif any(k in combined_no_school_topic for k in ["tỉnh", "tinh", "thành phố", "thanh pho", "tp"]):
             return "Đề thi Học sinh giỏi cấp Tỉnh / TP"
         return "Đề thi Học sinh giỏi (HSG)"
 
-    # 6. Chuyên / Olympic
-    is_chuyen = (base_track == ExamTrackTier.CHUYEN) or any(k in combined for k in [
-        "olympic", "chuyên", "thpt chuyên", "khoa học tự nhiên", "khtn", "amsterdam", "chuyen"
-    ])
-    if is_chuyen:
-        return "Đề thi Chuyên / Olympic"
-
-    # 7. Đề thi Học kỳ / Giữa kỳ
+    # 6. Đề thi Học kỳ / Giữa kỳ (Kiểm tra trước Chuyên để đề học kỳ của trường Chuyên không bị nhầm thành đề thi Chuyên)
     has_giua_ky_1 = any(k in combined for k in ["giữa kỳ 1", "giua ky 1", "giữa học kỳ 1", "giua hoc ky 1", "gki", "gk1", "gk 1"])
     has_cuoi_ky_1 = any(k in combined for k in ["học kỳ 1", "hoc ky 1", "học kì 1", "hoc ki 1", "hk1", "hk 1", "cuối kỳ 1", "cuoi ky 1", "cki"])
     has_giua_ky_2 = any(k in combined for k in ["giữa kỳ 2", "giua ky 2", "giữa học kỳ 2", "giua hoc ky 2", "gkii", "gk2", "gk 2"])
@@ -251,6 +259,13 @@ def detect_detailed_exam_track(
         return "Đề thi Giữa học kỳ 2"
     if has_cuoi_ky_2:
         return "Đề thi Học kỳ 2"
+
+    # 7. Chuyên / Olympic (Đã loại trừ "khoa học tự nhiên" / "khtn" của Cấp 2 và tên trường Chuyên)
+    is_chuyen = (base_track == ExamTrackTier.CHUYEN) or any(k in combined_no_school_topic for k in [
+        "olympic", "thi chuyên", "đề chuyên", "chuyên toán", "chuyên lý", "chuyên hóa", "chuyên sinh", "chuyên tin", "chuyên văn", "chuyên anh"
+    ])
+    if is_chuyen:
+        return "Đề thi Chuyên / Olympic"
 
     # 8. Kiểm tra định kỳ (1 tiết / 45 phút) / Kiểm tra nhanh
     if any(k in combined for k in ["15 phút", "15 phut", "kiểm tra nhanh", "kiem tra nhanh", "thường xuyên", "kttx"]):
@@ -816,10 +831,10 @@ class DocumentInspector:
             grade_level = GradeLevel.GRADE_12
         elif RE_GRADE_11.search(text) or RE_GRADE_11.search(fn_norm):
             grade_level = GradeLevel.GRADE_11
-        elif RE_GRADE_10.search(text) or RE_GRADE_10.search(fn_norm):
-            grade_level = GradeLevel.GRADE_10
         elif RE_GRADE_9.search(text) or RE_GRADE_9.search(fn_norm):
             grade_level = GradeLevel.GRADE_9
+        elif RE_GRADE_10.search(text) or RE_GRADE_10.search(fn_norm):
+            grade_level = GradeLevel.GRADE_10
         elif RE_GRADE_8.search(text) or RE_GRADE_8.search(fn_norm):
             grade_level = GradeLevel.GRADE_8
         elif RE_GRADE_7.search(text) or RE_GRADE_7.search(fn_norm):
@@ -986,7 +1001,27 @@ class DocumentInspector:
                             matched_terms_by_subject[subject_name].append(f"{term}~kd (x{um})")
             subject_scores[subject_name] = score
 
-        # 2. Structural Bias Integration
+        # 2. Structural Bias Integration & Explicit Exam Header Subject Priority
+        header_sample = text_lower[:1600]
+        header_explicit_map = [
+            ("PHYSICS", r"(?:môn(?:\s+thi|\s+kiểm\s+tra)?|bài\s+thi)\s*[:\-–—]?\s*vật\s*l[íy]"),
+            ("CHEMISTRY", r"(?:môn(?:\s+thi|\s+kiểm\s+tra)?|bài\s+thi)\s*[:\-–—]?\s*hóa\s*học"),
+            ("BIOLOGY", r"(?:môn(?:\s+thi|\s+kiểm\s+tra)?|bài\s+thi)\s*[:\-–—]?\s*sinh\s*học"),
+            ("INFORMATICS", r"(?:môn(?:\s+thi|\s+kiểm\s+tra)?|bài\s+thi)\s*[:\-–—]?\s*tin\s*học"),
+            ("LITERATURE", r"(?:môn(?:\s+thi|\s+kiểm\s+tra)?|bài\s+thi)\s*[:\-–—]?\s*ngữ\s*văn"),
+            ("ENGLISH", r"(?:môn(?:\s+thi|\s+kiểm\s+tra)?|bài\s+thi)\s*[:\-–—]?\s*(?:tiếng\s*anh|ngoại\s*ngữ)"),
+            ("NATURAL_SCIENCE", r"(?:môn(?:\s+thi|\s+kiểm\s+tra)?|bài\s+thi)\s*[:\-–—]?\s*(?:khoa\s*học\s*tự\s*nhiên|khtn)"),
+            ("HISTORY", r"(?:môn(?:\s+thi|\s+kiểm\s+tra)?|bài\s+thi)\s*[:\-–—]?\s*lịch\s*sử(?!\s*(?:và|&)\s*địa)"),
+            ("GEOGRAPHY", r"(?:môn(?:\s+thi|\s+kiểm\s+tra)?|bài\s+thi)\s*[:\-–—]?\s*địa\s*l[íy]"),
+            ("CIVIC_EDUCATION", r"(?:môn(?:\s+thi|\s+kiểm\s+tra)?|bài\s+thi)\s*[:\-–—]?\s*(?:giáo\s*dục\s*công\s*dân|gdcd|giáo\s*dục\s*kinh\s*tế\s*và\s*pháp\s*luật)"),
+            ("MATHEMATICS", r"(?:môn(?:\s+thi|\s+kiểm\s+tra)?|bài\s+thi)\s*[:\-–—]?\s*toán(?:\s*học)?"),
+        ]
+        for h_subj, h_pat in header_explicit_map:
+            if re.search(h_pat, header_sample) and h_subj in subject_scores:
+                subject_scores[h_subj] += 45.0
+                matched_terms_by_subject[h_subj].insert(0, "Tiêu đề môn thi trên đầu đề")
+                break
+
         if ExamType.COMPETITIVE_PROGRAMMING in pass2.candidate_exam_types:
             subject_scores["INFORMATICS"] += 40.0
             matched_terms_by_subject["INFORMATICS"].append("Cấu trúc: Giới hạn Thời gian/Bộ nhớ & Subtasks")

@@ -61,15 +61,15 @@ class ExamTrackClassifier:
     ]
 
     # 3. BỘ TỪ KHÓA ĐỀ CHUYÊN (Cấp độ cao nhất: thường < hsg < chuyên)
-    # Lưu ý: đã loại "quốc gia" đứng lẻ vì gây false-positive với "thpt quốc gia" (đề thường)
+    # Lưu ý: đã loại "quốc gia" đứng lẻ và tên trường đứng lẻ để tránh hiểu nhầm đề thi thử/học kỳ của trường Chuyên thành đề Chuyên
     CHUYEN_KEYWORDS: List[str] = [
-        "chuyên", "thpt chuyên", "trường chuyên", "thi chuyên", "vào 10 chuyên",
-        "tuyển sinh lớp 10 chuyên", "chuyên toán", "chuyên tin", "chuyên lý",
-        "chuyên hóa", "chuyên sinh", "chuyên văn", "chuyên anh",
+        "thi chuyên", "đề chuyên", "vào 10 chuyên", "vào lớp 10 chuyên",
+        "tuyển sinh lớp 10 chuyên", "tuyển sinh vào lớp 10 chuyên",
+        "chuyên toán", "chuyên tin", "chuyên lý", "chuyên vật lý", "chuyên vật lí",
+        "chuyên hóa", "chuyên sinh", "chuyên văn", "chuyên ngữ văn", "chuyên anh",
         "olympic", "olympiad", "hsgqg", "hsg quốc gia", "hsg quoc gia",
+        "chọn đội tuyển", "chon doi tuyen",
         "tst", "vnoi", "icpc", "competitive programming", "subtasks",
-        "amsterdam", "chuyên sư phạm", "chuyên khtn", "lê hồng phong",
-        "trần đại nghĩa", "năng khiếu", "lam sơn", "phan bội châu", "quốc học",
     ]
 
     # 4. BỘ TỪ KHÓA ĐỀ HSG (Cấp độ trung gian: thường < hsg < chuyên)
@@ -85,7 +85,7 @@ class ExamTrackClassifier:
     THUONG_KEYWORDS: List[str] = [
         "học kì", "học kỳ", "giữa kì", "giữa kỳ", "cuối kì", "cuối kỳ",
         "kiểm tra 1 tiết", "15 phút", "kiểm tra nhanh", "định kì", "định kỳ", "thường xuyên",
-        "tốt nghiệp", "thpt quốc gia", "tốt nghiệp thpt", "khảo sát chất lượng",
+        "tốt nghiệp", "thpt quốc gia", "tốt nghiệp thpt", "thi thử", "khảo sát chất lượng",
         "đại trà", "thường", "đề tham khảo", "đề minh họa", "ôn tập hè",
     ]
 
@@ -110,7 +110,18 @@ class ExamTrackClassifier:
             - rationale: Multi-line detailed explanation
         """
         # Normalize text sample (first 3500 chars for header clues + filename)
-        search_sample = (filename + " " + raw_text[:3500]).lower()
+        raw_sample = (filename + " " + raw_text[:3500]).lower()
+        # Khử các cụm dễ gây hiểu lầm: "chuyên đề", "chuyên ngành", "chuyên mục", và tên "trường thpt chuyên ..."
+        search_sample = re.sub(
+            r"(?:trường\s*)?thpt\s*chuyên\s+[a-zA-Zà-ỹ0-9\s\-–]{2,35}",
+            " ",
+            raw_sample,
+        )
+        search_sample = re.sub(
+            r"\bchuyên\s*(?:đề|ngành|mục|cần|sâu|viên|môn)\b",
+            " ",
+            search_sample,
+        )
 
         def _keyword_hit(keywords: list[str]) -> bool:
             """So khớp an toàn: cụm dài dùng substring, từ ngắn dùng word-boundary."""
@@ -211,7 +222,7 @@ class ExamTrackClassifier:
             )
 
         # Extremely hard academic profile without explicit keywords
-        if score >= 8.3 or high_app_ratio >= 0.35:
+        if not has_thuong_keyword and total_questions >= 5 and (score >= 8.3 or high_app_ratio >= 0.35):
             return (
                 ExamTrackTier.CHUYEN,
                 "chuyên",
@@ -229,13 +240,12 @@ class ExamTrackClassifier:
             )
 
         # Moderate-to-high difficulty (6.2 <= score < 8.3) with significant application
-        if (6.2 <= score < 8.3) and (app_and_high_ratio >= 0.45 or high_app_ratio >= 0.20):
-            if not (has_thuong_keyword and score < 7.0):
-                return (
-                    ExamTrackTier.HSG,
-                    "hsg",
-                    f"Đề thi thể loại 'hsg': Cấp độ trung gian trong thang độ khó (thường < hsg < chuyên). Độ khó đạt {score}/10, tỷ lệ vận dụng {app_and_high_ratio*100:.1f}%, phù hợp cấp độ thi Học sinh giỏi (dễ hơn đề Chuyên).",
-                )
+        if not has_thuong_keyword and total_questions >= 5 and (6.2 <= score < 8.3) and (app_and_high_ratio >= 0.45 or high_app_ratio >= 0.20):
+            return (
+                ExamTrackTier.HSG,
+                "hsg",
+                f"Đề thi thể loại 'hsg': Cấp độ trung gian trong thang độ khó (thường < hsg < chuyên). Độ khó đạt {score}/10, tỷ lệ vận dụng {app_and_high_ratio*100:.1f}%, phù hợp cấp độ thi Học sinh giỏi (dễ hơn đề Chuyên).",
+            )
 
         # ---------------------------------------------------------------------
         # 5. THỂ LOẠI: ĐỀ THƯỜNG (Đại trà / Phổ thông - độ khó thấp nhất)

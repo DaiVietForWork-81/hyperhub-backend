@@ -62,10 +62,10 @@ RE_GRADE_11: Pattern = re.compile(
     r"(?i)\b(?:lớp\s*11|lop\s*11|khối\s*11|khoi\s*11|k11|toán\s*11|toan\s*11|vật\s*lý\s*11|vat\s*ly\s*11|hóa\s*học\s*11|hoa\s*hoc\s*11|sinh\s*học\s*11|sinh\s*hoc\s*11|ngữ\s*văn\s*11|ngu\s*van\s*11|tiếng\s*anh\s*11|tieng\s*anh\s*11|tin\s*(?:học\s*)?11|tin\s*hoc\s*11)\b",
 )
 RE_GRADE_10: Pattern = re.compile(
-    r"(?i)\b(?:lớp\s*10|lop\s*10|khối\s*10|khoi\s*10|k10|tuyển\s*sinh\s*(?:vào\s*)?10|tuyen\s*sinh\s*(?:vao\s*)?10|vào\s*lớp\s*10|vao\s*lop\s*10|toán\s*10|toan\s*10|vật\s*lý\s*10|vat\s*ly\s*10|hóa\s*học\s*10|hoa\s*hoc\s*10|sinh\s*học\s*10|sinh\s*hoc\s*10|ngữ\s*văn\s*10|ngu\s*van\s*10|tiếng\s*anh\s*10|tieng\s*anh\s*10|tin\s*(?:học\s*)?10|tin\s*hoc\s*10)\b",
+    r"(?i)(?<!vào\s)(?<!vao\s)(?<!sinh\s)\b(?:lớp\s*10|lop\s*10|khối\s*10|khoi\s*10|k10|toán\s*10|toan\s*10|vật\s*lý\s*10|vat\s*ly\s*10|hóa\s*học\s*10|hoa\s*hoc\s*10|sinh\s*học\s*10|sinh\s*hoc\s*10|ngữ\s*văn\s*10|ngu\s*van\s*10|tiếng\s*anh\s*10|tieng\s*anh\s*10|tin\s*(?:học\s*)?10|tin\s*hoc\s*10)\b",
 )
 RE_GRADE_9: Pattern = re.compile(
-    r"(?i)\b(?:lớp\s*9|lop\s*9|khối\s*9|khoi\s*9|k9|toán\s*9|toan\s*9|ngữ\s*văn\s*9|ngu\s*van\s*9|tiếng\s*anh\s*9|tieng\s*anh\s*9|khtn\s*9|ôn\s*thi\s*(?:vào\s*)?10|on\s*thi\s*(?:vao\s*)?10)\b",
+    r"(?i)\b(?:lớp\s*9|lop\s*9|khối\s*9|khoi\s*9|k9|toán\s*9|toan\s*9|ngữ\s*văn\s*9|ngu\s*van\s*9|tiếng\s*anh\s*9|tieng\s*anh\s*9|khtn\s*9|tuyển\s*sinh\s*(?:vào\s*)?(?:lớp\s*)?10|tuyen\s*sinh\s*(?:vao\s*)?(?:lop\s*)?10|thi\s*vào\s*(?:lớp\s*)?10|thi\s*vao\s*(?:lop\s*)?10|vào\s*lớp\s*10|vao\s*lop\s*10|ôn\s*thi\s*(?:vào\s*)?(?:lớp\s*)?10|on\s*thi\s*(?:vao\s*)?(?:lop\s*)?10)\b",
 )
 RE_GRADE_8: Pattern = re.compile(
     r"(?i)\b(?:lớp\s*8|lop\s*8|khối\s*8|khoi\s*8|k8|toán\s*8|toan\s*8|ngữ\s*văn\s*8|ngu\s*van\s*8|khtn\s*8)\b",

@@ -98,16 +98,16 @@ class JumpButtonView(discord.ui.View):
         )
 
 
-class FeedbackModal(discord.ui.Modal, title="Góp Ý / Huấn Luyện Lại Môn Học"):
+class FeedbackModal(discord.ui.Modal, title="Góp Ý Chỉnh Sửa Phân Loại Đề"):
     corrected_subj = discord.ui.TextInput(
-        label="Môn học chính xác",
+        label="Môn học / Phân loại chính xác",
         placeholder="Ví dụ: TOÁN HỌC, VẬT LÝ, HÓA HỌC, TIẾNG ANH, TIN HỌC...",
         max_length=50,
         required=True,
     )
     notes = discord.ui.TextInput(
-        label="Lý do / Căn cứ nhận diện",
-        placeholder="Ví dụ: Đề chứa nhiều công thức đạo hàm, tích phân thuộc chương trình lớp 12...",
+        label="Ghi chú chi tiết (Khối lớp / Loại đề)",
+        placeholder="Ví dụ: Đề thi thử THPT môn Vật lí lớp 12...",
         style=discord.TextStyle.paragraph,
         max_length=500,
         required=False,
@@ -121,7 +121,7 @@ class FeedbackModal(discord.ui.Modal, title="Góp Ý / Huấn Luyện Lại Môn
     async def on_submit(self, interaction: discord.Interaction):
         try:
             from DocInspector.active_learning import ActiveLearningEngine
-            res = ActiveLearningEngine.record_feedback(
+            ActiveLearningEngine.record_feedback(
                 file_name=self.file_name,
                 corrected_subject=self.corrected_subj.value.strip(),
                 previous_subject=self.prev_subject,
@@ -129,13 +129,9 @@ class FeedbackModal(discord.ui.Modal, title="Góp Ý / Huấn Luyện Lại Môn
                 notes=self.notes.value.strip() if self.notes.value else "",
                 auto_retrain=True,
             )
-            retrain_info = ""
-            if res.get("retrain_metrics"):
-                m = res["retrain_metrics"]
-                retrain_info = f"\n🔄 *Đã hoàn tất 1 Epoch hiệu chuẩn: Loss = `{m.get('total_loss', 0.0)}` | Độ chính xác = `{m.get('subject_accuracy', 100)}%`*"
             await interaction.response.send_message(
-                f"✅ **ĐÃ GHI NHẬN VÀ HUẤN LUYỆN LẠI!**\n"
-                f"Hệ thống đã cập nhật trọng số cho môn **{self.corrected_subj.value.upper()}**.{retrain_info}",
+                f"✅ **ĐÃ GHI NHẬN GÓP Ý PHÂN LOẠI!**\n"
+                f"Cảm ơn bạn đã xác nhận thông tin phân loại môn **{self.corrected_subj.value.upper()}**.",
                 ephemeral=True,
             )
         except Exception as e:
@@ -159,8 +155,12 @@ class DocInspectorAuditView(discord.ui.View):
 
 
 def format_rich_exam_metadata(report: Any) -> str:
-    """Định dạng siêu dữ liệu đề thi chi tiết (năm học, trường, thời gian, mã đề, kỳ thi, cấu trúc, chuyên đề)."""
+    """Định dạng siêu dữ liệu đề thi chi tiết qua 4 bước kiểm tra tránh hiểu lầm."""
     extra = ""
+    if hasattr(report, 'detailed_exam_track') and report.detailed_exam_track:
+        extra += f"\n📌 **Loại đề:** `{report.detailed_exam_track}`"
+    if hasattr(report, 'grade_level_label_vi') and report.grade_level_label_vi:
+        extra += f"\n🎓 **Khối lớp:** `{report.grade_level_label_vi}`"
     if hasattr(report, 'academic_year') and report.academic_year:
         extra += f"\n📅 **Năm học:** `{report.academic_year}`"
     if hasattr(report, 'school_or_department') and report.school_or_department:
