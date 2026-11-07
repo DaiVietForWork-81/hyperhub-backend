@@ -143,96 +143,11 @@ class FeedbackModal(discord.ui.Modal, title="Góp Ý / Huấn Luyện Lại Môn
 
 
 class DocInspectorAuditView(discord.ui.View):
-    """View cung cấp nút bấm xem Bằng Chứng Minh Bạch Hóa (Audit Trail) và Phản hồi huấn luyện."""
+    """View cung cấp nút bấm Góp ý phân loại tài liệu."""
 
     def __init__(self, report: Any):
         super().__init__(timeout=None)
         self.report = report
-
-    @discord.ui.button(label="🔍 Bằng Chứng Thẩm Định", style=discord.ButtonStyle.secondary, custom_id="doc_audit_btn")
-    async def show_audit_trail(self, interaction: discord.Interaction, button: discord.ui.Button):
-        try:
-            from DocInspector.explainability import ExplainabilityEngine
-            dossier = ExplainabilityEngine.generate_dossier(self.report)
-            
-            emb = discord.Embed(
-                title=f"🔍 Hồ Sơ Bạch Hóa: {dossier.file_name}",
-                description=f"⏱️ **Thời gian xử lý:** `{dossier.execution_time_ms:.2f} ms` *(100% Thuật toán / Zero AI)*\n"
-                            f"📌 **Kết luận:** `{dossier.verdict}` — {dossier.verdict_explanation}",
-                color=0x3498DB if not dossier.is_spoofed else 0xE74C3C,
-            )
-            st = dossier.subject_trail
-            tokens_str = ", ".join(f"`{t.token}` (x{t.occurrence_count})" for t in st.evidence_tokens[:8]) or "Định dạng cấu trúc"
-            emb.add_field(
-                name="📚 Minh Bạch Môn Học",
-                value=f"• **Môn:** `{st.chosen_subject.value}` (Tin cậy: `{st.confidence*100:.1f}%`)\n"
-                      f"• **Điểm Top 1:** `{st.top_score:.1f}` | **Khoảng cách Top 2:** `+{st.margin:.1f}`\n"
-                      f"• **Thuật ngữ kích hoạt:** {tokens_str}",
-                inline=False,
-            )
-            qs = dossier.questions_summary
-            emb.add_field(
-                name="📝 Bóc Tách Câu Hỏi & Nhận Thức",
-                value=f"• **Tổng số câu:** `{qs.get('total_questions', 0)}`\n"
-                      f"• **Độ khó ước lượng:** `{qs.get('difficulty_index', 0)}/10.0`\n"
-                      f"• **Chuẩn Bộ GD&ĐT 2025:** `{'ĐẠT' if dossier.moet_2025_trail.get('compliant') else 'KHÔNG / DẠNG KHÁC'}`",
-                inline=False,
-            )
-            if dossier.is_spoofed:
-                emb.add_field(
-                    name="⚠️ Cảnh Báo Giả Mạo Tên Tệp",
-                    value=f"```{dossier.spoof_audit or 'Nội dung tệp lệch hoàn toàn so với tên tệp'}```",
-                    inline=False,
-                )
-            emb.set_footer(text="DocInspector Non-AI Explainable Engine • 100% Minh Bạch")
-            await interaction.response.send_message(embed=emb, ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"❌ Không thể tạo hồ sơ kiểm toán: `{e}`", ephemeral=True)
-
-    @discord.ui.button(label="🏛️ Dự Thảo Thẩm Định 3+1", style=discord.ButtonStyle.primary, custom_id="doc_quorum_btn")
-    async def show_quorum_draft(self, interaction: discord.Interaction, button: discord.ui.Button):
-        try:
-            qa = getattr(self.report, "quorum_arbitration", None)
-            dossier_md = getattr(self.report, "draft_dossier_markdown", None)
-            
-            if not qa and hasattr(self.report, "pass1") and getattr(self.report.pass1, "raw_text", None):
-                from DocInspector.consensus_engine import QuorumArbitrationEngine
-                res = QuorumArbitrationEngine.inspect(self.report.pass1.raw_text, file_name=getattr(self.report, "file_name", ""))
-                qa = res.to_dict()
-                dossier_md = res.draft_dossier_markdown
-
-            if not qa:
-                await interaction.response.send_message("ℹ️ Tài liệu đã được xác thực qua kênh mặc định.", ephemeral=True)
-                return
-
-            is_unanimous = qa.get("is_unanimous", True)
-            badge = "🟢 ĐỒNG THUẬN TUYỆT ĐỐI (3/3)" if is_unanimous else "⚖️ TRỌNG TÀI ĐỐI SOÁT (PASS 4)"
-            
-            emb = discord.Embed(
-                title=f"🏛️ Dự Thảo Thẩm Định: {qa.get('file_name', 'Tài liệu')}",
-                description=f"**Trạng thái biểu quyết:** `{badge}`\n"
-                            f"**Môn kết luận:** `{qa.get('final_subject_vi', 'Chung')}` | **Khối:** `{qa.get('final_grade_vi', 'Chung')}`",
-                color=0x2ECC71 if is_unanimous else 0xF39C12,
-            )
-
-            scans = qa.get("scans", [])
-            scans_text = []
-            for s in scans:
-                icon = "⚖️" if s.get("pass_number") == 4 else "🔹"
-                scans_text.append(f"{icon} **{s.get('pass_name')}:** `{s.get('subject_vi')}` ({s.get('confidence', 0)*100:.0f}%)")
-            
-            if scans_text:
-                emb.add_field(name="🗳️ Biểu Quyết Các Lần Quét", value="\n".join(scans_text), inline=False)
-
-            if not is_unanimous and qa.get("conflict_summary"):
-                emb.add_field(name="⚠️ Giải Trình Bất Đồng", value=qa.get("conflict_summary")[:1024], inline=False)
-                if qa.get("arbitration_rationale"):
-                    emb.add_field(name="⚖️ Phân Xử Của Trọng Tài", value=qa.get("arbitration_rationale")[:1024], inline=False)
-
-            emb.set_footer(text="Hội đồng Trọng tài 3+1 • Zero-AI Heuristic Engine")
-            await interaction.response.send_message(embed=emb, ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"❌ Không thể tạo dự thảo thẩm định: `{e}`", ephemeral=True)
 
     @discord.ui.button(label="🔄 Góp Ý Phân Loại", style=discord.ButtonStyle.secondary, custom_id="doc_feedback_btn")
     async def open_feedback_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
