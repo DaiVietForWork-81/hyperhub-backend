@@ -534,52 +534,85 @@ class DocumentInspector:
         )
 
         # -------------------------------------------------------------
-        # ĐỐI CHIẾU SÂU QUA CLOUD VERIFIER (NVIDIA NIM) NẾU ĐÃ CẤU HÌNH
+        # ĐỐI CHIẾU SÂU QUA CLOUD VERIFIER (NVIDIA NIM) VỚI BẢO VỆ QUOTA 40 RPM / 10K RPD
         # -------------------------------------------------------------
         try:
             from .cloud_verifier import CloudExamVerifier
-            cloud_res = CloudExamVerifier.verify_exam(file_name=name, raw_text=_raw_text)
-            if cloud_res:
-                c_subj = str(cloud_res.get("subject") or "").upper()
-                if c_subj in Subject.__members__ and c_subj != "GENERAL":
-                    subject = Subject[c_subj]
-                    conf = max(conf, float(cloud_res.get("confidence") or 0.96))
 
-                c_grade = cloud_res.get("grade_number")
-                grade_map = {
-                    6: GradeLevel.GRADE_6,
-                    7: GradeLevel.GRADE_7,
-                    8: GradeLevel.GRADE_8,
-                    9: GradeLevel.GRADE_9,
-                    10: GradeLevel.GRADE_10,
-                    11: GradeLevel.GRADE_11,
-                    12: GradeLevel.GRADE_12,
-                }
-                if isinstance(c_grade, int) and c_grade in grade_map:
-                    pass2.grade_level = grade_map[c_grade]
+            has_subj_conflict = bool(
+                pass1.subject_hint != Subject.GENERAL
+                and pass2.detected_subject != Subject.GENERAL
+                and pass1.subject_hint != pass2.detected_subject
+            )
+            if CloudExamVerifier.should_invoke_cloud(
+                file_name=name,
+                raw_text=_raw_text,
+                local_subject=subject.name,
+                local_grade=pass2.grade_level.value,
+                local_track=exam_track.value,
+                local_confidence=conf,
+                has_conflict=has_subj_conflict,
+            ):
+                cloud_res = CloudExamVerifier.verify_exam(file_name=name, raw_text=_raw_text)
+                if cloud_res:
+                    if cloud_res.get("is_valid_exam") is False and pass2.total_question_markers == 0:
+                        verdict = InspectionVerdict.REJECTED_NOT_EXAM
 
-                c_track = str(cloud_res.get("exam_track") or "").lower()
-                track_map = {
-                    "thuong": (ExamTrackTier.THUONG, "thường"),
-                    "hsg": (ExamTrackTier.HSG, "hsg"),
-                    "chuyen": (ExamTrackTier.CHUYEN, "chuyên"),
-                    "quoc_te": (ExamTrackTier.QUOC_TE, "quốc tế"),
-                    "chung": (ExamTrackTier.CHUNG, "chung"),
-                }
-                if c_track in track_map:
-                    exam_track, track_label = track_map[c_track]
+                    c_subj = str(cloud_res.get("subject") or "").upper()
+                    if c_subj in Subject.__members__ and c_subj != "GENERAL":
+                        subject = Subject[c_subj]
+                        conf = max(conf, float(cloud_res.get("confidence") or 0.96))
 
-                c_detailed = cloud_res.get("detailed_exam_track")
-                if isinstance(c_detailed, str) and len(c_detailed.strip()) > 3:
-                    detailed_track_str = c_detailed.strip()
+                    c_grade = cloud_res.get("grade_number")
+                    c_grade_str = str(cloud_res.get("grade_level") or "")
+                    if not isinstance(c_grade, int):
+                        m_gr = re.search(r"\b(6|7|8|9|10|11|12)\b", c_grade_str)
+                        if m_gr:
+                            c_grade = int(m_gr.group(1))
 
-                c_school = cloud_res.get("school_or_department")
-                if not school_str and isinstance(c_school, str) and len(c_school.strip()) > 2 and c_school.lower() != "null":
-                    school_str = c_school.strip()
+                    grade_map = {
+                        6: GradeLevel.GRADE_6,
+                        7: GradeLevel.GRADE_7,
+                        8: GradeLevel.GRADE_8,
+                        9: GradeLevel.GRADE_9,
+                        10: GradeLevel.GRADE_10,
+                        11: GradeLevel.GRADE_11,
+                        12: GradeLevel.GRADE_12,
+                    }
+                    if isinstance(c_grade, int) and c_grade in grade_map:
+                        pass2.grade_level = grade_map[c_grade]
 
-                c_year = cloud_res.get("academic_year")
-                if not academic_year_str and isinstance(c_year, str) and re.search(r"20\d{2}", c_year):
-                    academic_year_str = c_year.strip()
+                    c_track = str(cloud_res.get("exam_track") or "").lower()
+                    track_map = {
+                        "thuong": (ExamTrackTier.THUONG, "thường"),
+                        "hsg": (ExamTrackTier.HSG, "hsg"),
+                        "chuyen": (ExamTrackTier.CHUYEN, "chuyên"),
+                        "quoc_te": (ExamTrackTier.QUOC_TE, "quốc tế"),
+                        "chung": (ExamTrackTier.CHUNG, "chung"),
+                    }
+                    if c_track in track_map:
+                        exam_track, track_label = track_map[c_track]
+
+                    c_detailed = cloud_res.get("detailed_exam_track")
+                    if isinstance(c_detailed, str) and len(c_detailed.strip()) > 3:
+                        detailed_track_str = c_detailed.strip()
+
+                    c_school = cloud_res.get("school_or_department")
+                    if (
+                        not school_str
+                        and isinstance(c_school, str)
+                        and len(c_school.strip()) > 2
+                        and c_school.lower() != "null"
+                    ):
+                        school_str = c_school.strip()
+
+                    c_year = cloud_res.get("academic_year")
+                    if (
+                        not academic_year_str
+                        and isinstance(c_year, str)
+                        and re.search(r"20\d{2}", c_year)
+                    ):
+                        academic_year_str = c_year.strip()
         except Exception:
             pass
 
