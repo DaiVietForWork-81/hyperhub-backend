@@ -333,7 +333,7 @@ class DocumentIntakeCog(commands.Cog):
             self._sync_turso_task.cancel()
 
     async def _turso_pending_sync_loop(self) -> None:
-        """Lắng nghe và tự động đăng các đề thi được nộp lên Turso khi bot offline."""
+        """Chu kỳ 45 giây: Đồng bộ đề thi từ Turso Cloud + Gửi toàn bộ file đã list về Cloud Model (550B) để đọc và phân tích sâu."""
         await self.bot.wait_until_ready()
         await asyncio.sleep(5)  # Chờ 5s cho bot hoàn tất kết nối Discord
         while not self.bot.is_closed():
@@ -341,7 +341,145 @@ class DocumentIntakeCog(commands.Cog):
                 await self.sync_pending_turso_documents()
             except Exception as e:
                 log.debug("Lỗi trong vòng lặp sync Turso: %s", e)
-            await asyncio.sleep(45)  # Quét mỗi 45 giây (tối ưu hạn ngạch 500M reads của Turso)
+            try:
+                await self.run_45s_batch_cloud_analysis()
+            except Exception as e:
+                log.debug("Lỗi trong vòng lặp phân tích lô 45 giây: %s", e)
+            await asyncio.sleep(45)  # Cứ 45 giây gom và phân tích toàn bộ file đã list
+
+    async def run_45s_batch_cloud_analysis(self) -> int:
+        """
+        Cứ 45 giây: Tổng hợp tất cả các file mà Bot đã list/thu thập được (trong hàng đợi 45s
+        hoặc trong documents_archive chưa qua bước thẩm định sâu) để gửi về Model 550B đọc & phân loại.
+        """
+        from DocInspector.cloud_verifier import CloudExamVerifier
+        from database.turso_client import turso_db
+
+        # 1. Rà soát các file mới được list trong SQLite local chưa có nhãn CLOUD_DEEP_VERIFIED
+        if hasattr(self.bot, "db"):
+            try:
+                unverified_rows = await self.bot.db.fetchall(
+                    """
+                    SELECT id, file_name, raw_text, subject, estimated_level
+                    FROM documents_archive
+                    WHERE raw_text IS NOT NULL AND LENGTH(raw_text) > 30
+                      AND (quorum_status IS NULL OR quorum_status NOT IN ('CLOUD_DEEP_VERIFIED', 'UNANIMOUS_3_3'))
+                    ORDER BY id DESC
+                    LIMIT 12
+                    """
+                )
+                for r_id, r_fname, r_text, r_subj, r_lvl in unverified_rows:
+                    CloudExamVerifier.enqueue_for_45s_batch(
+                        doc_id=r_id,
+                        file_name=r_fname or f"doc_{r_id}.pdf",
+                        raw_text=r_text,
+                        metadata={"source": "sqlite", "old_subject": r_subj, "old_level": r_lvl},
+                    )
+            except Exception as e:
+                log.debug("Bỏ qua quét SQLite trong chu kỳ 45s: %s", e)
+
+        # 2. Rà soát các file mới trên Turso Cloud
+        if turso_db.is_configured:
+            try:
+                turso_rows = await turso_db.fetchall(
+                    """
+                    SELECT id, file_name, raw_text, subject, estimated_level
+                    FROM documents_archive
+                    WHERE raw_text IS NOT NULL AND LENGTH(raw_text) > 30
+                      AND (verdict IS NULL OR verdict != 'CLOUD_DEEP_VERIFIED')
+                    ORDER BY id DESC
+                    LIMIT 12
+                    """
+                )
+                for tr in turso_rows:
+                    t_id = tr.get("id")
+                    t_fname = tr.get("file_name") or f"doc_{t_id}.pdf"
+                    t_text = tr.get("raw_text") or ""
+                    if t_id and len(t_text) > 30:
+                        CloudExamVerifier.enqueue_for_45s_batch(
+                            doc_id=t_id,
+                            file_name=t_fname,
+                            raw_text=t_text,
+                            metadata={"source": "turso"},
+                        )
+            except Exception as e:
+                log.debug("Bỏ qua quét Turso trong chu kỳ 45s: %s", e)
+
+        # 3. Đẩy toàn bộ lô đã gom trong 45s qua lên Model 550B (timeout < 60s/file)
+        completed = await asyncio.to_thread(CloudExamVerifier.flush_45s_batch, 18)
+        if not completed:
+            return 0
+
+        updated_count = 0
+        for item in completed:
+            doc_id = item.get("doc_id")
+            v = item.get("verified") or {}
+            new_subj = str(v.get("subject") or "").upper()
+            new_grade = str(v.get("grade_level") or "").strip()
+            new_detailed = str(v.get("detailed_exam_track") or "").strip()
+            new_track = str(v.get("exam_track") or "").upper()
+            new_school = v.get("school_or_department")
+            new_year = v.get("academic_year")
+
+            if not new_subj or new_subj == "GENERAL":
+                continue
+
+            est_level = new_grade
+            if new_detailed and new_detailed not in est_level:
+                est_level = f"{new_grade} ({new_detailed})" if new_grade else new_detailed
+
+            if isinstance(doc_id, int) or (isinstance(doc_id, str) and doc_id.isdigit()):
+                num_id = int(doc_id)
+                if hasattr(self.bot, "db"):
+                    try:
+                        await self.bot.db.execute(
+                            """
+                            UPDATE documents_archive
+                            SET subject = COALESCE(NULLIF(?, ''), subject),
+                                estimated_level = COALESCE(NULLIF(?, ''), estimated_level),
+                                exam_track = COALESCE(NULLIF(?, ''), exam_track),
+                                school_or_department = COALESCE(NULLIF(?, ''), school_or_department),
+                                academic_year = COALESCE(NULLIF(?, ''), academic_year),
+                                quorum_status = 'CLOUD_DEEP_VERIFIED'
+                            WHERE id = ?
+                            """,
+                            new_subj,
+                            est_level,
+                            new_track,
+                            new_school if (new_school and str(new_school).lower() != "null") else "",
+                            new_year if (new_year and str(new_year).lower() != "null") else "",
+                            num_id,
+                        )
+                    except Exception:
+                        pass
+
+                if turso_db.is_configured:
+                    try:
+                        await turso_db.execute(
+                            """
+                            UPDATE documents_archive
+                            SET subject = COALESCE(NULLIF(?, ''), subject),
+                                estimated_level = COALESCE(NULLIF(?, ''), estimated_level),
+                                exam_track = COALESCE(NULLIF(?, ''), exam_track),
+                                school_or_department = COALESCE(NULLIF(?, ''), school_or_department),
+                                academic_year = COALESCE(NULLIF(?, ''), academic_year),
+                                verdict = 'CLOUD_DEEP_VERIFIED'
+                            WHERE id = ?
+                            """,
+                            new_subj,
+                            est_level,
+                            new_track,
+                            new_school if (new_school and str(new_school).lower() != "null") else "",
+                            new_year if (new_year and str(new_year).lower() != "null") else "",
+                            num_id,
+                        )
+                    except Exception:
+                        pass
+                updated_count += 1
+
+        if updated_count > 0:
+            log.info("✅ [Chu kỳ 45s] Đã đọc & cập nhật phân loại chuyên sâu cho %d tài liệu.", updated_count)
+        return updated_count
 
     async def sync_pending_turso_documents(self) -> int:
         """Đồng bộ các đề thi nộp từ Web lúc Bot offline từ Turso Cloud sang các kênh Discord."""
@@ -1035,15 +1173,19 @@ class DocumentIntakeCog(commands.Cog):
 
         indexed_count = 0
 
-        # 1. Quét tệp đính kèm (Attachments)
+        # 1. Quét tệp đính kèm (Attachments) — hỗ trợ gửi nhiều tệp cùng lúc (miễn mỗi tệp <= 25MB)
         if message.attachments:
             for att in message.attachments:
+                if att.size and att.size > 25 * 1024 * 1024:
+                    continue
                 ext = Path(att.filename).suffix.lower()
                 if ext not in [".pdf", ".docx", ".doc", ".txt", ".cpp", ".py", ".zip", ".rar", ".7z", ".png", ".jpg", ".jpeg", ".webp", ".bmp"]:
                     continue
 
                 try:
                     data = await att.read()
+                    if len(data) > 25 * 1024 * 1024:
+                        continue
                     file_hash = fast_sha256(data) if data else None
 
                     # Kiểm tra trùng lặp bằng file_hash
@@ -1059,6 +1201,7 @@ class DocumentIntakeCog(commands.Cog):
                     level_str = "Tài liệu"
                     q_count = 0
                     file_type = ext.replace(".", "").upper()
+                    raw_text_extracted = ""
 
                     # Phân loại bằng HybridExamClassifier
                     if HybridExamClassifier:
@@ -1072,6 +1215,7 @@ class DocumentIntakeCog(commands.Cog):
                             level_str = "Chung ( chung cho tất cả khối )"
                         q_count = res.question_count
                         file_type = res.raw_file_type
+                        raw_text_extracted = getattr(res, "raw_text", "") or ""
 
                     now_iso = message.created_at.isoformat()
                     author_name = message.author.display_name or message.author.name
@@ -1083,8 +1227,8 @@ class DocumentIntakeCog(commands.Cog):
                         INSERT INTO documents_archive (
                             subject, title, file_name, file_size_bytes, file_type,
                             estimated_level, question_count, page_count, author_id,
-                            author_name, channel_id, message_id, jump_url, timestamp, file_hash
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            author_name, channel_id, message_id, jump_url, timestamp, file_hash, raw_text
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         subject_name,
                         att.filename,
@@ -1101,7 +1245,22 @@ class DocumentIntakeCog(commands.Cog):
                         message.jump_url,
                         now_iso,
                         file_hash,
+                        raw_text_extracted[:50000] if raw_text_extracted else "",
                     )
+                    try:
+                        from DocInspector.cloud_verifier import CloudExamVerifier
+                        last_row = await self.bot.db.fetchone(
+                            "SELECT id FROM documents_archive WHERE file_hash = ? ORDER BY id DESC LIMIT 1",
+                            file_hash,
+                        )
+                        if last_row and raw_text_extracted:
+                            CloudExamVerifier.enqueue_for_45s_batch(
+                                doc_id=last_row[0],
+                                file_name=att.filename,
+                                raw_text=raw_text_extracted,
+                            )
+                    except Exception:
+                        pass
                     indexed_count += 1
                     log.info(
                         "Đã lập chỉ mục đề thi '%s' từ kênh #%s (Người gửi: %s, Môn: %s)",
@@ -1736,21 +1895,20 @@ class DocumentIntakeCog(commands.Cog):
             except Exception as ie:
                 log.debug("Lỗi khi tự động lập chỉ mục tin nhắn trong Category: %s", ie)
 
-            # 2. Nếu là người dùng gửi trực tiếp (Admin), kiểm tra thêm Channel Compliance
+            # 2. Nếu là người dùng gửi trực tiếp (Admin), kiểm tra thêm Channel Compliance cho tất cả tệp (mỗi tệp <= 25MB)
             if not message.author.bot:
                 try:
-                    target_data = None
-                    file_name = None
+                    targets_to_check: list[tuple[bytes | str, Optional[str]]] = []
                     if message.attachments:
-                        att = message.attachments[0]
-                        file_name = att.filename
-                        target_data = await att.read()
+                        for att in message.attachments:
+                            if att.size and att.size > 25 * 1024 * 1024:
+                                continue
+                            targets_to_check.append((await att.read(), att.filename))
                     else:
-                        url_m = re.search(r"https?://[^\s]+", message.content)
-                        if url_m:
-                            target_data = url_m.group(0)
+                        for url_m in re.finditer(r"https?://[^\s]+", message.content):
+                            targets_to_check.append((url_m.group(0), None))
 
-                    if target_data:
+                    for target_data, file_name in targets_to_check:
                         rep = await asyncio.to_thread(
                             BotInspectorAdapter.inspect_in_channel,
                             file_path_or_bytes=target_data,
@@ -1761,7 +1919,7 @@ class DocumentIntakeCog(commands.Cog):
                         compliance = rep.channel_compliance
                         if compliance and not compliance.is_compliant:
                             warn_msg = (
-                                f"⚠️ {message.author.mention}, tài liệu bạn vừa đăng có thể **sai chuyên mục kênh**!\n"
+                                f"⚠️ {message.author.mention}, tài liệu `{file_name or 'liên kết'}` bạn vừa đăng có thể **sai chuyên mục kênh**!\n"
                                 f"{compliance.warning_message}\n"
                                 f"💡 *Khuyên dùng:* Hãy gửi tài liệu tại <#{intake_channel_id}> để hệ thống tự động phân loại chuẩn xác nhất!"
                             )

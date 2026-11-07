@@ -319,12 +319,12 @@ if HAS_PYDANTIC:
             description="NVIDIA NIM API Base URL",
         )
         NVIDIA_PRIMARY_MODEL: str = Field(
-            default="nvidia/nemotron-3.5-super-vl-120b-a12b",
-            description="Model chính 120B tốc độ cao trên NVIDIA NIM (~0.7s)",
+            default="nvidia/nemotron-3-ultra-550b-a55b",
+            description="Model chính 550B mạnh nhất trên NVIDIA NIM (~5-8s/file, < 1p)",
         )
         NVIDIA_FALLBACK_MODEL: str = Field(
-            default="nvidia/nemotron-3.5-lightning-30b-a3b",
-            description="Model dự phòng 30B tốc độ cao trên NVIDIA NIM (~0.68s)",
+            default="nvidia/nemotron-3.5-super-vl-120b-a12b",
+            description="Model dự phòng 120B trên NVIDIA NIM",
         )
         CONFLICT_MONITOR_CATEGORY_ID: int = Field(
             default=1534147161091211414,

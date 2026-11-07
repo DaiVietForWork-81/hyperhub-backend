@@ -62,9 +62,9 @@ ALLOWED_DOCUMENT_EXTENSIONS = {
     ".pdf", ".docx", ".doc", ".txt", ".xlsx", ".xls", ".pptx", ".ppt"
 }
 
-# Giới hạn kích thước tệp tối đa: 30 MB
-MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024
-MAX_FOLDER_FILES = 10
+# Giới hạn kích thước mỗi tệp tối đa: 25 MB (cho phép gửi nhiều tệp cùng lúc, miễn 1 tệp <= 25MB)
+MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
+MAX_FOLDER_FILES = 100
 
 
 # ============================================================================
@@ -225,16 +225,17 @@ def sandboxed_download_gdrive(
             full_p = os.path.join(root, f)
             sz = os.path.getsize(full_p)
 
-            # Kiểm soát dung lượng tệp tối đa 30MB
+            # Kiểm soát dung lượng từng tệp tối đa 25MB (nếu gửi nhiều tệp thì chỉ bỏ qua tệp vượt 25MB, giữ lại các tệp hợp lệ)
             if sz > max_size_bytes:
                 try:
                     os.remove(full_p)
                 except Exception:
                     pass
-                raise ValueError(
-                    f"Tệp '{f}' vượt quá dung lượng tối đa cho phép ({sz / (1024 * 1024):.1f} MB > 30 MB). "
-                    f"Đã hủy bỏ tải về vì lý do bảo mật."
-                )
+                if not is_folder and len(files) == 1:
+                    raise ValueError(
+                        f"Tệp '{f}' vượt quá dung lượng tối đa 25 MB/tệp ({sz / (1024 * 1024):.1f} MB > 25 MB)."
+                    )
+                continue
 
             # Loại bỏ ngay lập tức nếu tải về tệp có đuôi nguy hiểm
             ext = os.path.splitext(f)[1].lower()
@@ -512,7 +513,9 @@ def inspect_file(file_path: str, file_name: str, file_bytes: bytes | None = None
             if hasattr(report, "school_or_department"):
                 result["school_or_department"] = report.school_or_department
 
-            if hasattr(report, "human_summary"):
+            if hasattr(report, "pass1") and report.pass1 and getattr(report.pass1, "raw_text", None):
+                result["raw_text"] = report.pass1.raw_text
+            elif hasattr(report, "human_summary"):
                 result["raw_text"] = report.human_summary or ""
 
             if hasattr(report, "verdict") and report.verdict is not None:
@@ -709,6 +712,17 @@ def import_file_to_bot(
     doc_id = cursor.lastrowid
     conn.commit()
     conn.close()
+
+    # Đưa vào hàng đợi 45 giây của CloudExamVerifier để tổng hợp & đọc phân tích sâu
+    try:
+        from DocInspector.cloud_verifier import CloudExamVerifier
+        CloudExamVerifier.enqueue_for_45s_batch(
+            doc_id=doc_id,
+            file_name=file_name,
+            raw_text=inspection.get("raw_text") or "",
+        )
+    except Exception:
+        pass
 
     # Sao lưu tệp vào thư mục lưu trữ cục bộ
     dest_path = os.path.realpath(os.path.join(STORAGE_UPLOADS_DIR, f"{doc_id}_{file_name}"))

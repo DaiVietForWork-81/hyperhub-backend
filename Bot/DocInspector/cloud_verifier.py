@@ -1,10 +1,14 @@
 """
-DocInspector - Cloud Deep Semantic Verifier (NVIDIA NIM API).
-Tối ưu hóa chuyên biệt cho giới hạn 40 requests/phút & 10.000 requests/ngày:
-1. Fingerprint Cache (SHA-256 LRU): Đề đã quét 1 lần không bao giờ tốn request lần 2.
-2. Sliding-Window Rate Limiter (35 RPM / 9.500 RPD) + Pacing Queue (giãn cách an toàn, chống HTTP 429).
-3. Multi-Exam Batching (verify_batch): Gộp tối đa 8 đề vào 1 request duy nhất khi nạp hàng loạt / Google Drive.
-4. Smart Selective Gating (should_invoke_cloud): Tiết kiệm ~70% quota cho các đề đã rõ ràng tuyệt đối, ưu tiên 100% quota cho đề dễ nhầm lẫn.
+DocInspector - Cloud Deep Semantic Verifier & 45s Batch Aggregator (NVIDIA NIM API).
+Sử dụng dàn Model mạnh nhất trên build.nvidia.com (timeout < 60s / file):
+1. Primary: nvidia/nemotron-3-ultra-550b-a55b (550 tỷ tham số - Deep Reasoning + JSON, ~5-8s/file)
+2. Fallback 1: nvidia/nemotron-3.5-super-vl-120b-a12b (120 tỷ tham số)
+3. Fallback 2: google/gemma-4-31b-it (31 tỷ tham số)
+4. Fallback 3: z-ai/glm-5.3-flash & nvidia/nemotron-3.5-bolt-e4b
+
+Cơ chế gom lô 45 giây (45s Batch Aggregator):
+- Cứ mỗi 45 giây, toàn bộ các tệp mà Bot đã list/tổng hợp được sẽ được gom lại và gửi về Cloud Model để đọc hiểu & phân tích sâu.
+- Kết hợp Fingerprint Cache (SHA-256) và Rate Guard (<= 34 req/phút, <= 9.500 req/ngày).
 """
 
 from __future__ import annotations
@@ -20,7 +24,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger("DocInspector.CloudVerifier")
 
@@ -30,15 +34,19 @@ _LOCK = threading.Lock()
 # Giới hạn an toàn dưới mức trần 40 RPM & 10.000 RPD của NVIDIA NIM
 MAX_REQUESTS_PER_MINUTE = 34
 MAX_REQUESTS_PER_DAY = 9500
-MIN_INTERVAL_SECONDS = 1.55  # Tối đa ~38 req/phút ngay cả khi gọi liên tục
+MIN_INTERVAL_SECONDS = 1.6
+BATCH_FLUSH_INTERVAL_SECONDS = 45.0  # Chu kỳ 45 giây gom và phân tích toàn bộ file đã list
 
 _MINUTE_WINDOW: deque[float] = deque()
 _DAY_WINDOW: deque[float] = deque()
 _LAST_REQUEST_TS: float = 0.0
 
-# LRU Cache lưu tới 4.000 kết quả thẩm định đề thi trong RAM (chỉ tốn ~1.5MB RAM)
+# LRU Cache lưu tới 4.000 kết quả thẩm định đề thi trong RAM
 _VERIFICATION_CACHE: OrderedDict[str, Dict[str, Any]] = OrderedDict()
 _MAX_CACHE_SIZE = 4000
+
+# Hàng đợi gom các file mà Bot đã list/tổng hợp để phân tích định kỳ mỗi 45 giây
+_PENDING_45S_QUEUE: OrderedDict[str, Dict[str, Any]] = OrderedDict()
 
 
 def _get_nvidia_credentials() -> tuple[str, str, str, str]:
@@ -61,10 +69,10 @@ def _get_nvidia_credentials() -> tuple[str, str, str, str]:
         .rstrip("/")
     )
     primary_model = os.environ.get(
-        "NVIDIA_PRIMARY_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b"
+        "NVIDIA_PRIMARY_MODEL", "nvidia/nemotron-3-ultra-550b-a55b"
     ).strip()
     fallback_model = os.environ.get(
-        "NVIDIA_FALLBACK_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b"
+        "NVIDIA_FALLBACK_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b"
     ).strip()
 
     if not api_key:
@@ -93,7 +101,7 @@ def _make_fingerprint(file_name: str, raw_text: str) -> str:
     return digest[:32]
 
 
-def _acquire_rate_limit_slot(wait_if_needed: bool = True, max_wait_sec: float = 12.0) -> bool:
+def _acquire_rate_limit_slot(wait_if_needed: bool = True, max_wait_sec: float = 45.0) -> bool:
     """Đảm bảo không bao giờ vượt 34 req/phút và 9.500 req/ngày."""
     global _LAST_REQUEST_TS
     deadline = time.time() + max_wait_sec
@@ -133,7 +141,7 @@ def _acquire_rate_limit_slot(wait_if_needed: bool = True, max_wait_sec: float = 
 
 
 SYSTEM_PROMPT_VI = """Bạn là hệ thống thẩm định và phân loại đề thi chương trình giáo dục phổ thông Việt Nam (GDPT 2018).
-Nhiệm vụ của bạn là đọc tên tệp và nội dung trích xuất của đề thi, thực hiện đối chiếu 4 bước và trả về DUY NHẤT kết quả JSON hợp lệ (không giải thích dài dòng, không dùng markdown ngoài khối JSON):
+Nhiệm vụ của bạn là đọc tên tệp và nội dung trích xuất của đề thi, thực hiện đối chiếu 4 bước và trả về DUY NHẤT kết quả JSON hợp lệ (không giải thích ngoài khối JSON):
 
 QUY TẮC BẮT BUỘC TRÁNH NHẦM LẪN:
 1. Tách biệt "Trường THPT Chuyên" và "Đề thi Chuyên / HSG":
@@ -162,8 +170,48 @@ QUY TẮC BẮT BUỘC TRÁNH NHẦM LẪN:
 }"""
 
 
+def _build_model_chain(primary_model: str, fallback_model: str) -> List[str]:
+    chain: List[str] = []
+    for m in (
+        primary_model,
+        fallback_model,
+        "nvidia/nemotron-3-ultra-550b-a55b",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "google/gemma-4-31b-it",
+        "z-ai/glm-5.3-flash",
+        "nvidia/nemotron-3.5-bolt-e4b",
+    ):
+        if m and m not in chain:
+            chain.append(m)
+    return chain
+
+
+def _build_payload_for_model(
+    model_name: str, system_prompt: str, user_prompt: str, base_tokens: int = 320
+) -> Dict[str, Any]:
+    """Tối ưu tham số riêng cho từng dòng model (550B Ultra / GLM dùng reasoning sâu; 120B / Gemma trả thẳng JSON)."""
+    is_deep_reasoning = any(
+        k in model_name for k in ("ultra-550b", "glm-5.3", "kimi", "deepseek")
+    )
+    payload: Dict[str, Any] = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "max_tokens": max(1300, base_tokens * 3) if is_deep_reasoning else base_tokens,
+        "temperature": 0.0,
+    }
+    if not is_deep_reasoning:
+        payload["chat_template_kwargs"] = {
+            "thinking": False,
+            "enable_thinking": False,
+        }
+    return payload
+
+
 class CloudExamVerifier:
-    """Bộ đối chiếu đề thi qua NVIDIA NIM API với cơ chế bảo vệ Quota 40 RPM / 10k RPD."""
+    """Bộ đối chiếu đề thi qua NVIDIA NIM API (Model 550B + Chu kỳ gom lô 45 giây)."""
 
     @classmethod
     def get_quota_stats(cls) -> Dict[str, Any]:
@@ -179,7 +227,67 @@ class CloudExamVerifier:
                 "rpd_used": len(_DAY_WINDOW),
                 "rpd_limit": MAX_REQUESTS_PER_DAY,
                 "cache_size": len(_VERIFICATION_CACHE),
+                "pending_45s_queue": len(_PENDING_45S_QUEUE),
             }
+
+    @classmethod
+    def enqueue_for_45s_batch(
+        cls,
+        doc_id: int | str,
+        file_name: str,
+        raw_text: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Đưa tệp vừa được Bot list/tổng hợp vào hàng đợi để chu kỳ 45s gom gửi phân tích."""
+        if not raw_text or len(raw_text.strip()) < 25:
+            return
+        fp = _make_fingerprint(file_name, raw_text)
+        with _LOCK:
+            if fp in _VERIFICATION_CACHE:
+                return
+            key = str(doc_id or fp)
+            _PENDING_45S_QUEUE[key] = {
+                "doc_id": doc_id,
+                "file_name": file_name,
+                "raw_text": raw_text,
+                "fingerprint": fp,
+                "metadata": metadata or {},
+                "enqueued_at": time.time(),
+            }
+
+    @classmethod
+    def flush_45s_batch(cls, max_items: int = 24) -> List[Dict[str, Any]]:
+        """
+        Được gọi định kỳ mỗi 45 giây bởi Bot:
+        Lấy toàn bộ các file đã được list/tổng hợp trong 45s qua, gom thành các lô (batch)
+        và gửi tới Model 550B để đọc hiểu & phân loại sâu.
+        Trả về danh sách kết quả [{"doc_id": ..., "file_name": ..., "verified": {...}, "metadata": {...}}].
+        """
+        with _LOCK:
+            if not _PENDING_45S_QUEUE:
+                return []
+            batch_entries: List[Dict[str, Any]] = []
+            keys_to_pop = list(_PENDING_45S_QUEUE.keys())[:max_items]
+            for k in keys_to_pop:
+                batch_entries.append(_PENDING_45S_QUEUE.pop(k))
+
+        items_input = [
+            {"file_name": e["file_name"], "raw_text": e["raw_text"]} for e in batch_entries
+        ]
+        verified_list = cls.verify_batch(items_input, timeout_sec=50.0)
+
+        completed: List[Dict[str, Any]] = []
+        for entry, v_res in zip(batch_entries, verified_list):
+            if v_res and isinstance(v_res, dict) and v_res.get("subject"):
+                completed.append(
+                    {
+                        "doc_id": entry["doc_id"],
+                        "file_name": entry["file_name"],
+                        "verified": v_res,
+                        "metadata": entry["metadata"],
+                    }
+                )
+        return completed
 
     @classmethod
     def should_invoke_cloud(
@@ -192,13 +300,6 @@ class CloudExamVerifier:
         local_confidence: float,
         has_conflict: bool = False,
     ) -> bool:
-        """
-        Quyết định thông minh xem có cần gọi Cloud hay không để tiết kiệm 10.000 req/ngày:
-        - Nếu đã có trong Cache -> gọi luôn (tốn 0 request).
-        - Nếu đề có bất kỳ dấu hiệu dễ nhầm lẫn nào (Chuyên vs Thi thử, Vào 10 vs Lớp 10,
-          KHTN Cấp 2 vs Lý/Hóa/Sinh Cấp 3, xung đột tiêu đề - nội dung, confidence < 0.90) -> BẮT BUỘC gọi Cloud.
-        - Nếu tải hệ thống đang rảnh (< 12 req/phút và < 5.000 req/ngày) -> cho phép gọi Cloud để thẩm định kép 100%.
-        """
         fp = _make_fingerprint(file_name, raw_text)
         with _LOCK:
             if fp in _VERIFICATION_CACHE:
@@ -214,7 +315,6 @@ class CloudExamVerifier:
             return True
 
         head_lower = f"{file_name} {(raw_text or '')[:1200]}".lower()
-        # Các mẫu dễ gây hiểu lầm nhất cần मॉडल 120B phân xử
         ambiguous_markers = (
             "chuyên",
             "chuyen",
@@ -234,7 +334,7 @@ class CloudExamVerifier:
             return True
 
         stats = cls.get_quota_stats()
-        if stats["rpm_used"] < 12 and stats["rpd_used"] < 5000:
+        if stats["rpm_used"] < 20 and stats["rpd_used"] < 8000:
             return True
 
         return False
@@ -244,8 +344,9 @@ class CloudExamVerifier:
         cls,
         file_name: str,
         raw_text: str,
-        timeout_sec: float = 12.0,
+        timeout_sec: float = 45.0,
     ) -> Optional[Dict[str, Any]]:
+        """Phân tích sâu 1 đề thi (timeout mặc định 45s < 1 phút/file để model 550B suy luận kỹ nhất)."""
         api_key, base_url, primary_model, fallback_model = _get_nvidia_credentials()
         if not api_key or not raw_text or len(raw_text.strip()) < 25:
             return None
@@ -257,13 +358,14 @@ class CloudExamVerifier:
                 _VERIFICATION_CACHE.move_to_end(fp)
                 return dict(cached)
 
-        if not _acquire_rate_limit_slot(wait_if_needed=True, max_wait_sec=10.0):
-            logger.info("CloudExamVerifier tạm nhường lượt để bảo vệ trần 40 RPM.")
+        if not _acquire_rate_limit_slot(wait_if_needed=True, max_wait_sec=35.0):
+            logger.info("CloudExamVerifier đưa file '%s' vào hàng đợi 45s để bảo vệ trần 40 RPM.", file_name)
+            cls.enqueue_for_45s_batch(doc_id=fp, file_name=file_name, raw_text=raw_text)
             return None
 
         clean_text = raw_text.strip()
-        if len(clean_text) > 3600:
-            snippet = clean_text[:2800] + "\n...\n" + clean_text[-700:]
+        if len(clean_text) > 4200:
+            snippet = clean_text[:3200] + "\n...\n" + clean_text[-900:]
         else:
             snippet = clean_text
 
@@ -273,35 +375,17 @@ class CloudExamVerifier:
             "Chỉ trả về đúng 1 JSON theo quy định:"
         )
 
-        models_chain = []
-        for m in (
-            primary_model,
-            fallback_model,
-            "nvidia/nemotron-3.5-bolt-e4b",
-        ):
-            if m and m not in models_chain:
-                models_chain.append(m)
+        models_chain = _build_model_chain(primary_model, fallback_model)
 
         for model_name in models_chain:
             for attempt in range(2):
                 try:
+                    payload = _build_payload_for_model(
+                        model_name, SYSTEM_PROMPT_VI, user_prompt, base_tokens=320
+                    )
                     req = urllib.request.Request(
                         f"{base_url}/chat/completions",
-                        data=json.dumps(
-                            {
-                                "model": model_name,
-                                "messages": [
-                                    {"role": "system", "content": SYSTEM_PROMPT_VI},
-                                    {"role": "user", "content": user_prompt},
-                                ],
-                                "max_tokens": 280,
-                                "temperature": 0.0,
-                                "chat_template_kwargs": {
-                                    "thinking": False,
-                                    "enable_thinking": False,
-                                },
-                            }
-                        ).encode("utf-8"),
+                        data=json.dumps(payload).encode("utf-8"),
                         headers={
                             "Authorization": f"Bearer {api_key}",
                             "Content-Type": "application/json",
@@ -310,9 +394,9 @@ class CloudExamVerifier:
                     with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
                         body = json.loads(resp.read().decode("utf-8"))
                         msg = body.get("choices", [{}])[0].get("message", {})
-                        content = (
-                            msg.get("content") or msg.get("reasoning_content") or ""
-                        ).strip()
+                        content = (msg.get("content") or "").strip()
+                        if not content:
+                            content = (msg.get("reasoning_content") or "").strip()
                         parsed = cls._extract_json(content)
                         if parsed and parsed.get("subject"):
                             with _LOCK:
@@ -323,7 +407,7 @@ class CloudExamVerifier:
                     break
                 except urllib.error.HTTPError as he:
                     if he.code == 429 and attempt == 0:
-                        time.sleep(2.2)
+                        time.sleep(2.5)
                         continue
                     logger.debug("CloudExamVerifier HTTP %s (%s)", he.code, model_name)
                     break
@@ -337,11 +421,10 @@ class CloudExamVerifier:
     def verify_batch(
         cls,
         items: List[Dict[str, str]],
-        timeout_sec: float = 15.0,
+        timeout_sec: float = 50.0,
     ) -> List[Optional[Dict[str, Any]]]:
         """
-        Gộp tối đa 8 đề thi vào 1 request duy nhất để tiết kiệm 85% số lượng request/phút
-        khi người dùng tải nhiều file cùng lúc hoặc quét thư mục Google Drive.
+        Gộp tối đa 6 đề thi vào 1 request duy nhất để phân tích sâu trong chu kỳ 45s.
         Mỗi phần tử trong items gồm: {"file_name": str, "raw_text": str}.
         """
         if not items:
@@ -382,20 +465,21 @@ class CloudExamVerifier:
             )
             return results
 
-        # Chia thành các lô tối đa 6 đề / 1 request để đảm bảo độ chính xác 100%
+        models_chain = _build_model_chain(primary_model, fallback_model)
         batch_size = 6
+
         for start in range(0, len(uncached_indices), batch_size):
             chunk_indices = uncached_indices[start : start + batch_size]
             chunk_fps = uncached_fps[start : start + batch_size]
 
-            if not _acquire_rate_limit_slot(wait_if_needed=True, max_wait_sec=12.0):
+            if not _acquire_rate_limit_slot(wait_if_needed=True, max_wait_sec=40.0):
                 break
 
             blocks = []
             for local_i, orig_idx in enumerate(chunk_indices):
                 fn = items[orig_idx].get("file_name", "")
                 rt = items[orig_idx].get("raw_text", "").strip()
-                snippet = rt[:1400] + ("\n...\n" + rt[-350:] if len(rt) > 1800 else "")
+                snippet = rt[:1500] + ("\n...\n" + rt[-400:] if len(rt) > 1900 else "")
                 blocks.append(f"--- ĐỀ SỐ {local_i} ---\nTên tệp: {fn}\nNội dung:\n{snippet}")
 
             batch_prompt = (
@@ -405,31 +489,18 @@ class CloudExamVerifier:
                 + "\n\n".join(blocks)
             )
 
-            for model_name in (
-                primary_model,
-                fallback_model,
-                "nvidia/nemotron-3.5-bolt-e4b",
-            ):
-                if not model_name:
-                    continue
+            batch_succeeded = False
+            for model_name in models_chain:
                 try:
+                    payload = _build_payload_for_model(
+                        model_name,
+                        SYSTEM_PROMPT_VI,
+                        batch_prompt,
+                        base_tokens=260 * len(chunk_indices),
+                    )
                     req = urllib.request.Request(
                         f"{base_url}/chat/completions",
-                        data=json.dumps(
-                            {
-                                "model": model_name,
-                                "messages": [
-                                    {"role": "system", "content": SYSTEM_PROMPT_VI},
-                                    {"role": "user", "content": batch_prompt},
-                                ],
-                                "max_tokens": 220 * len(chunk_indices),
-                                "temperature": 0.0,
-                                "chat_template_kwargs": {
-                                    "thinking": False,
-                                    "enable_thinking": False,
-                                },
-                            }
-                        ).encode("utf-8"),
+                        data=json.dumps(payload).encode("utf-8"),
                         headers={
                             "Authorization": f"Bearer {api_key}",
                             "Content-Type": "application/json",
@@ -438,9 +509,9 @@ class CloudExamVerifier:
                     with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
                         body = json.loads(resp.read().decode("utf-8"))
                         msg = body.get("choices", [{}])[0].get("message", {})
-                        content = (
-                            msg.get("content") or msg.get("reasoning_content") or ""
-                        ).strip()
+                        content = (msg.get("content") or "").strip()
+                        if not content:
+                            content = (msg.get("reasoning_content") or "").strip()
                         parsed_obj = cls._extract_json(content)
                         arr = (
                             parsed_obj.get("items")
@@ -454,10 +525,20 @@ class CloudExamVerifier:
                                     if isinstance(item_res, dict) and item_res.get("subject"):
                                         results[orig_idx] = item_res
                                         _VERIFICATION_CACHE[chunk_fps[local_i]] = dict(item_res)
+                            batch_succeeded = True
                             break
                 except Exception as e:
                     logger.debug("CloudExamVerifier batch (%s) bỏ qua: %s", model_name, e)
                     continue
+
+            # Nếu batch gộp bị lệch định dạng, fallback sang quét từng đề trong lô
+            if not batch_succeeded:
+                for orig_idx in chunk_indices:
+                    results[orig_idx] = cls.verify_exam(
+                        items[orig_idx].get("file_name", ""),
+                        items[orig_idx].get("raw_text", ""),
+                        timeout_sec=timeout_sec,
+                    )
 
         return results
 
@@ -465,11 +546,22 @@ class CloudExamVerifier:
     def _extract_json(text: str) -> Optional[Dict[str, Any]]:
         if not text:
             return None
-        match = re.search(r"\{[\s\S]*\}", text)
-        if not match:
+        # Nếu có nhiều cặp {...}, ưu tiên khối JSON cuối cùng (sau khi reasoning xong)
+        matches = list(re.finditer(r"\{[\s\S]*\}", text))
+        if not matches:
             return None
+        raw_block = matches[-1].group(0)
         try:
-            obj = json.loads(match.group(0))
+            obj = json.loads(raw_block)
             return obj if isinstance(obj, dict) else None
         except Exception:
+            # Thử tìm khối JSON khép kín cuối cùng
+            sub_matches = re.findall(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text)
+            for candidate in reversed(sub_matches):
+                try:
+                    obj = json.loads(candidate)
+                    if isinstance(obj, dict) and ("subject" in obj or "items" in obj):
+                        return obj
+                except Exception:
+                    continue
             return None
